@@ -64,3 +64,11 @@ page { height:100%; min-height:100%; overflow:hidden; background:#111722; color:
 .settings-title { display:block; margin-bottom:28rpx; text-align:center; color:#efd494; font-size:34rpx; letter-spacing:6rpx; }
 .setting-row { display:flex; align-items:center; justify-content:space-between; padding:21rpx 8rpx; border-bottom:1rpx solid rgba(202,207,194,.1); color:#d7d9d1; font-size:27rpx; }
 .settings-done { margin-top:30rpx; width:100%; color:#21272b; background:#d7bd7c; font-size:27rpx; }
+.intro-shade { position:absolute; inset:0; z-index:7; display:flex; align-items:center; justify-content:center; padding:32rpx; box-sizing:border-box; background:rgba(4,8,12,.86); }
+.intro-card { width:100%; max-height:88vh; display:flex; flex-direction:column; padding:38rpx 30rpx 26rpx; box-sizing:border-box; border:1rpx solid rgba(220,190,126,.46); border-radius:18rpx; background:linear-gradient(145deg,#293642,#151e27); box-shadow:0 20rpx 70rpx rgba(0,0,0,.55); }
+.intro-kicker { color:#a8b7b6; font-size:21rpx; letter-spacing:5rpx; text-align:center; }
+.intro-title { margin:14rpx 0 22rpx; color:#efd494; font-size:36rpx; letter-spacing:5rpx; text-align:center; }
+.intro-scroll { min-height:0; max-height:55vh; }
+.intro-paragraph { display:block; margin:0 2rpx 20rpx; color:#c2cbc8; font-size:24rpx; line-height:1.9; text-align:justify; }
+.intro-enter { flex:none; margin-top:14rpx; width:100%; color:#20272b; background:linear-gradient(100deg,#d7bb78,#f0d99e 50%,#c8a965); font-size:28rpx; letter-spacing:5rpx; }
+.intro-back { flex:none; margin-top:12rpx; width:100%; border:1rpx solid rgba(205,195,166,.25); color:#c7c9c2; background:transparent; font-size:24rpx; }

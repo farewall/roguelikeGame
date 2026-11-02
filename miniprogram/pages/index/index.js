@@ -10,10 +10,12 @@ const UPGRADES = [
   { id: 'earth', icon: '🪨', name: '厚土附魔', desc: '命中时震荡周围敌人', kind: 'earth' }
 ];
 Page({
-  data: { view: 'home', showSettings: false, soundOn: true, vibrationOn: true, hintsOn: true, hp: 100, level: 1, xp: 0, xpNeed: 5, xpPct: 0, stage: 1, stageName: STAGES[0], progress: 0, player: { x: 50, y: 55 }, enemies: [], effects: [], weaponName: '东皇钟', elementName: '白板', message: '', showChoice: false, choices: [], ended: false, endingTitle: '', endingCopy: '' },
-  onLoad() { this.setData({ view: 'home', showSettings: false, soundOn: true, vibrationOn: true, hintsOn: true }); },
+  data: { view: 'home', showSettings: false, showIntro: false, soundOn: true, vibrationOn: true, hintsOn: true, hp: 100, level: 1, xp: 0, xpNeed: 5, xpPct: 0, stage: 1, stageName: STAGES[0], progress: 0, player: { x: 50, y: 55 }, enemies: [], effects: [], weaponName: '东皇钟', elementName: '白板', message: '', showChoice: false, choices: [], ended: false, endingTitle: '', endingCopy: '' },
+  onLoad() { this.setData({ view: 'home', showSettings: false, showIntro: false, soundOn: true, vibrationOn: true, hintsOn: true }); },
   onUnload() { this.stopLoops(); },
-  startGame() { this.setData({ view: 'game' }); this.resetGame(); },
+  openIntro() { this.setData({ showIntro: true, showSettings: false }); },
+  closeIntro() { this.setData({ showIntro: false }); },
+  beginGame() { this.setData({ view: 'game', showIntro: false }); this.resetGame(); },
   openSettings() { this.setData({ showSettings: true }); },
   closeSettings() { this.setData({ showSettings: false }); },
   stopTap() {},
@@ -101,5 +103,6 @@ Page({
   dash() { if (this.dashing || this.data.ended) return; this.dashing = true; const hp = Math.min(100, this.data.hp + 5); this.setData({ hp }); this.player.x = Math.max(5, Math.min(95, this.player.x + (Math.random() > .5 ? 14 : -14))); this.setData({ player: this.player }); setTimeout(() => this.dashing = false, 1800); }
 });
 function dist(a,b) { const x=a.x-b.x,y=a.y-b.y; return Math.sqrt(x*x+y*y); }
+
 
 
