@@ -10,9 +10,16 @@ const UPGRADES = [
   { id: 'earth', icon: '🪨', name: '厚土附魔', desc: '命中时震荡周围敌人', kind: 'earth' }
 ];
 Page({
-  data: { hp: 100, level: 1, xp: 0, xpNeed: 5, xpPct: 0, stage: 1, stageName: STAGES[0], progress: 0, player: { x: 50, y: 55 }, enemies: [], effects: [], weaponName: '东皇钟', elementName: '白板', message: '', showChoice: false, choices: [], ended: false, endingTitle: '', endingCopy: '' },
-  onLoad() { this.resetGame(); },
+  data: { view: 'home', showSettings: false, soundOn: true, vibrationOn: true, hintsOn: true, hp: 100, level: 1, xp: 0, xpNeed: 5, xpPct: 0, stage: 1, stageName: STAGES[0], progress: 0, player: { x: 50, y: 55 }, enemies: [], effects: [], weaponName: '东皇钟', elementName: '白板', message: '', showChoice: false, choices: [], ended: false, endingTitle: '', endingCopy: '' },
+  onLoad() { this.setData({ view: 'home', showSettings: false, soundOn: true, vibrationOn: true, hintsOn: true }); },
   onUnload() { this.stopLoops(); },
+  startGame() { this.setData({ view: 'game' }); this.resetGame(); },
+  openSettings() { this.setData({ showSettings: true }); },
+  closeSettings() { this.setData({ showSettings: false }); },
+  stopTap() {},
+  toggleSound(e) { this.setData({ soundOn: e.detail.value }); },
+  toggleVibration(e) { this.setData({ vibrationOn: e.detail.value }); },
+  toggleHints(e) { this.setData({ hintsOn: e.detail.value }); },
   resetGame() {
     this.stopLoops(); this.enemyId = 0; this.effectId = 0; this.attackCd = 0; this.stageTicks = 0; this.kills = 0; this.power = 1; this.haste = 1; this.elements = []; this.player = { x: 50, y: 55 };
     this.setData({ hp: 100, level: 1, xp: 0, xpNeed: 5, xpPct: 0, stage: 1, stageName: STAGES[0], progress: 0, player: this.player, enemies: [], effects: [], weaponName: '东皇钟', elementName: '白板', message: '混沌深处，一道古老神念苏醒。', showChoice: false, ended: false });
@@ -82,7 +89,7 @@ Page({
   finish(win) {
     this.stopLoops(); this.setData({ ended: true, endingTitle: win ? '开天一念' : '神念归寂', endingCopy: win ? '你镇压天道，重演地火风水。天地初生，第一缕晨光照亮人间。此后万物将走向何方？' : '盘古神念暂归混沌。已苏醒的记忆仍留在心中。' });
   },
-  restart() { this.resetGame(); },
+  restart() { this.setData({ view: 'game' }); this.resetGame(); },
   onTouchStart(e) { this.touchMove(e); }, onTouchMove(e) { this.touchMove(e); }, onTouchEnd() { this.touching = false; },
   touchMove(e) {
     if (this.data.showChoice || this.data.ended) return;
@@ -94,4 +101,5 @@ Page({
   dash() { if (this.dashing || this.data.ended) return; this.dashing = true; const hp = Math.min(100, this.data.hp + 5); this.setData({ hp }); this.player.x = Math.max(5, Math.min(95, this.player.x + (Math.random() > .5 ? 14 : -14))); this.setData({ player: this.player }); setTimeout(() => this.dashing = false, 1800); }
 });
 function dist(a,b) { const x=a.x-b.x,y=a.y-b.y; return Math.sqrt(x*x+y*y); }
+
 

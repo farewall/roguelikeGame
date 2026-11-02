@@ -1,4 +1,11 @@
-<view class="screen">
+<view wx:if="{{view === 'home'}}" class="home-screen">
+  <view class="home-glow"></view>
+  <view class="home-top"><text class="home-mark">盘古遗念 · 混沌纪</text><button class="settings-button" bindtap="openSettings">⚙</button></view>
+  <view class="home-title-wrap"><text class="home-eyebrow">天地重归混沌</text><text class="home-title">开天一念</text><text class="home-subtitle">一念开天 · 万物新生</text><view class="title-rule"><view></view></view><text class="home-story">盘古神念于混沌中苏醒。四象镇守天地，天道阻断开天之路。\n再一次，你将如何开辟世界？</text></view>
+  <view class="home-menu"><button class="start-button" bindtap="startGame"><text>开始游玩</text><text class="start-arrow">›</text></button><button class="menu-button" bindtap="openSettings">设置</button><view class="home-version">东方玄幻 · 动作肉鸽</view></view>
+  <view wx:if="{{showSettings}}" class="settings-shade" catchtap="closeSettings"><view class="settings-card" catchtap="stopTap"><text class="settings-title">游戏设置</text><view class="setting-row"><text>音效</text><switch checked="{{soundOn}}" color="#d6b66c" bindchange="toggleSound" /></view><view class="setting-row"><text>震动反馈</text><switch checked="{{vibrationOn}}" color="#d6b66c" bindchange="toggleVibration" /></view><view class="setting-row"><text>操作提示</text><switch checked="{{hintsOn}}" color="#d6b66c" bindchange="toggleHints" /></view><button class="settings-done" bindtap="closeSettings">完成</button></view></view>
+</view>
+<view wx:if="{{view === 'game'}}" class="screen">
   <view class="topbar">
     <view><text class="brand">开天一念</text><text class="subtitle">盘古遗念 · 混沌试炼</text></view>
     <view class="stats"><text>❤ {{hp}}</text><text>境界 {{level}}</text></view>
@@ -23,4 +30,6 @@
   </view>
   <view class="bottom"><view class="xp-label"><text>灵气</text><text>{{xp}} / {{xpNeed}}</text></view><view class="xp-track"><view class="xp-fill" style="width:{{xpPct}}%"></view></view><view class="bottom-row"><text>法宝：{{weaponName}}</text><text>劫境 {{stage > 4 ? 4 : stage}} / 4</text><button class="dash" bindtap="dash">遁光</button></view></view>
 </view>
+</view>
+
 
