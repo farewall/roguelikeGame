@@ -30,6 +30,4 @@
   </view>
   <view class="bottom"><view class="xp-label"><text>灵气</text><text>{{xp}} / {{xpNeed}}</text></view><view class="xp-track"><view class="xp-fill" style="width:{{xpPct}}%"></view></view><view class="bottom-row"><text>法宝：{{weaponName}}</text><text>劫境 {{stage > 4 ? 4 : stage}} / 4</text><button class="dash" bindtap="dash">遁光</button></view></view>
 </view>
-</view>
-
 
