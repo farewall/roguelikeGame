@@ -1,5 +1,5 @@
 const STAGES = ['东方·初生之野', '西方·白骨战场', '南方·焚天熔界', '北方·归墟寒海', '天道之庭'];
-const BOSSES = ['🐉', '🐯', '🐦‍🔥', '🐢', '☯'];
+const BOSS_GLYPHS = ['龙', '虎', '凰', '玄', '道'];
 const MEMORIES = ['记忆闪回：女娲造人，人间初生，山川间生机盎然。', '记忆闪回：文明兴起，争斗由资源冲突逐渐升级。', '记忆闪回：圣人交战，至宝碰撞，天地根基崩坏。', '记忆闪回：万物归于混沌。你想起了自己是盘古留下的神念。'];
 const UPGRADES = [
   { id: 'power', icon: '⚡', name: '开天劲', desc: '至宝伤害提升 25%', kind: 'power' },
@@ -35,7 +35,7 @@ Page({
     if (boss) this.bossSpawned = true;
     const edge = Math.floor(Math.random() * 4); const x = edge < 2 ? (edge === 0 ? 7 : 93) : 15 + Math.random() * 70; const y = edge >= 2 ? (edge === 2 ? 10 : 85) : 20 + Math.random() * 60;
     const hp = boss ? 18 + this.data.stage * 8 : 2 + Math.floor(this.data.stage / 2);
-    const e = { id: ++this.enemyId, x, y, hp, maxHp: hp, boss, icon: boss ? BOSSES[this.data.stage - 1] : ['👾', '🌀', '👹'][Math.floor(Math.random() * 3)], speed: boss ? 0.24 : 0.32 + Math.random() * 0.12 };
+    const e = { id: ++this.enemyId, x, y, hp, maxHp: hp, boss, glyph: boss ? BOSS_GLYPHS[this.data.stage - 1] : ['劫', '魇', '煞'][Math.floor(Math.random() * 3)], bossType: boss ? this.data.stage : 0, speed: boss ? 0.24 : 0.32 + Math.random() * 0.12 };
     this.setData({ enemies: [...this.data.enemies, e] });
     if (boss) this.notify(`${['青龙','白虎','朱雀','玄武','天道'][this.data.stage - 1]}现身！`);
   },
@@ -51,7 +51,7 @@ Page({
     if (this.attackCd <= 0 && enemies.length) {
       const target = enemies.reduce((a,b) => dist(p,a) < dist(p,b) ? a : b); const damage = this.power;
       target.hp -= damage; this.attackCd = Math.max(5, Math.floor(11 * this.haste));
-      effects.push({ id: ++this.effectId, x: target.x, y: target.y, icon: this.elements.includes('火') ? '🔥' : '✦', ttl: 6 });
+      effects.push({ id: ++this.effectId, x: target.x, y: target.y, icon: this.elements.includes('火') ? '炎' : '✦', ttl: 6 });
       if (this.elements.includes('火')) target.hp -= 0.25;
       if (this.elements.includes('水')) target.speed = Math.max(0.1, target.speed * 0.8);
       if (this.elements.includes('地')) enemies.forEach(e => { if (e.id !== target.id && dist(target,e) < 13) e.hp -= 0.3; });
@@ -103,6 +103,7 @@ Page({
   dash() { if (this.dashing || this.data.ended) return; this.dashing = true; const hp = Math.min(100, this.data.hp + 5); this.setData({ hp }); this.player.x = Math.max(5, Math.min(95, this.player.x + (Math.random() > .5 ? 14 : -14))); this.setData({ player: this.player }); setTimeout(() => this.dashing = false, 1800); }
 });
 function dist(a,b) { const x=a.x-b.x,y=a.y-b.y; return Math.sqrt(x*x+y*y); }
+
 
 
 
