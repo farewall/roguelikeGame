@@ -1,5 +1,5 @@
 <view wx:if="{{view === 'home'}}" class="home-screen">
-  <view class="home-glow"></view>
+  <image class="home-background" src="../../images/titile-bg.png" mode="aspectFill"/><view class="home-scrim"></view>
   <view class="home-top"><text class="home-mark">盘古遗念 · 混沌纪</text></view>
   <view class="home-title-wrap"><text class="home-eyebrow">天地重归混沌</text><text class="home-title">开天一念</text><text class="home-subtitle">一念开天 · 万物新生</text><view class="title-rule"><view></view></view><text class="home-story">盘古神念于混沌中苏醒。四象镇守天地，天道阻断开天之路。\n再一次，你将如何开辟世界？</text></view>
   <view class="home-menu"><button class="start-button" bindtap="openIntro"><text>开始游玩</text><text class="start-arrow">›</text></button><button class="menu-button" bindtap="openSettings">设置</button><view class="home-version">东方玄幻 · 动作肉鸽</view></view>
@@ -17,7 +17,7 @@
     <view class="hint">拖动屏幕任意位置移动 · 至宝自动攻击</view>
     <view wx:for="{{enemies}}" wx:key="id" class="enemy {{item.boss ? 'boss boss-' + item.bossType : ''}} " style="left:{{item.x}}%;top:{{item.y}}%"><view class="creature"><view class="creature-core">{{item.glyph}}</view><view class="creature-eye eye-left"></view><view class="creature-eye eye-right"></view><view class="creature-aura"></view></view><view class="enemy-hp"><view style="width:{{item.hpPct}}%"></view></view></view>
     <view wx:for="{{effects}}" wx:key="id" class="effect" style="left:{{item.x}}%;top:{{item.y}}%">{{item.icon}}</view>
-    <view class="player" style="left:{{player.x}}%;top:{{player.y}}%"><view class="player-orbit"></view><view class="pangu-silhouette"><view class="pangu-hair"></view><view class="pangu-head"><view class="pangu-brow"></view><view class="pangu-beard"></view></view><view class="pangu-body"><view class="pangu-neck"></view><view class="pangu-chest"></view><view class="pangu-belt"></view></view><view class="pangu-arm arm-left"></view><view class="pangu-arm arm-right"></view><view class="pangu-leg leg-left"></view><view class="pangu-leg leg-right"></view><view class="pangu-axe"><view class="axe-handle"></view><view class="axe-blade"></view></view></view><view class="player-spark spark-a"></view><view class="player-spark spark-b"></view><view class="player-spark spark-c"></view></view>
+    <view class="player" style="left:{{player.x}}%;top:{{player.y}}%"><view class="player-orbit"></view><image class="pangu-sprite" src="../../images/master.png" mode="aspectFit"/><view class="player-spark spark-a"></view><view class="player-spark spark-b"></view><view class="player-spark spark-c"></view></view>
     <view class="weapon-badge">{{weaponName}} · {{elementName}}</view>
     <view wx:if="{{message}}" class="toast">{{message}}</view>
     <view wx:if="{{showChoice}}" class="overlay">
