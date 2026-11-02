@@ -16,7 +16,7 @@ Page({
   resetGame() {
     this.stopLoops(); this.enemyId = 0; this.effectId = 0; this.attackCd = 0; this.stageTicks = 0; this.kills = 0; this.power = 1; this.haste = 1; this.elements = []; this.player = { x: 50, y: 55 };
     this.setData({ hp: 100, level: 1, xp: 0, xpNeed: 5, xpPct: 0, stage: 1, stageName: STAGES[0], progress: 0, player: this.player, enemies: [], effects: [], weaponName: '东皇钟', elementName: '白板', message: '混沌深处，一道古老神念苏醒。', showChoice: false, ended: false });
-    this.spawnEnemy(); this.gameTimer = setInterval(() => this.tick(), 100); this.spawnTimer = setInterval(() => this.spawnEnemy(), 1700);
+    this.spawnEnemy(); this.gameTimer = setInterval(() => this.tick(), 200); this.spawnTimer = setInterval(() => this.spawnEnemy(), 1700);
   },
   stopLoops() { if (this.gameTimer) clearInterval(this.gameTimer); if (this.spawnTimer) clearInterval(this.spawnTimer); if (this.toastTimer) clearTimeout(this.toastTimer); },
   notify(message) { this.setData({ message }); clearTimeout(this.toastTimer); this.toastTimer = setTimeout(() => this.setData({ message: '' }), 2100); },
@@ -94,3 +94,4 @@ Page({
   dash() { if (this.dashing || this.data.ended) return; this.dashing = true; const hp = Math.min(100, this.data.hp + 5); this.setData({ hp }); this.player.x = Math.max(5, Math.min(95, this.player.x + (Math.random() > .5 ? 14 : -14))); this.setData({ player: this.player }); setTimeout(() => this.dashing = false, 1800); }
 });
 function dist(a,b) { const x=a.x-b.x,y=a.y-b.y; return Math.sqrt(x*x+y*y); }
+
