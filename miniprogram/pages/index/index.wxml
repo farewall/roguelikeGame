@@ -17,7 +17,7 @@
     <view class="hint">拖动屏幕任意位置移动 · 至宝自动攻击</view>
     <view wx:for="{{enemies}}" wx:key="id" class="enemy {{item.boss ? 'boss boss-' + item.bossType : ''}} " style="left:{{item.x}}%;top:{{item.y}}%"><view class="creature"><view class="creature-core">{{item.glyph}}</view><view class="creature-eye eye-left"></view><view class="creature-eye eye-right"></view><view class="creature-aura"></view></view><view class="enemy-hp"><view style="width:{{item.hpPct}}%"></view></view></view>
     <view wx:for="{{effects}}" wx:key="id" class="effect" style="left:{{item.x}}%;top:{{item.y}}%">{{item.icon}}</view>
-    <view class="player" style="left:{{player.x}}%;top:{{player.y}}%"><view class="player-orbit"></view><view class="player-core">盘</view><view class="player-spark spark-a"></view><view class="player-spark spark-b"></view><view class="player-spark spark-c"></view></view>
+    <view class="player" style="left:{{player.x}}%;top:{{player.y}}%"><view class="player-orbit"></view><view class="pangu-silhouette"><view class="pangu-hair"></view><view class="pangu-head"><view class="pangu-brow"></view><view class="pangu-beard"></view></view><view class="pangu-body"><view class="pangu-neck"></view><view class="pangu-chest"></view><view class="pangu-belt"></view></view><view class="pangu-arm arm-left"></view><view class="pangu-arm arm-right"></view><view class="pangu-leg leg-left"></view><view class="pangu-leg leg-right"></view><view class="pangu-axe"><view class="axe-handle"></view><view class="axe-blade"></view></view></view><view class="player-spark spark-a"></view><view class="player-spark spark-b"></view><view class="player-spark spark-c"></view></view>
     <view class="weapon-badge">{{weaponName}} · {{elementName}}</view>
     <view wx:if="{{message}}" class="toast">{{message}}</view>
     <view wx:if="{{showChoice}}" class="overlay">
@@ -29,6 +29,7 @@
   </view>
   <view class="bottom"><view class="xp-label"><text>灵气</text><text>{{xp}} / {{xpNeed}}</text></view><view class="xp-track"><view class="xp-fill" style="width:{{xpPct}}%"></view></view><view class="bottom-row"><text>法宝：{{weaponName}}</text><text>劫境 {{stage > 4 ? 4 : stage}} / 4</text><button class="dash" bindtap="dash">遁光</button></view></view>
 </view>
+
 
 
 
