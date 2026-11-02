@@ -1,0 +1,9 @@
+{
+  "miniprogramRoot": "miniprogram/",
+  "projectname": "开天一念",
+  "description": "东方玄幻动作肉鸽游戏原型",
+  "appid": "touristappid",
+  "setting": { "urlCheck": false, "es6": true, "enhance": true, "postcss": true, "minified": false },
+  "compileType": "miniprogram",
+  "libVersion": "3.4.8"
+}

@@ -1,0 +1,11 @@
+{
+  "pages": ["pages/index/index"],
+  "window": {
+    "navigationBarTitleText": "开天一念",
+    "navigationBarBackgroundColor": "#111722",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#111722"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

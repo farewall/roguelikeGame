@@ -1,0 +1,25 @@
+<view class="screen">
+  <view class="topbar">
+    <view><text class="brand">开天一念</text><text class="subtitle">盘古遗念 · 混沌试炼</text></view>
+    <view class="stats"><text>❤ {{hp}}</text><text>境界 {{level}}</text></view>
+  </view>
+  <view class="progress"><view class="progress-fill" style="width:{{progress}}%"></view></view>
+  <view class="arena" catchtouchstart="onTouchStart" catchtouchmove="onTouchMove" catchtouchend="onTouchEnd">
+    <view class="arena-title">{{stageName}}</view>
+    <view class="hint">拖动屏幕任意位置移动 · 至宝自动攻击</view>
+    <view wx:for="{{enemies}}" wx:key="id" class="enemy {{item.boss ? 'boss' : ''}}" style="left:{{item.x}}%;top:{{item.y}}%">
+      <text>{{item.icon}}</text><view class="enemy-hp"><view style="width:{{item.hpPct}}%"></view></view>
+    </view>
+    <view wx:for="{{effects}}" wx:key="id" class="effect" style="left:{{item.x}}%;top:{{item.y}}%">{{item.icon}}</view>
+    <view class="player" style="left:{{player.x}}%;top:{{player.y}}%">☯</view>
+    <view class="weapon-badge">{{weaponName}} · {{elementName}}</view>
+    <view wx:if="{{message}}" class="toast">{{message}}</view>
+    <view wx:if="{{showChoice}}" class="overlay">
+      <view class="choice-panel"><text class="choice-title">灵光一现 · 选择提升</text>
+        <view wx:for="{{choices}}" wx:key="id" class="choice" data-index="{{index}}" bindtap="chooseUpgrade"><text class="choice-icon">{{item.icon}}</text><view><text class="choice-name">{{item.name}}</text><text class="choice-desc">{{item.desc}}</text></view><text class="arrow">›</text></view>
+      </view>
+    </view>
+    <view wx:if="{{ended}}" class="overlay"><view class="choice-panel ending"><text class="choice-title">{{endingTitle}}</text><text class="ending-copy">{{endingCopy}}</text><button class="restart" bindtap="restart">再入混沌</button></view></view>
+  </view>
+  <view class="bottom"><view class="xp-label"><text>灵气</text><text>{{xp}} / {{xpNeed}}</text></view><view class="xp-track"><view class="xp-fill" style="width:{{xpPct}}%"></view></view><view class="bottom-row"><text>法宝：{{weaponName}}</text><text>劫境 {{stage}} / 4</text><button class="dash" bindtap="dash">遁光</button></view></view>
+</view>

@@ -1,0 +1,4 @@
+{
+  "description": "开天一念小程序原型",
+  "rules": [{ "action": "allow", "page": "*" }]
+}
