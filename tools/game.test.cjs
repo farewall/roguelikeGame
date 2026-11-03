@@ -7,14 +7,17 @@ const vm = require('node:vm');
 const { createRequire } = require('node:module');
 const source = fs.readFileSync(path.join(__dirname, '../miniprogram/pages/index/index.js'), 'utf8');
 
-function setup() {
+function setup(options = {}) {
   let definition, now = 1000, nextTimer = 0;
-  const timers = new Map();
+  const timers = new Map(), writes = [], audioCalls = [];
+  const windowInfo = { windowWidth: 400, ...options.windowInfo };
   vm.runInNewContext(source, {
     Page(page) { definition = page; },
     Date: { now: () => now },
     require: createRequire(path.join(__dirname, '../miniprogram/pages/index/index.js')),
-    wx: { vibrateShort() {}, getWindowInfo: () => ({ windowWidth: 400 }) },
+    wx: { vibrateShort() {}, getWindowInfo: () => windowInfo,
+      getStorageSync: () => options.saved || {}, setStorageSync: (key, value) => writes.push(structuredClone(value)),
+      createInnerAudioContext: () => ({ src: '', volume: 1, stop() {}, play() { audioCalls.push({ src: this.src, volume: this.volume }); }, destroy() { audioCalls.push({ destroyed: true }); } }) },
     setInterval(fn) { const id = ++nextTimer; timers.set(id, fn); return id; },
     setTimeout(fn) { const id = ++nextTimer; timers.set(id, fn); return id; },
     clearInterval(id) { timers.delete(id); },
@@ -35,9 +38,9 @@ function setup() {
     };
     return query;
   };
-  game.beginGame();
+  game.onLoad();game.beginGame();
   game.setData({ enemies: [] });
-  return { game, timers, advance(ms = 32) { now += ms; game.moveFrame(); }, fireTimer(id) { const callback = timers.get(id); timers.delete(id); callback(); } };
+  return { game, timers, writes, audioCalls, windowInfo, advance(ms = 32) { now += ms; game.moveFrame(); }, elapse(ms) { now += ms; }, fireTimer(id) { const callback = timers.get(id); timers.delete(id); callback(); } };
 }
 
 function enemy(id = 1, patch = {}) {
@@ -76,7 +79,7 @@ test('diagonal movement has the same physical speed and clamps to arena bounds',
   advance();
   closeTo(Math.hypot((game.player.x - 50) * 4, (game.player.y - 55) * 6), 180 * 0.032);
   for (let i = 0; i < 300; i++) advance();
-  assert.deepEqual(game.data.player, { x: 95, y: 90 });
+  assert.deepEqual(game.data.player, { x: 87.2, y: 90 });
 });
 
 test('touch cancellation, backgrounding and upgrades stop movement; delayed frames cannot jump', () => {
@@ -276,7 +279,7 @@ test('the game plays movement frames and faces the real movement direction', () 
   advance();
   assert.equal(game.data.actorFrame.action, 'move');
   assert.equal(game.data.actorFrame.direction, 'right');
-  assert.equal(game.data.actorFrame.top, -3 * 192);
+  closeTo(game.data.actorFrame.top, -307.2);
   for (let i = 0; i < 4; i++) advance();
   assert.equal(game.data.actorFrame.index, 1);
   game.onTouchEnd({ touches: [] });advance();
@@ -462,4 +465,105 @@ test('queued upgrades visibly close first and reject taps from the previous moda
   assert.equal(game.data.level, 3);
   assert.equal(game.data.xp, 0);
   assert.equal(game.data.showChoice, false);
+});
+
+test('landscape keeps actor and attack range scale tied to the short viewport edge', () => {
+  const { game, windowInfo } = setup({ windowInfo: { windowWidth: 844, windowHeight: 390 } });
+  closeTo(game.data.uiScale, 390 / 750);
+  closeTo(game.data.attackRange * game.rpxScale, 83.2);
+  windowInfo.windowWidth = 390;windowInfo.windowHeight = 844;
+  game.onResize();
+  closeTo(game.data.uiScale, 390 / 750);
+  closeTo(game.data.attackRange * game.rpxScale, 83.2);
+  const app = JSON.parse(fs.readFileSync(path.join(__dirname, '../miniprogram/app.json')));
+  assert.equal(app.window.pageOrientation, 'landscape');
+});
+
+test('opening settings pauses simulation, spawning, movement and audio; close resumes once', () => {
+  const { game, advance, timers } = setup();
+  game.onTouchStart({ touches: [touch(100, 200)] });game.onTouchMove({ touches: [touch(148, 200)] });
+  const before = { ticks: game.stageTicks, enemies: game.data.enemies.length, player: { ...game.player } };
+  game.openSettings();
+  assert.equal(game.data.paused, true);assert.equal(game.data.showSettings, true);
+  assert.equal(timers.size, 0);
+  game.tick();game.spawnEnemy();advance(5000);
+  assert.equal(game.stageTicks, before.ticks);assert.equal(game.data.enemies.length, before.enemies);
+  assert.deepEqual(game.data.player, before.player);
+  game.closeSettings();
+  assert.equal(game.data.paused, false);assert.equal(timers.size, 3);
+  game.closeSettings();assert.equal(timers.size, 3);
+  game.tick();assert.equal(game.stageTicks, before.ticks + 1);
+});
+
+test('pause preserves scheduled upgrade time and never consumes a selection under settings', () => {
+  const { game, elapse, fireTimer } = setup();
+  game.setData({ xp: 12 });game.levelUp();game.chooseUpgrade(upgradeEvent(game));
+  elapse(200);game.openSettings();
+  assert.equal(game.pendingTimers.upgradeTimer.remaining, 400);
+  elapse(10000);game.onShow();assert.equal(game.data.paused, true);
+  game.closeSettings();
+  assert.equal(game.pendingTimers.upgradeTimer.remaining, 400);
+  fireTimer(game.upgradeTimer);assert.equal(game.data.showChoice, true);
+  const event = upgradeEvent(game);game.openSettings();game.chooseUpgrade(event);
+  assert.equal(game.data.level, 2);assert.equal(game.data.showChoice, true);
+  game.closeSettings();game.chooseUpgrade(event);
+  assert.equal(game.data.level, 3);assert.equal(game.data.showChoice, false);
+});
+
+test('background pause resumes only when no settings panel is open', () => {
+  const { game, timers } = setup();
+  game.onHide();assert.equal(game.data.paused, true);assert.equal(timers.size, 0);
+  game.onShow();assert.equal(game.data.paused, false);assert.equal(timers.size, 3);
+  game.openSettings();game.onHide();game.onShow();
+  assert.equal(game.data.paused, true);assert.equal(game.data.showSettings, true);
+});
+
+test('exit returns to the main menu, clears delayed callbacks and starts a fresh game', () => {
+  const { game, timers } = setup();
+  choose(game, 'fire');game.notify('pause me');game.openSettings();game.requestExit();
+  assert.equal(game.data.confirmExit, true);
+  game.cancelExit();assert.equal(game.data.confirmExit, false);
+  game.requestExit();game.exitToHome();
+  assert.equal(game.data.view, 'home');assert.equal(game.data.showSettings, false);
+  assert.equal(game.data.showChoice, false);assert.equal(timers.size, 0);
+  game.beginGame();
+  assert.equal(game.data.level, 1);assert.equal(game.elements.length, 0);assert.equal(game.data.paused, false);
+  assert.equal(timers.size, 3);
+});
+
+test('sound, volume, vibration and hints are restored and persisted independently of a run', () => {
+  const { game, writes } = setup({ saved: { soundOn: false, effectVolume: 25, vibrationOn: false, hintsOn: false } });
+  assert.equal(game.data.soundOn, false);assert.equal(game.data.effectVolume, 25);
+  assert.equal(game.data.vibrationOn, false);assert.equal(game.data.hintsOn, false);
+  game.toggleSound({ detail: { value: true } });game.changeVolume({ detail: { value: 35 } });
+  game.exitToHome();game.beginGame();assert.equal(game.data.effectVolume, 35);
+  assert.deepEqual(writes.at(-1), { soundOn: true, effectVolume: 35, vibrationOn: false, hintsOn: false });
+});
+
+test('audio settings affect actual playback, volume and lifecycle cleanup', () => {
+  const { game, audioCalls } = setup();
+  game.previewSound();assert.ok(audioCalls.at(-1).src.endsWith('/upgrade.wav'));
+  game.toggleSound({ detail: { value: false } });
+  const count = audioCalls.length;game.previewSound();assert.equal(audioCalls.length, count);
+  game.toggleSound({ detail: { value: true } });game.changeVolume({ detail: { value: 25 } });
+  game.previewSound();closeTo(audioCalls.at(-1).volume, 0.25);
+  game.onUnload();assert.ok(audioCalls.at(-1).destroyed);
+});
+
+test('death animation and its ending timer remain frozen while settings is open', () => {
+  const { game, elapse, advance, fireTimer } = setup();
+  game.finish(false);elapse(150);game.openSettings();
+  const index = game.data.actorFrame.index;
+  advance(5000);assert.equal(game.data.actorFrame.index, index);assert.equal(game.data.showEnding, false);
+  game.closeSettings();assert.equal(game.pendingTimers.endingTimer.remaining, 900);
+  fireTimer(game.endingTimer);assert.equal(game.data.showEnding, true);
+});
+
+test('bundled sound cues are valid local mono PCM WAV files', () => {
+  for (const name of ['attack', 'hurt', 'upgrade', 'victory', 'death']) {
+    const wav = fs.readFileSync(path.join(__dirname, '../miniprogram/audio', name + '.wav'));
+    assert.equal(wav.toString('ascii', 0, 4), 'RIFF');assert.equal(wav.toString('ascii', 8, 12), 'WAVE');
+    assert.equal(wav.readUInt16LE(22), 1);assert.equal(wav.readUInt16LE(34), 16);
+    assert.equal(wav.readUInt32LE(40), wav.length - 44);
+  }
 });

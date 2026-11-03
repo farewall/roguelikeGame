@@ -4,6 +4,7 @@
     "navigationBarTitleText": "开天一念",
     "navigationBarBackgroundColor": "#111722",
     "navigationBarTextStyle": "white",
+    "pageOrientation": "landscape",
     "backgroundColor": "#111722"
   },
   "style": "v2",
