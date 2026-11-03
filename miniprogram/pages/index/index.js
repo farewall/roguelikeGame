@@ -2,7 +2,8 @@ const STAGES = ['东方·初生之野', '西方·白骨战场', '南方·焚天�
 const BOSS_GLYPHS = ['龙', '虎', '凰', '玄', '道'];
 const MEMORIES = ['记忆闪回：女娲造人，人间初生，山川间生机盎然。', '记忆闪回：文明兴起，争斗由资源冲突逐渐升级。', '记忆闪回：圣人交战，至宝碰撞，天地根基崩坏。', '记忆闪回：万物归于混沌。你想起了自己是盘古留下的神念。'];
 const MOVE_SPEED = 180; // Screen pixels per second, independent of touch event frequency.
-const JOYSTICK_RADIUS = 48;
+const JOYSTICK_RADIUS_RPX = 64;
+const ATTACK_RANGE_RPX = 160;
 const { PanguAnimation } = require('../../lib/pangu-animation');
 const ACTOR_SHEETS = ['idle', 'move', 'attack', 'hurt', 'awaken', 'death'];
 const DIRECTION_ROW = { down: 0, up: 1, left: 2, right: 3 };
@@ -16,11 +17,11 @@ const UPGRADES = [
   { id: 'earth', icon: '🪨', name: '厚土附魔', desc: '命中时震荡周围敌人', kind: 'earth' }
 ];
 Page({
-  data: { view: 'home', showSettings: false, showIntro: false, soundOn: true, vibrationOn: true, hintsOn: true, hp: 100, maxHp: 100, hurt: false, level: 1, xp: 0, xpNeed: 5, xpPct: 0, stage: 1, stageName: STAGES[0], progress: 0, player: { x: 50, y: 55 }, enemies: [], effects: [], weaponName: '东皇钟', elementName: '白板', message: '', showChoice: false, choices: [], ended: false, won: false, endingTitle: '', endingCopy: '' },
+  data: { view: 'home', showSettings: false, showIntro: false, soundOn: true, vibrationOn: true, hintsOn: true, hp: 100, maxHp: 100, hurt: false, level: 1, xp: 0, xpNeed: 5, xpPct: 0, stage: 1, stageName: STAGES[0], progress: 0, player: { x: 50, y: 55 }, enemies: [], effects: [], weaponName: '东皇钟', elementName: '白板', message: '', showChoice: false, choices: [], choiceToken: 0, joystick: { x: 0, y: 0, active: false }, attackRange: ATTACK_RANGE_RPX, ended: false, won: false, endingTitle: '', endingCopy: '' },
   onLoad() { this.setData({ view: 'home', showSettings: false, showIntro: false, soundOn: true, vibrationOn: true, hintsOn: true }); },
   onUnload() { this.stopLoops(); },
   onHide() { this.stopMovement(); this.lastMoveTime = Date.now(); },
-  onResize() { this.measureArena(); },
+  onResize() { this.stopMovement(); this.measureArena(); },
   openIntro() { this.setData({ showIntro: true, showSettings: false }); },
   closeIntro() { this.setData({ showIntro: false }); },
   beginGame() { this.setData({ view: 'game', showIntro: false }); this.resetGame(); },
@@ -32,7 +33,8 @@ Page({
   toggleHints(e) { this.setData({ hintsOn: e.detail.value }); },
   resetGame() {
     this.stopLoops(); this.enemyId = 0; this.effectId = 0; this.attackCd = 0; this.stageTicks = 0; this.kills = 0; this.power = 1; this.haste = 1; this.elements = []; this.player = { x: 50, y: 55 }; this.maxHp = 100; this.invulnerableUntil = 0;
-    this.bossSpawned = false; this.arenaRect = null; this.actor = new PanguAnimation(); this.actorFrameKey = '';
+    this.bossSpawned = false; this.arenaRect = null; this.joystickRect = null; this.actor = new PanguAnimation(); this.actorFrameKey = '';
+    this.choiceApplying = false; this.upgradePending = false; this.upgradeTouch = null;
     this.setData({ hp: this.maxHp, maxHp: this.maxHp, hurt: false, level: 1, xp: 0, xpNeed: 5, xpPct: 0, stage: 1, stageName: STAGES[0], progress: 0, player: { ...this.player }, enemies: [], effects: [], weaponName: '东皇钟', elementName: '白板', combatStats: this.combatStats(), message: '混沌深处，一道古老神念苏醒。', showChoice: false, choices: [], ended: false, showEnding: false, won: false, actorSheets: ACTOR_SHEETS }, () => this.measureArena());
     this.renderActor(0);
     this.spawnEnemy(); this.gameTimer = setInterval(() => this.tick(), 200); this.spawnTimer = setInterval(() => this.spawnEnemy(), 1700);
@@ -40,12 +42,12 @@ Page({
   },
   stopLoops() {
     clearInterval(this.gameTimer); clearInterval(this.spawnTimer); clearInterval(this.moveTimer);
-    clearTimeout(this.toastTimer); clearTimeout(this.hurtTimer); clearTimeout(this.stageTimer); clearTimeout(this.endingTimer);
+    clearTimeout(this.toastTimer); clearTimeout(this.hurtTimer); clearTimeout(this.stageTimer); clearTimeout(this.endingTimer); clearTimeout(this.upgradeTimer);
     this.stopMovement();
   },
   notify(message) { this.setData({ message }); clearTimeout(this.toastTimer); this.toastTimer = setTimeout(() => this.setData({ message: '' }), 2100); },
   spawnEnemy() {
-    if (this.data.ended || this.data.showChoice || this.data.enemies.length >= 9) return;
+    if (this.data.ended || this.data.showChoice || this.upgradePending || this.data.enemies.length >= 9) return;
     const boss = this.stageTicks >= 450 && !this.bossSpawned;
     if (boss) this.bossSpawned = true;
     const edge = Math.floor(Math.random() * 4); const x = edge < 2 ? (edge === 0 ? 7 : 93) : 15 + Math.random() * 70; const y = edge >= 2 ? (edge === 2 ? 10 : 85) : 20 + Math.random() * 60;
@@ -55,7 +57,7 @@ Page({
     if (boss) this.notify(`${['青龙','白虎','朱雀','玄武','天道'][this.data.stage - 1]}现身！`);
   },
   tick() {
-    if (this.data.ended || this.data.showChoice) return;
+    if (this.data.ended || this.data.showChoice || this.upgradePending) return;
     this.stageTicks++;
     const p = this.player; let enemies = this.data.enemies.map(e => {
       const dx = p.x - e.x, dy = p.y - e.y, d = Math.sqrt(dx*dx + dy*dy) || 1;
@@ -65,10 +67,10 @@ Page({
         slowTicks: Math.max(0, (e.slowTicks || 0) - 1), burnTicks: Math.max(0, (e.burnTicks || 0) - 1) };
     });
     let effects = this.data.effects.filter(e => e.ttl > 1).map(e => ({ ...e, ttl: e.ttl - 1 }));
-    this.attackCd--;
-    const living = enemies.filter(e => e.hp > 0);
-    if (this.attackCd <= 0 && living.length) {
-      const target = living.reduce((a,b) => dist(p,a) < dist(p,b) ? a : b);
+    this.attackCd = Math.max(0, this.attackCd - 1);
+    const reachable = enemies.filter(e => e.hp > 0 && this.inAttackRange(e));
+    if (this.attackCd <= 0 && reachable.length) {
+      const target = reachable.reduce((a,b) => this.screenDistance(p,a) < this.screenDistance(p,b) ? a : b);
       // Match facing to screen-space direction, not the arena's unequal percentage axes.
       this.actor.attack((target.x - p.x) * (this.arenaRect ? this.arenaRect.width : 1), (target.y - p.y) * (this.arenaRect ? this.arenaRect.height : 1));
       this.renderActor(0);
@@ -79,7 +81,7 @@ Page({
       if (water) target.slowTicks = 15;
       if (fire && water) target.hp -= this.power * 0.5;
       if (earth) enemies.forEach(e => {
-        if (e.id !== target.id && dist(target,e) < 13) {
+        if (e.id !== target.id && this.inAttackRange(e) && this.screenDistance(target,e) < 60 * this.rpxScale) {
           e.hp -= this.power * 0.3;
           effects.push({ id: ++this.effectId, x: e.x, y: e.y, type: 'earth', ttl: 4 });
         }
@@ -107,6 +109,7 @@ Page({
     if (!this.data.ended && xp >= this.data.xpNeed) this.levelUp();
   },
   levelUp() {
+    if (this.data.showChoice || this.data.ended) return;
     this.stopMovement();
     const pool = UPGRADES.slice(); const choices = [];
     while (choices.length < 3) {
@@ -114,12 +117,17 @@ Page({
       if (this.elements.includes({ fire: '火', water: '水', earth: '地' }[choice.kind])) choice.desc = '已掌握此附魔，至宝伤害额外提升12%';
       choices.push(choice);
     }
-    this.setData({ showChoice: true, choices });
+    this.choiceSequence = (this.choiceSequence || 0) + 1;
+    this.setData({ showChoice: true, choices, choiceToken: this.choiceSequence });
   },
   chooseUpgrade(e) {
-    const index = Number(e.currentTarget.dataset.index);
-    const u = this.data.choices[index];
-    if (!u || !this.data.showChoice) return;
+    const dataset = e.currentTarget.dataset;
+    if (this.choiceApplying || !this.data.showChoice || this.data.ended || Number(dataset.choiceToken) !== this.data.choiceToken) return;
+    const u = this.data.choices.find(choice => choice.id === dataset.upgradeId);
+    if (!u || this.data.xp < this.data.xpNeed) return;
+    this.choiceApplying = true;
+    // Close the modal independently of animation playback or generated follow-up tap events.
+    this.setData({ showChoice: false, choices: [] });
     if (u.kind === 'power') this.power *= 1.25;
     if (u.kind === 'haste') { this.haste *= 0.82; this.attackCd *= 0.82; }
     if (u.kind === 'health') { this.maxHp += 20; this.setData({ maxHp: this.maxHp, hp: Math.min(this.maxHp, this.data.hp + 25) }); }
@@ -128,8 +136,28 @@ Page({
     const level = this.data.level + 1, xp = this.data.xp - this.data.xpNeed, xpNeed = Math.ceil(this.data.xpNeed * 1.35);
     this.setData({ level, xp, xpNeed, xpPct: Math.min(100, xp / xpNeed * 100), showChoice: false, choices: [], combatStats: this.combatStats(), elementName: this.elements.length ? this.elements.join('+') : '白板' });
     this.notify(feedback);
-    if (xp >= xpNeed) this.levelUp();
-    else { this.actor.awaken(); this.renderActor(0); }
+    this.choiceApplying = false;
+    this.actor.awaken(); this.renderActor(0);
+    if (xp >= xpNeed) {
+      this.upgradePending = true;
+      this.upgradeTimer = setTimeout(() => {
+        this.upgradePending = false;
+        if (!this.data.ended) this.levelUp();
+      }, 600);
+    }
+  },
+  onUpgradeTouchStart(e) {
+    const touch = e.touches && e.touches[0];
+    if (touch) this.upgradeTouch = { x: touch.clientX, y: touch.clientY, id: e.currentTarget.dataset.upgradeId, token: e.currentTarget.dataset.choiceToken, moved: false };
+  },
+  onUpgradeTouchMove(e) {
+    const touch = e.touches && e.touches[0], press = this.upgradeTouch;
+    if (press && touch && Math.hypot(touch.clientX - press.x, touch.clientY - press.y) > 12) press.moved = true;
+  },
+  onUpgradeTouchCancel() { this.upgradeTouch = null; },
+  onUpgradeTouchEnd(e) {
+    const press = this.upgradeTouch; this.upgradeTouch = null;
+    if (press && !press.moved && press.id === e.currentTarget.dataset.upgradeId && String(press.token) === String(e.currentTarget.dataset.choiceToken)) this.chooseUpgrade(e);
   },
   completeStage() {
     this.bossSpawned = false; this.stageTicks = 0;
@@ -155,19 +183,33 @@ Page({
   },
   restart() { this.setData({ view: 'game' }); this.resetGame(); },
   combatStats() { return `伤害 ${Number(this.power.toFixed(2))} · 间隔 ${(Math.max(1, Math.round(11 * this.haste)) * 0.2).toFixed(1)}秒`; },
+  screenDistance(a, b) {
+    if (!this.arenaRect) return Infinity;
+    return Math.hypot((a.x - b.x) * this.arenaRect.width / 100, (a.y - b.y) * this.arenaRect.height / 100);
+  },
+  inAttackRange(enemy) { return this.screenDistance(this.player, enemy) <= ATTACK_RANGE_RPX * this.rpxScale + 0.000001; },
   measureArena() {
     if (this.data.view !== 'game') return;
-    this.createSelectorQuery().select('.arena').boundingClientRect(rect => {
-      if (rect && rect.width > 0 && rect.height > 0) this.arenaRect = rect;
-    }).exec();
+    const query = this.createSelectorQuery();
+    query.select('.arena').boundingClientRect(rect => {
+      if (rect && rect.width > 0 && rect.height > 0) {
+        this.arenaRect = rect;
+        const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
+        this.rpxScale = info.windowWidth / 750;
+      }
+    });
+    query.select('.joystick-pad').boundingClientRect(rect => { if (rect && rect.width && rect.height) this.joystickRect = rect; });
+    query.exec();
   },
   onTouchStart(e) {
-    if (this.data.showChoice || this.data.ended || this.touchOrigin) return;
+    if (this.data.showChoice || this.data.ended || this.upgradePending || this.touchOrigin) return;
     const t = e.touches[0];
     if (!t) return;
-    this.touchId = t.identifier; this.touchOrigin = { x: t.clientX, y: t.clientY };
-    this.moveVector = { x: 0, y: 0 };
-    this.measureArena();
+    const rect = this.joystickRect;
+    if (!rect) { this.measureArena(); return; }
+    if (t.clientX < rect.left || t.clientX > rect.left + rect.width || t.clientY < rect.top || t.clientY > rect.top + rect.height) return;
+    this.touchId = t.identifier; this.touchOrigin = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    this.onTouchMove(e);
   },
   onTouchMove(e) {
     if (!this.touchOrigin || this.data.showChoice || this.data.ended) return;
@@ -175,9 +217,10 @@ Page({
     if (!t) return;
     const dx = t.clientX - this.touchOrigin.x, dy = t.clientY - this.touchOrigin.y;
     const distance = Math.hypot(dx, dy);
-    if (distance < 6) { this.moveVector = { x: 0, y: 0 }; return; }
-    const strength = Math.min(1, distance / JOYSTICK_RADIUS);
-    this.moveVector = { x: dx / distance * strength, y: dy / distance * strength };
+    const radius = JOYSTICK_RADIUS_RPX * this.rpxScale;
+    const strength = distance < 4 ? 0 : Math.min(1, distance / radius);
+    this.moveVector = { x: distance ? dx / distance * strength : 0, y: distance ? dy / distance * strength : 0 };
+    this.setData({ joystick: { x: this.moveVector.x * JOYSTICK_RADIUS_RPX, y: this.moveVector.y * JOYSTICK_RADIUS_RPX, active: true } });
   },
   onTouchEnd(e) {
     if (e && e.touches && e.touches.some(t => t.identifier === this.touchId)) return;
@@ -185,6 +228,7 @@ Page({
   },
   stopMovement() {
     this.touchOrigin = null; this.touchId = null; this.moveVector = { x: 0, y: 0 };
+    this.setData({ joystick: { x: 0, y: 0, active: false } });
     if (this.actor) this.actor.move(0, 0);
   },
   renderActor(dt) {
@@ -197,7 +241,7 @@ Page({
     const now = Date.now(), dt = Math.min(0.05, Math.max(0, (now - this.lastMoveTime) / 1000));
     this.lastMoveTime = now;
     if (this.data.view !== 'game' || this.data.showChoice) return;
-    if (!this.data.ended && this.arenaRect) {
+    if (!this.data.ended && !this.upgradePending && this.arenaRect) {
       const direction = this.moveVector || { x: 0, y: 0 }, step = MOVE_SPEED * dt;
       const x = clamp(this.player.x + direction.x * step / this.arenaRect.width * 100, 5, 95);
       const y = clamp(this.player.y + direction.y * step / this.arenaRect.height * 100, 12, 90);
