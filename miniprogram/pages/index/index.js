@@ -1,6 +1,8 @@
 const STAGES = ['东方·初生之野', '西方·白骨战场', '南方·焚天熔界', '北方·归墟寒海', '天道之庭'];
 const BOSS_GLYPHS = ['龙', '虎', '凰', '玄', '道'];
 const MEMORIES = ['记忆闪回：女娲造人，人间初生，山川间生机盎然。', '记忆闪回：文明兴起，争斗由资源冲突逐渐升级。', '记忆闪回：圣人交战，至宝碰撞，天地根基崩坏。', '记忆闪回：万物归于混沌。你想起了自己是盘古留下的神念。'];
+const MOVE_SPEED = 180; // Screen pixels per second, independent of touch event frequency.
+const JOYSTICK_RADIUS = 48;
 const UPGRADES = [
   { id: 'power', icon: '⚡', name: '开天劲', desc: '至宝伤害提升 25%', kind: 'power' },
   { id: 'haste', icon: '🌪', name: '疾风法', desc: '至宝攻击间隔缩短 18%', kind: 'haste' },
@@ -13,6 +15,8 @@ Page({
   data: { view: 'home', showSettings: false, showIntro: false, soundOn: true, vibrationOn: true, hintsOn: true, hp: 100, maxHp: 100, hurt: false, level: 1, xp: 0, xpNeed: 5, xpPct: 0, stage: 1, stageName: STAGES[0], progress: 0, player: { x: 50, y: 55 }, enemies: [], effects: [], weaponName: '东皇钟', elementName: '白板', message: '', showChoice: false, choices: [], ended: false, won: false, endingTitle: '', endingCopy: '' },
   onLoad() { this.setData({ view: 'home', showSettings: false, showIntro: false, soundOn: true, vibrationOn: true, hintsOn: true }); },
   onUnload() { this.stopLoops(); },
+  onHide() { this.stopMovement(); },
+  onResize() { this.measureArena(); },
   openIntro() { this.setData({ showIntro: true, showSettings: false }); },
   closeIntro() { this.setData({ showIntro: false }); },
   beginGame() { this.setData({ view: 'game', showIntro: false }); this.resetGame(); },
@@ -24,10 +28,16 @@ Page({
   toggleHints(e) { this.setData({ hintsOn: e.detail.value }); },
   resetGame() {
     this.stopLoops(); this.enemyId = 0; this.effectId = 0; this.attackCd = 0; this.stageTicks = 0; this.kills = 0; this.power = 1; this.haste = 1; this.elements = []; this.player = { x: 50, y: 55 }; this.maxHp = 100; this.invulnerableUntil = 0;
-    this.setData({ hp: this.maxHp, maxHp: this.maxHp, hurt: false, level: 1, xp: 0, xpNeed: 5, xpPct: 0, stage: 1, stageName: STAGES[0], progress: 0, player: this.player, enemies: [], effects: [], weaponName: '东皇钟', elementName: '白板', message: '混沌深处，一道古老神念苏醒。', showChoice: false, ended: false });
+    this.bossSpawned = false; this.dashReadyAt = 0; this.lastDirection = { x: 1, y: 0 }; this.arenaRect = null;
+    this.setData({ hp: this.maxHp, maxHp: this.maxHp, hurt: false, level: 1, xp: 0, xpNeed: 5, xpPct: 0, stage: 1, stageName: STAGES[0], progress: 0, player: { ...this.player }, enemies: [], effects: [], weaponName: '东皇钟', elementName: '白板', combatStats: this.combatStats(), message: '混沌深处，一道古老神念苏醒。', showChoice: false, choices: [], ended: false, won: false }, () => this.measureArena());
     this.spawnEnemy(); this.gameTimer = setInterval(() => this.tick(), 200); this.spawnTimer = setInterval(() => this.spawnEnemy(), 1700);
+    this.lastMoveTime = Date.now(); this.moveTimer = setInterval(() => this.moveFrame(), 32);
   },
-  stopLoops() { if (this.gameTimer) clearInterval(this.gameTimer); if (this.spawnTimer) clearInterval(this.spawnTimer); if (this.toastTimer) clearTimeout(this.toastTimer); },
+  stopLoops() {
+    clearInterval(this.gameTimer); clearInterval(this.spawnTimer); clearInterval(this.moveTimer);
+    clearTimeout(this.toastTimer); clearTimeout(this.hurtTimer); clearTimeout(this.stageTimer);
+    this.stopMovement();
+  },
   notify(message) { this.setData({ message }); clearTimeout(this.toastTimer); this.toastTimer = setTimeout(() => this.setData({ message: '' }), 2100); },
   spawnEnemy() {
     if (this.data.ended || this.data.showChoice || this.data.enemies.length >= 9) return;
@@ -35,7 +45,7 @@ Page({
     if (boss) this.bossSpawned = true;
     const edge = Math.floor(Math.random() * 4); const x = edge < 2 ? (edge === 0 ? 7 : 93) : 15 + Math.random() * 70; const y = edge >= 2 ? (edge === 2 ? 10 : 85) : 20 + Math.random() * 60;
     const hp = boss ? 18 + this.data.stage * 8 : 2 + Math.floor(this.data.stage / 2);
-    const e = { id: ++this.enemyId, x, y, hp, maxHp: hp, boss, glyph: boss ? BOSS_GLYPHS[this.data.stage - 1] : ['劫', '魇', '煞'][Math.floor(Math.random() * 3)], bossType: boss ? this.data.stage : 0, speed: boss ? 0.24 : 0.32 + Math.random() * 0.12 };
+    const e = { id: ++this.enemyId, x, y, hp, maxHp: hp, hpPct: 100, boss, glyph: boss ? BOSS_GLYPHS[this.data.stage - 1] : ['劫', '魇', '煞'][Math.floor(Math.random() * 3)], bossType: boss ? this.data.stage : 0, speed: boss ? 0.24 : 0.32 + Math.random() * 0.12 };
     this.setData({ enemies: [...this.data.enemies, e] });
     if (boss) this.notify(`${['青龙','白虎','朱雀','玄武','天道'][this.data.stage - 1]}现身！`);
   },
@@ -44,20 +54,35 @@ Page({
     this.stageTicks++;
     const p = this.player; let enemies = this.data.enemies.map(e => {
       const dx = p.x - e.x, dy = p.y - e.y, d = Math.sqrt(dx*dx + dy*dy) || 1;
-      return { ...e, x: e.x + dx / d * e.speed, y: e.y + dy / d * e.speed, hpPct: Math.max(0, e.hp / e.maxHp * 100) };
+      const speed = e.speed * (e.slowTicks > 0 ? 0.5 : 1);
+      return { ...e, x: e.x + dx / d * speed, y: e.y + dy / d * speed,
+        hp: e.hp - (e.burnTicks > 0 ? e.burnDamage : 0),
+        slowTicks: Math.max(0, (e.slowTicks || 0) - 1), burnTicks: Math.max(0, (e.burnTicks || 0) - 1) };
     });
     let effects = this.data.effects.filter(e => e.ttl > 1).map(e => ({ ...e, ttl: e.ttl - 1 }));
     this.attackCd--;
-    if (this.attackCd <= 0 && enemies.length) {
-      const target = enemies.reduce((a,b) => dist(p,a) < dist(p,b) ? a : b); const damage = this.power;
-      target.hp -= damage; this.attackCd = Math.max(5, Math.floor(11 * this.haste));
-      effects.push({ id: ++this.effectId, x: target.x, y: target.y, icon: this.elements.includes('火') ? '炎' : '✦', ttl: 6 });
-      if (this.elements.includes('火')) target.hp -= 0.25;
-      if (this.elements.includes('水')) target.speed = Math.max(0.1, target.speed * 0.8);
-      if (this.elements.includes('地')) enemies.forEach(e => { if (e.id !== target.id && dist(target,e) < 13) e.hp -= 0.3; });
+    const living = enemies.filter(e => e.hp > 0);
+    if (this.attackCd <= 0 && living.length) {
+      const target = living.reduce((a,b) => dist(p,a) < dist(p,b) ? a : b);
+      target.hp -= this.power; this.attackCd = Math.max(1, Math.round(11 * this.haste));
+      const fire = this.elements.includes('火'), water = this.elements.includes('水'), earth = this.elements.includes('地');
+      effects.push({ id: ++this.effectId, x: target.x, y: target.y, type: fire && water ? 'steam' : fire ? 'fire' : water ? 'water' : 'gold', ttl: 4 });
+      if (fire) { target.burnTicks = 10; target.burnDamage = this.power * 0.05; }
+      if (water) target.slowTicks = 15;
+      if (fire && water) target.hp -= this.power * 0.5;
+      if (earth) enemies.forEach(e => {
+        if (e.id !== target.id && dist(target,e) < 13) {
+          e.hp -= this.power * 0.3;
+          effects.push({ id: ++this.effectId, x: e.x, y: e.y, type: 'earth', ttl: 4 });
+        }
+      });
     }
     const dead = enemies.filter(e => e.hp <= 0); enemies = enemies.filter(e => e.hp > 0);
-    if (dead.length) { this.kills += dead.length; this.setData({ xp: this.data.xp + dead.length }); }
+    this.kills += dead.length;
+    const xp = this.data.xp + dead.length;
+    // Commit combat results before opening a modal: dead enemies must never award XP twice.
+    enemies.forEach(e => { e.hpPct = Math.max(0, e.hp / e.maxHp * 100); });
+    this.setData({ enemies, effects, xp, progress: Math.min(100, Math.floor(this.stageTicks / 500 * 100)), xpPct: Math.min(100, xp / this.data.xpNeed * 100) });
     const attacker = enemies.find(e => dist(p,e) < (e.boss ? 9 : 6));
     if (attacker && Date.now() >= this.invulnerableUntil) {
       const damage = attacker.boss ? 10 : 5;
@@ -69,13 +94,17 @@ Page({
       if (this.data.vibrationOn && wx.vibrateShort) wx.vibrateShort({ type: 'light' });
       if (!hp) return this.finish(false);
     }
-    if (this.data.xp >= this.data.xpNeed) return this.levelUp();
     if (this.bossSpawned && !enemies.some(e => e.boss)) this.completeStage();
-    this.setData({ enemies, effects, progress: Math.min(100, Math.floor(this.stageTicks / 500 * 100)), xpPct: Math.min(100, this.data.xp / this.data.xpNeed * 100), player: p });
+    if (!this.data.ended && xp >= this.data.xpNeed) this.levelUp();
   },
   levelUp() {
+    this.stopMovement();
     const pool = UPGRADES.slice(); const choices = [];
-    while (choices.length < 3) { const i = Math.floor(Math.random() * pool.length); choices.push({ ...pool.splice(i,1)[0] }); }
+    while (choices.length < 3) {
+      const i = Math.floor(Math.random() * pool.length), choice = { ...pool.splice(i,1)[0] };
+      if (this.elements.includes({ fire: '火', water: '水', earth: '地' }[choice.kind])) choice.desc = '已掌握此附魔，至宝伤害额外提升12%';
+      choices.push(choice);
+    }
     this.setData({ showChoice: true, choices });
   },
   chooseUpgrade(e) {
@@ -83,11 +112,13 @@ Page({
     const u = this.data.choices[index];
     if (!u || !this.data.showChoice) return;
     if (u.kind === 'power') this.power *= 1.25;
-    if (u.kind === 'haste') this.haste *= 0.82;
+    if (u.kind === 'haste') { this.haste *= 0.82; this.attackCd *= 0.82; }
     if (u.kind === 'health') { this.maxHp += 20; this.setData({ maxHp: this.maxHp, hp: Math.min(this.maxHp, this.data.hp + 25) }); }
-    if (u.kind === 'fire' || u.kind === 'water' || u.kind === 'earth') { const name = {fire:'火',water:'水',earth:'地'}[u.kind]; if (!this.elements.includes(name)) this.elements.push(name); else this.power *= 1.12; }
+    let feedback = u.name + '已生效';
+    if (u.kind === 'fire' || u.kind === 'water' || u.kind === 'earth') { const name = {fire:'火',water:'水',earth:'地'}[u.kind]; if (!this.elements.includes(name)) this.elements.push(name); else { this.power *= 1.12; feedback = u.name + '再次领悟 · 伤害提升12%'; } }
     const level = this.data.level + 1, xp = this.data.xp - this.data.xpNeed, xpNeed = Math.ceil(this.data.xpNeed * 1.35);
-    this.setData({ level, xp, xpNeed, xpPct: xp / xpNeed * 100, showChoice: false, elementName: this.elements.length ? this.elements.join('+') : '白板' });
+    this.setData({ level, xp, xpNeed, xpPct: Math.min(100, xp / xpNeed * 100), showChoice: false, choices: [], combatStats: this.combatStats(), elementName: this.elements.length ? this.elements.join('+') : '白板' });
+    this.notify(feedback);
     if (xp >= xpNeed) this.levelUp();
   },
   completeStage() {
@@ -97,23 +128,65 @@ Page({
     if (next === 5) { this.notify('四象记忆归一：你是盘古留下的神念。天道现身！'); }
     else this.notify(MEMORIES[next - 2] || '记忆碎片涌现。');
     this.setData({ stage: next, stageName: STAGES[next - 1], progress: 0, hp: Math.min(this.maxHp, this.data.hp + 15) });
-    setTimeout(() => { if (!this.data.ended) this.spawnEnemy(); }, 700);
+    this.stageTimer = setTimeout(() => { if (!this.data.ended) this.spawnEnemy(); }, 700);
   },
   finish(win) {
     this.stopLoops(); this.setData({ ended: true, won: win, endingTitle: win ? '开天一念' : '神念归寂', endingCopy: win ? '你镇压天道，重演地火风水。天地初生，第一缕晨光照亮人间。此后万物将走向何方？' : '盘古神念暂归混沌。已苏醒的记忆仍留在心中。' });
   },
   restart() { this.setData({ view: 'game' }); this.resetGame(); },
-  onTouchStart(e) { this.touchMove(e); }, onTouchMove(e) { this.touchMove(e); }, onTouchEnd() { this.touching = false; },
-  touchMove(e) {
-    if (this.data.showChoice || this.data.ended) return;
-    const t = e.touches[0]; const info = wx.getSystemInfoSync();
-    const x = Math.max(5, Math.min(95, t.clientX / info.windowWidth * 100));
-    const y = Math.max(12, Math.min(90, (t.clientY - 90) / Math.max(250, info.windowHeight - 220) * 100));
-    this.player = { x, y }; this.setData({ player: this.player });
+  combatStats() { return `伤害 ${Number(this.power.toFixed(2))} · 间隔 ${(Math.max(1, Math.round(11 * this.haste)) * 0.2).toFixed(1)}秒`; },
+  measureArena() {
+    if (this.data.view !== 'game') return;
+    this.createSelectorQuery().select('.arena').boundingClientRect(rect => {
+      if (rect && rect.width > 0 && rect.height > 0) this.arenaRect = rect;
+    }).exec();
   },
-  dash() { if (this.dashing || this.data.ended) return; this.dashing = true; const hp = Math.min(this.maxHp, this.data.hp + 5); this.setData({ hp }); this.player.x = Math.max(5, Math.min(95, this.player.x + (Math.random() > .5 ? 14 : -14))); this.setData({ player: this.player }); setTimeout(() => this.dashing = false, 1800); }
+  onTouchStart(e) {
+    if (this.data.showChoice || this.data.ended || this.touchOrigin) return;
+    const t = e.touches[0];
+    if (!t) return;
+    this.touchId = t.identifier; this.touchOrigin = { x: t.clientX, y: t.clientY };
+    this.moveVector = { x: 0, y: 0 };
+    this.measureArena();
+  },
+  onTouchMove(e) {
+    if (!this.touchOrigin || this.data.showChoice || this.data.ended) return;
+    const t = e.touches.find(touch => touch.identifier === this.touchId);
+    if (!t) return;
+    const dx = t.clientX - this.touchOrigin.x, dy = t.clientY - this.touchOrigin.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance < 6) { this.moveVector = { x: 0, y: 0 }; return; }
+    const strength = Math.min(1, distance / JOYSTICK_RADIUS);
+    this.moveVector = { x: dx / distance * strength, y: dy / distance * strength };
+    this.lastDirection = { x: dx / distance, y: dy / distance };
+  },
+  onTouchEnd(e) {
+    if (e && e.touches && e.touches.some(t => t.identifier === this.touchId)) return;
+    this.stopMovement();
+  },
+  stopMovement() { this.touchOrigin = null; this.touchId = null; this.moveVector = { x: 0, y: 0 }; this.dashRemaining = 0; },
+  moveFrame() {
+    const now = Date.now(), dt = Math.min(0.05, Math.max(0, (now - this.lastMoveTime) / 1000));
+    this.lastMoveTime = now;
+    if (this.data.view !== 'game' || this.data.showChoice || this.data.ended || !this.arenaRect) return;
+    const dashing = this.dashRemaining > 0;
+    const direction = dashing ? this.lastDirection : this.moveVector;
+    if (!direction || (!direction.x && !direction.y)) return;
+    const step = MOVE_SPEED * (dashing ? 3 * Math.min(dt, this.dashRemaining) : dt);
+    this.dashRemaining = Math.max(0, this.dashRemaining - dt);
+    const x = clamp(this.player.x + direction.x * step / this.arenaRect.width * 100, 5, 95);
+    const y = clamp(this.player.y + direction.y * step / this.arenaRect.height * 100, 12, 90);
+    if (x === this.player.x && y === this.player.y) return;
+    this.player = { x, y }; this.setData({ player: { ...this.player } });
+  },
+  dash() {
+    if (this.data.view !== 'game' || this.data.showChoice || this.data.ended || Date.now() < this.dashReadyAt) return;
+    this.dashReadyAt = Date.now() + 1800; this.dashRemaining = 0.2;
+    this.setData({ hp: Math.min(this.maxHp, this.data.hp + 5) });
+  }
 });
 function dist(a,b) { const x=a.x-b.x,y=a.y-b.y; return Math.sqrt(x*x+y*y); }
+function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
 
 
 

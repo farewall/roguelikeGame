@@ -24,6 +24,7 @@ jobs:
         run: |
           node --check miniprogram/app.js
           node --check miniprogram/pages/index/index.js
+          node --test tools/game.test.cjs
       - name: Install official WeChat CI
         run: npm ci --prefix tools/wechat-ci --no-audit --no-fund
       - name: Upload development version and generate preview QR
