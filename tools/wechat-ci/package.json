@@ -1,0 +1,7 @@
+{
+  "name": "roguelike-wechat-ci",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": { "upload": "node upload.cjs" },
+  "dependencies": { "miniprogram-ci": "2.1.31" }
+}

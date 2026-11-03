@@ -10,7 +10,7 @@ const UPGRADES = [
   { id: 'earth', icon: '🪨', name: '厚土附魔', desc: '命中时震荡周围敌人', kind: 'earth' }
 ];
 Page({
-  data: { view: 'home', showSettings: false, showIntro: false, soundOn: true, vibrationOn: true, hintsOn: true, hp: 100, maxHp: 100, hurt: false, level: 1, xp: 0, xpNeed: 5, xpPct: 0, stage: 1, stageName: STAGES[0], progress: 0, player: { x: 50, y: 55 }, enemies: [], effects: [], weaponName: '东皇钟', elementName: '白板', message: '', showChoice: false, choices: [], ended: false, endingTitle: '', endingCopy: '' },
+  data: { view: 'home', showSettings: false, showIntro: false, soundOn: true, vibrationOn: true, hintsOn: true, hp: 100, maxHp: 100, hurt: false, level: 1, xp: 0, xpNeed: 5, xpPct: 0, stage: 1, stageName: STAGES[0], progress: 0, player: { x: 50, y: 55 }, enemies: [], effects: [], weaponName: '东皇钟', elementName: '白板', message: '', showChoice: false, choices: [], ended: false, won: false, endingTitle: '', endingCopy: '' },
   onLoad() { this.setData({ view: 'home', showSettings: false, showIntro: false, soundOn: true, vibrationOn: true, hintsOn: true }); },
   onUnload() { this.stopLoops(); },
   openIntro() { this.setData({ showIntro: true, showSettings: false }); },
@@ -100,7 +100,7 @@ Page({
     setTimeout(() => { if (!this.data.ended) this.spawnEnemy(); }, 700);
   },
   finish(win) {
-    this.stopLoops(); this.setData({ ended: true, endingTitle: win ? '开天一念' : '神念归寂', endingCopy: win ? '你镇压天道，重演地火风水。天地初生，第一缕晨光照亮人间。此后万物将走向何方？' : '盘古神念暂归混沌。已苏醒的记忆仍留在心中。' });
+    this.stopLoops(); this.setData({ ended: true, won: win, endingTitle: win ? '开天一念' : '神念归寂', endingCopy: win ? '你镇压天道，重演地火风水。天地初生，第一缕晨光照亮人间。此后万物将走向何方？' : '盘古神念暂归混沌。已苏醒的记忆仍留在心中。' });
   },
   restart() { this.setData({ view: 'game' }); this.resetGame(); },
   onTouchStart(e) { this.touchMove(e); }, onTouchMove(e) { this.touchMove(e); }, onTouchEnd() { this.touching = false; },
