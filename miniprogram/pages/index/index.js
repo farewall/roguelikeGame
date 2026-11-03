@@ -10,7 +10,7 @@ const UPGRADES = [
   { id: 'earth', icon: '🪨', name: '厚土附魔', desc: '命中时震荡周围敌人', kind: 'earth' }
 ];
 Page({
-  data: { view: 'home', showSettings: false, showIntro: false, soundOn: true, vibrationOn: true, hintsOn: true, hp: 100, level: 1, xp: 0, xpNeed: 5, xpPct: 0, stage: 1, stageName: STAGES[0], progress: 0, player: { x: 50, y: 55 }, enemies: [], effects: [], weaponName: '东皇钟', elementName: '白板', message: '', showChoice: false, choices: [], ended: false, endingTitle: '', endingCopy: '' },
+  data: { view: 'home', showSettings: false, showIntro: false, soundOn: true, vibrationOn: true, hintsOn: true, hp: 100, maxHp: 100, hurt: false, level: 1, xp: 0, xpNeed: 5, xpPct: 0, stage: 1, stageName: STAGES[0], progress: 0, player: { x: 50, y: 55 }, enemies: [], effects: [], weaponName: '东皇钟', elementName: '白板', message: '', showChoice: false, choices: [], ended: false, endingTitle: '', endingCopy: '' },
   onLoad() { this.setData({ view: 'home', showSettings: false, showIntro: false, soundOn: true, vibrationOn: true, hintsOn: true }); },
   onUnload() { this.stopLoops(); },
   openIntro() { this.setData({ showIntro: true, showSettings: false }); },
@@ -23,8 +23,8 @@ Page({
   toggleVibration(e) { this.setData({ vibrationOn: e.detail.value }); },
   toggleHints(e) { this.setData({ hintsOn: e.detail.value }); },
   resetGame() {
-    this.stopLoops(); this.enemyId = 0; this.effectId = 0; this.attackCd = 0; this.stageTicks = 0; this.kills = 0; this.power = 1; this.haste = 1; this.elements = []; this.player = { x: 50, y: 55 };
-    this.setData({ hp: 100, level: 1, xp: 0, xpNeed: 5, xpPct: 0, stage: 1, stageName: STAGES[0], progress: 0, player: this.player, enemies: [], effects: [], weaponName: '东皇钟', elementName: '白板', message: '混沌深处，一道古老神念苏醒。', showChoice: false, ended: false });
+    this.stopLoops(); this.enemyId = 0; this.effectId = 0; this.attackCd = 0; this.stageTicks = 0; this.kills = 0; this.power = 1; this.haste = 1; this.elements = []; this.player = { x: 50, y: 55 }; this.maxHp = 100; this.invulnerableUntil = 0;
+    this.setData({ hp: this.maxHp, maxHp: this.maxHp, hurt: false, level: 1, xp: 0, xpNeed: 5, xpPct: 0, stage: 1, stageName: STAGES[0], progress: 0, player: this.player, enemies: [], effects: [], weaponName: '东皇钟', elementName: '白板', message: '混沌深处，一道古老神念苏醒。', showChoice: false, ended: false });
     this.spawnEnemy(); this.gameTimer = setInterval(() => this.tick(), 200); this.spawnTimer = setInterval(() => this.spawnEnemy(), 1700);
   },
   stopLoops() { if (this.gameTimer) clearInterval(this.gameTimer); if (this.spawnTimer) clearInterval(this.spawnTimer); if (this.toastTimer) clearTimeout(this.toastTimer); },
@@ -58,8 +58,17 @@ Page({
     }
     const dead = enemies.filter(e => e.hp <= 0); enemies = enemies.filter(e => e.hp > 0);
     if (dead.length) { this.kills += dead.length; this.setData({ xp: this.data.xp + dead.length }); }
-    const collision = enemies.some(e => dist(p,e) < (e.boss ? 7 : 5));
-    if (collision && this.stageTicks % 8 === 0) { const hp = Math.max(0, this.data.hp - (enemies.some(e=>e.boss) ? 5 : 2)); this.setData({ hp }); if (!hp) return this.finish(false); }
+    const attacker = enemies.find(e => dist(p,e) < (e.boss ? 9 : 6));
+    if (attacker && Date.now() >= this.invulnerableUntil) {
+      const damage = attacker.boss ? 10 : 5;
+      const hp = Math.max(0, this.data.hp - damage);
+      this.invulnerableUntil = Date.now() + 1000;
+      this.setData({ hp, hurt: true });
+      clearTimeout(this.hurtTimer);
+      this.hurtTimer = setTimeout(() => this.setData({ hurt: false }), 280);
+      if (this.data.vibrationOn && wx.vibrateShort) wx.vibrateShort({ type: 'light' });
+      if (!hp) return this.finish(false);
+    }
     if (this.data.xp >= this.data.xpNeed) return this.levelUp();
     if (this.bossSpawned && !enemies.some(e => e.boss)) this.completeStage();
     this.setData({ enemies, effects, progress: Math.min(100, Math.floor(this.stageTicks / 500 * 100)), xpPct: Math.min(100, this.data.xp / this.data.xpNeed * 100), player: p });
@@ -70,10 +79,12 @@ Page({
     this.setData({ showChoice: true, choices });
   },
   chooseUpgrade(e) {
-    const u = this.data.choices[e.currentTarget.dataset.index];
+    const index = Number(e.currentTarget.dataset.index);
+    const u = this.data.choices[index];
+    if (!u || !this.data.showChoice) return;
     if (u.kind === 'power') this.power *= 1.25;
     if (u.kind === 'haste') this.haste *= 0.82;
-    if (u.kind === 'health') this.setData({ hp: Math.min(100, this.data.hp + 25) });
+    if (u.kind === 'health') { this.maxHp += 20; this.setData({ maxHp: this.maxHp, hp: Math.min(this.maxHp, this.data.hp + 25) }); }
     if (u.kind === 'fire' || u.kind === 'water' || u.kind === 'earth') { const name = {fire:'火',water:'水',earth:'地'}[u.kind]; if (!this.elements.includes(name)) this.elements.push(name); else this.power *= 1.12; }
     const level = this.data.level + 1, xp = this.data.xp - this.data.xpNeed, xpNeed = Math.ceil(this.data.xpNeed * 1.35);
     this.setData({ level, xp, xpNeed, xpPct: xp / xpNeed * 100, showChoice: false, elementName: this.elements.length ? this.elements.join('+') : '白板' });
@@ -85,7 +96,7 @@ Page({
     const next = this.data.stage + 1;
     if (next === 5) { this.notify('四象记忆归一：你是盘古留下的神念。天道现身！'); }
     else this.notify(MEMORIES[next - 2] || '记忆碎片涌现。');
-    this.setData({ stage: next, stageName: STAGES[next - 1], progress: 0, hp: Math.min(100, this.data.hp + 15) });
+    this.setData({ stage: next, stageName: STAGES[next - 1], progress: 0, hp: Math.min(this.maxHp, this.data.hp + 15) });
     setTimeout(() => { if (!this.data.ended) this.spawnEnemy(); }, 700);
   },
   finish(win) {
@@ -100,7 +111,7 @@ Page({
     const y = Math.max(12, Math.min(90, (t.clientY - 90) / Math.max(250, info.windowHeight - 220) * 100));
     this.player = { x, y }; this.setData({ player: this.player });
   },
-  dash() { if (this.dashing || this.data.ended) return; this.dashing = true; const hp = Math.min(100, this.data.hp + 5); this.setData({ hp }); this.player.x = Math.max(5, Math.min(95, this.player.x + (Math.random() > .5 ? 14 : -14))); this.setData({ player: this.player }); setTimeout(() => this.dashing = false, 1800); }
+  dash() { if (this.dashing || this.data.ended) return; this.dashing = true; const hp = Math.min(this.maxHp, this.data.hp + 5); this.setData({ hp }); this.player.x = Math.max(5, Math.min(95, this.player.x + (Math.random() > .5 ? 14 : -14))); this.setData({ player: this.player }); setTimeout(() => this.dashing = false, 1800); }
 });
 function dist(a,b) { const x=a.x-b.x,y=a.y-b.y; return Math.sqrt(x*x+y*y); }
 

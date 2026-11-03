@@ -147,6 +147,8 @@ page { height:100%; min-height:100%; overflow:hidden; background:#111722; color:
 @keyframes aura-pulse { 0%,100% { transform:rotate(-45deg) scale(.9); opacity:.25; } 50% { transform:rotate(-45deg) scale(1.08); opacity:.75; } }
 /* 盘古神念：远古巨人剪影与开天斧 */
 .player { width:120rpx; height:156rpx; }
+.player-hurt { animation:player-hurt .28s ease-out; filter:brightness(1.8) sepia(.7) saturate(4); }
+@keyframes player-hurt { 0%,100% { opacity:1; } 35% { opacity:.3; } 70% { opacity:1; } }
 .pangu-sprite { position:absolute; z-index:2; left:50%; top:50%; width:190rpx; height:230rpx; transform:translate(-50%,-50%); filter:drop-shadow(0 0 8rpx rgba(18,20,18,.72)); pointer-events:none; }
 .player-orbit { inset:12rpx -12rpx; border-color:rgba(247,215,145,.48); transform:rotate(-24deg); animation:giant-aura 5s ease-in-out infinite alternate; }
 .pangu-silhouette { position:absolute; z-index:2; left:50%; bottom:14rpx; width:82rpx; height:126rpx; transform:translateX(-50%); filter:drop-shadow(0 0 12rpx rgba(236,190,105,.55)); }

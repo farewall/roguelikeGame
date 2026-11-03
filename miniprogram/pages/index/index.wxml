@@ -8,7 +8,7 @@
 <view wx:if="{{view === 'game'}}" class="screen">
   <view class="topbar">
     <view><text class="brand">开天一念</text><text class="subtitle">盘古遗念 · 混沌试炼</text></view>
-    <view class="stats"><text>❤ {{hp}}</text><text>境界 {{level}}</text></view>
+    <view class="stats"><text>❤ {{hp}} / {{maxHp}}</text><text>境界 {{level}}</text></view>
   </view>
   <view class="progress"><view class="progress-fill" style="width:{{progress}}%"></view></view>
   <view class="arena stage-{{stage}}" catchtouchstart="onTouchStart" catchtouchmove="onTouchMove" catchtouchend="onTouchEnd">
@@ -17,12 +17,12 @@
     <view class="hint">拖动屏幕任意位置移动 · 至宝自动攻击</view>
     <view wx:for="{{enemies}}" wx:key="id" class="enemy {{item.boss ? 'boss boss-' + item.bossType : ''}} " style="left:{{item.x}}%;top:{{item.y}}%"><view class="creature"><view class="creature-core">{{item.glyph}}</view><view class="creature-eye eye-left"></view><view class="creature-eye eye-right"></view><view class="creature-aura"></view></view><view class="enemy-hp"><view style="width:{{item.hpPct}}%"></view></view></view>
     <view wx:for="{{effects}}" wx:key="id" class="effect" style="left:{{item.x}}%;top:{{item.y}}%">{{item.icon}}</view>
-    <view class="player" style="left:{{player.x}}%;top:{{player.y}}%"><view class="player-orbit"></view><image class="pangu-sprite" src="../../images/master.png" mode="aspectFit"/><view class="player-spark spark-a"></view><view class="player-spark spark-b"></view><view class="player-spark spark-c"></view></view>
+    <view class="player {{hurt ? 'player-hurt' : ''}}" style="left:{{player.x}}%;top:{{player.y}}%"><view class="player-orbit"></view><image class="pangu-sprite" src="../../images/master.png" mode="aspectFit"/><view class="player-spark spark-a"></view><view class="player-spark spark-b"></view><view class="player-spark spark-c"></view></view>
     <view class="weapon-badge">{{weaponName}} · {{elementName}}</view>
     <view wx:if="{{message}}" class="toast">{{message}}</view>
-    <view wx:if="{{showChoice}}" class="overlay">
+    <view wx:if="{{showChoice}}" class="overlay choice-overlay" catchtouchmove="stopTap">
       <view class="choice-panel"><text class="choice-title">灵光一现 · 选择提升</text>
-        <view wx:for="{{choices}}" wx:key="id" class="choice" data-index="{{index}}" bindtap="chooseUpgrade"><text class="choice-icon">{{item.icon}}</text><view><text class="choice-name">{{item.name}}</text><text class="choice-desc">{{item.desc}}</text></view><text class="arrow">›</text></view>
+        <view wx:for="{{choices}}" wx:key="id" class="choice" data-index="{{index}}" catchtap="chooseUpgrade"><text class="choice-icon">{{item.icon}}</text><view><text class="choice-name">{{item.name}}</text><text class="choice-desc">{{item.desc}}</text></view><text class="arrow">›</text></view>
       </view>
     </view>
     <view wx:if="{{ended}}" class="overlay"><view class="choice-panel ending"><text class="choice-title">{{endingTitle}}</text><text class="ending-copy">{{endingCopy}}</text><button class="restart" bindtap="restart">再入混沌</button></view></view>
