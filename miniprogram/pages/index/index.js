@@ -3,6 +3,10 @@ const BOSS_GLYPHS = ['龙', '虎', '凰', '玄', '道'];
 const MEMORIES = ['记忆闪回：女娲造人，人间初生，山川间生机盎然。', '记忆闪回：文明兴起，争斗由资源冲突逐渐升级。', '记忆闪回：圣人交战，至宝碰撞，天地根基崩坏。', '记忆闪回：万物归于混沌。你想起了自己是盘古留下的神念。'];
 const MOVE_SPEED = 180; // Screen pixels per second, independent of touch event frequency.
 const JOYSTICK_RADIUS = 48;
+const { PanguAnimation } = require('../../lib/pangu-animation');
+const ACTOR_SHEETS = ['idle', 'move', 'attack', 'hurt', 'awaken', 'death'];
+const DIRECTION_ROW = { down: 0, up: 1, left: 2, right: 3 };
+const ACTOR_FRAME_SIZE = 192; // Display units (rpx); each packed source cell is 128 px.
 const UPGRADES = [
   { id: 'power', icon: '⚡', name: '开天劲', desc: '至宝伤害提升 25%', kind: 'power' },
   { id: 'haste', icon: '🌪', name: '疾风法', desc: '至宝攻击间隔缩短 18%', kind: 'haste' },
@@ -15,7 +19,7 @@ Page({
   data: { view: 'home', showSettings: false, showIntro: false, soundOn: true, vibrationOn: true, hintsOn: true, hp: 100, maxHp: 100, hurt: false, level: 1, xp: 0, xpNeed: 5, xpPct: 0, stage: 1, stageName: STAGES[0], progress: 0, player: { x: 50, y: 55 }, enemies: [], effects: [], weaponName: '东皇钟', elementName: '白板', message: '', showChoice: false, choices: [], ended: false, won: false, endingTitle: '', endingCopy: '' },
   onLoad() { this.setData({ view: 'home', showSettings: false, showIntro: false, soundOn: true, vibrationOn: true, hintsOn: true }); },
   onUnload() { this.stopLoops(); },
-  onHide() { this.stopMovement(); },
+  onHide() { this.stopMovement(); this.lastMoveTime = Date.now(); },
   onResize() { this.measureArena(); },
   openIntro() { this.setData({ showIntro: true, showSettings: false }); },
   closeIntro() { this.setData({ showIntro: false }); },
@@ -28,14 +32,15 @@ Page({
   toggleHints(e) { this.setData({ hintsOn: e.detail.value }); },
   resetGame() {
     this.stopLoops(); this.enemyId = 0; this.effectId = 0; this.attackCd = 0; this.stageTicks = 0; this.kills = 0; this.power = 1; this.haste = 1; this.elements = []; this.player = { x: 50, y: 55 }; this.maxHp = 100; this.invulnerableUntil = 0;
-    this.bossSpawned = false; this.dashReadyAt = 0; this.lastDirection = { x: 1, y: 0 }; this.arenaRect = null;
-    this.setData({ hp: this.maxHp, maxHp: this.maxHp, hurt: false, level: 1, xp: 0, xpNeed: 5, xpPct: 0, stage: 1, stageName: STAGES[0], progress: 0, player: { ...this.player }, enemies: [], effects: [], weaponName: '东皇钟', elementName: '白板', combatStats: this.combatStats(), message: '混沌深处，一道古老神念苏醒。', showChoice: false, choices: [], ended: false, won: false }, () => this.measureArena());
+    this.bossSpawned = false; this.arenaRect = null; this.actor = new PanguAnimation(); this.actorFrameKey = '';
+    this.setData({ hp: this.maxHp, maxHp: this.maxHp, hurt: false, level: 1, xp: 0, xpNeed: 5, xpPct: 0, stage: 1, stageName: STAGES[0], progress: 0, player: { ...this.player }, enemies: [], effects: [], weaponName: '东皇钟', elementName: '白板', combatStats: this.combatStats(), message: '混沌深处，一道古老神念苏醒。', showChoice: false, choices: [], ended: false, showEnding: false, won: false, actorSheets: ACTOR_SHEETS }, () => this.measureArena());
+    this.renderActor(0);
     this.spawnEnemy(); this.gameTimer = setInterval(() => this.tick(), 200); this.spawnTimer = setInterval(() => this.spawnEnemy(), 1700);
     this.lastMoveTime = Date.now(); this.moveTimer = setInterval(() => this.moveFrame(), 32);
   },
   stopLoops() {
     clearInterval(this.gameTimer); clearInterval(this.spawnTimer); clearInterval(this.moveTimer);
-    clearTimeout(this.toastTimer); clearTimeout(this.hurtTimer); clearTimeout(this.stageTimer);
+    clearTimeout(this.toastTimer); clearTimeout(this.hurtTimer); clearTimeout(this.stageTimer); clearTimeout(this.endingTimer);
     this.stopMovement();
   },
   notify(message) { this.setData({ message }); clearTimeout(this.toastTimer); this.toastTimer = setTimeout(() => this.setData({ message: '' }), 2100); },
@@ -64,6 +69,9 @@ Page({
     const living = enemies.filter(e => e.hp > 0);
     if (this.attackCd <= 0 && living.length) {
       const target = living.reduce((a,b) => dist(p,a) < dist(p,b) ? a : b);
+      // Match facing to screen-space direction, not the arena's unequal percentage axes.
+      this.actor.attack((target.x - p.x) * (this.arenaRect ? this.arenaRect.width : 1), (target.y - p.y) * (this.arenaRect ? this.arenaRect.height : 1));
+      this.renderActor(0);
       target.hp -= this.power; this.attackCd = Math.max(1, Math.round(11 * this.haste));
       const fire = this.elements.includes('火'), water = this.elements.includes('水'), earth = this.elements.includes('地');
       effects.push({ id: ++this.effectId, x: target.x, y: target.y, type: fire && water ? 'steam' : fire ? 'fire' : water ? 'water' : 'gold', ttl: 4 });
@@ -93,6 +101,7 @@ Page({
       this.hurtTimer = setTimeout(() => this.setData({ hurt: false }), 280);
       if (this.data.vibrationOn && wx.vibrateShort) wx.vibrateShort({ type: 'light' });
       if (!hp) return this.finish(false);
+      this.actor.hurt(); this.renderActor(0);
     }
     if (this.bossSpawned && !enemies.some(e => e.boss)) this.completeStage();
     if (!this.data.ended && xp >= this.data.xpNeed) this.levelUp();
@@ -120,6 +129,7 @@ Page({
     this.setData({ level, xp, xpNeed, xpPct: Math.min(100, xp / xpNeed * 100), showChoice: false, choices: [], combatStats: this.combatStats(), elementName: this.elements.length ? this.elements.join('+') : '白板' });
     this.notify(feedback);
     if (xp >= xpNeed) this.levelUp();
+    else { this.actor.awaken(); this.renderActor(0); }
   },
   completeStage() {
     this.bossSpawned = false; this.stageTicks = 0;
@@ -131,7 +141,17 @@ Page({
     this.stageTimer = setTimeout(() => { if (!this.data.ended) this.spawnEnemy(); }, 700);
   },
   finish(win) {
-    this.stopLoops(); this.setData({ ended: true, won: win, endingTitle: win ? '开天一念' : '神念归寂', endingCopy: win ? '你镇压天道，重演地火风水。天地初生，第一缕晨光照亮人间。此后万物将走向何方？' : '盘古神念暂归混沌。已苏醒的记忆仍留在心中。' });
+    this.stopLoops();
+    if (win) this.actor.awaken(); else this.actor.die();
+    this.setData({ ended: true, showEnding: false, won: win, showChoice: false, endingTitle: win ? '开天一念' : '神念归寂', endingCopy: win ? '你镇压天道，重演地火风水。天地初生，第一缕晨光照亮人间。此后万物将走向何方？' : '盘古神念暂归混沌。已苏醒的记忆仍留在心中。' });
+    this.renderActor(0);
+    this.lastMoveTime = Date.now(); this.moveTimer = setInterval(() => this.moveFrame(), 32);
+    // Keep the world still while the full six-frame death/victory animation plays.
+    this.endingTimer = setTimeout(() => {
+      this.renderActor(1);
+      clearInterval(this.moveTimer);
+      this.setData({ showEnding: true });
+    }, 1050);
   },
   restart() { this.setData({ view: 'game' }); this.resetGame(); },
   combatStats() { return `伤害 ${Number(this.power.toFixed(2))} · 间隔 ${(Math.max(1, Math.round(11 * this.haste)) * 0.2).toFixed(1)}秒`; },
@@ -158,31 +178,34 @@ Page({
     if (distance < 6) { this.moveVector = { x: 0, y: 0 }; return; }
     const strength = Math.min(1, distance / JOYSTICK_RADIUS);
     this.moveVector = { x: dx / distance * strength, y: dy / distance * strength };
-    this.lastDirection = { x: dx / distance, y: dy / distance };
   },
   onTouchEnd(e) {
     if (e && e.touches && e.touches.some(t => t.identifier === this.touchId)) return;
     this.stopMovement();
   },
-  stopMovement() { this.touchOrigin = null; this.touchId = null; this.moveVector = { x: 0, y: 0 }; this.dashRemaining = 0; },
+  stopMovement() {
+    this.touchOrigin = null; this.touchId = null; this.moveVector = { x: 0, y: 0 };
+    if (this.actor) this.actor.move(0, 0);
+  },
+  renderActor(dt) {
+    const frame = this.actor.update(dt), key = frame.action + ':' + frame.direction + ':' + frame.index;
+    if (key === this.actorFrameKey) return;
+    this.actorFrameKey = key;
+    this.setData({ actorFrame: { action: frame.action, direction: frame.direction, index: frame.index, left: -frame.index * ACTOR_FRAME_SIZE, top: -DIRECTION_ROW[frame.direction] * ACTOR_FRAME_SIZE } });
+  },
   moveFrame() {
     const now = Date.now(), dt = Math.min(0.05, Math.max(0, (now - this.lastMoveTime) / 1000));
     this.lastMoveTime = now;
-    if (this.data.view !== 'game' || this.data.showChoice || this.data.ended || !this.arenaRect) return;
-    const dashing = this.dashRemaining > 0;
-    const direction = dashing ? this.lastDirection : this.moveVector;
-    if (!direction || (!direction.x && !direction.y)) return;
-    const step = MOVE_SPEED * (dashing ? 3 * Math.min(dt, this.dashRemaining) : dt);
-    this.dashRemaining = Math.max(0, this.dashRemaining - dt);
-    const x = clamp(this.player.x + direction.x * step / this.arenaRect.width * 100, 5, 95);
-    const y = clamp(this.player.y + direction.y * step / this.arenaRect.height * 100, 12, 90);
-    if (x === this.player.x && y === this.player.y) return;
-    this.player = { x, y }; this.setData({ player: { ...this.player } });
-  },
-  dash() {
-    if (this.data.view !== 'game' || this.data.showChoice || this.data.ended || Date.now() < this.dashReadyAt) return;
-    this.dashReadyAt = Date.now() + 1800; this.dashRemaining = 0.2;
-    this.setData({ hp: Math.min(this.maxHp, this.data.hp + 5) });
+    if (this.data.view !== 'game' || this.data.showChoice) return;
+    if (!this.data.ended && this.arenaRect) {
+      const direction = this.moveVector || { x: 0, y: 0 }, step = MOVE_SPEED * dt;
+      const x = clamp(this.player.x + direction.x * step / this.arenaRect.width * 100, 5, 95);
+      const y = clamp(this.player.y + direction.y * step / this.arenaRect.height * 100, 12, 90);
+      const moved = x !== this.player.x || y !== this.player.y;
+      this.actor.move(moved ? direction.x : 0, moved ? direction.y : 0);
+      if (moved) { this.player = { x, y }; this.setData({ player: { ...this.player } }); }
+    }
+    this.renderActor(dt);
   }
 });
 function dist(a,b) { const x=a.x-b.x,y=a.y-b.y; return Math.sqrt(x*x+y*y); }

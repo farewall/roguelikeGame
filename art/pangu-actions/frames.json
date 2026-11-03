@@ -1,0 +1,1298 @@
+{
+  "idle/down/01": {
+    "sheet": "idle.png",
+    "x": 0,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "idle/down/02": {
+    "sheet": "idle.png",
+    "x": 256,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "idle/down/03": {
+    "sheet": "idle.png",
+    "x": 512,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "idle/down/04": {
+    "sheet": "idle.png",
+    "x": 768,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "idle/down/05": {
+    "sheet": "idle.png",
+    "x": 1024,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "idle/down/06": {
+    "sheet": "idle.png",
+    "x": 1280,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "idle/up/01": {
+    "sheet": "idle.png",
+    "x": 0,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "idle/up/02": {
+    "sheet": "idle.png",
+    "x": 256,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "idle/up/03": {
+    "sheet": "idle.png",
+    "x": 512,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "idle/up/04": {
+    "sheet": "idle.png",
+    "x": 768,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "idle/up/05": {
+    "sheet": "idle.png",
+    "x": 1024,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "idle/up/06": {
+    "sheet": "idle.png",
+    "x": 1280,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "idle/left/01": {
+    "sheet": "idle.png",
+    "x": 0,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "idle/left/02": {
+    "sheet": "idle.png",
+    "x": 256,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "idle/left/03": {
+    "sheet": "idle.png",
+    "x": 512,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "idle/left/04": {
+    "sheet": "idle.png",
+    "x": 768,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "idle/left/05": {
+    "sheet": "idle.png",
+    "x": 1024,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "idle/left/06": {
+    "sheet": "idle.png",
+    "x": 1280,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "idle/right/01": {
+    "sheet": "idle.png",
+    "x": 0,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "idle/right/02": {
+    "sheet": "idle.png",
+    "x": 256,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "idle/right/03": {
+    "sheet": "idle.png",
+    "x": 512,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "idle/right/04": {
+    "sheet": "idle.png",
+    "x": 768,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "idle/right/05": {
+    "sheet": "idle.png",
+    "x": 1024,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "idle/right/06": {
+    "sheet": "idle.png",
+    "x": 1280,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "move/down/01": {
+    "sheet": "move.png",
+    "x": 0,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "move/down/02": {
+    "sheet": "move.png",
+    "x": 256,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "move/down/03": {
+    "sheet": "move.png",
+    "x": 512,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "move/down/04": {
+    "sheet": "move.png",
+    "x": 768,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "move/down/05": {
+    "sheet": "move.png",
+    "x": 1024,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "move/down/06": {
+    "sheet": "move.png",
+    "x": 1280,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "move/up/01": {
+    "sheet": "move.png",
+    "x": 0,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "move/up/02": {
+    "sheet": "move.png",
+    "x": 256,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "move/up/03": {
+    "sheet": "move.png",
+    "x": 512,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "move/up/04": {
+    "sheet": "move.png",
+    "x": 768,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "move/up/05": {
+    "sheet": "move.png",
+    "x": 1024,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "move/up/06": {
+    "sheet": "move.png",
+    "x": 1280,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "move/left/01": {
+    "sheet": "move.png",
+    "x": 0,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "move/left/02": {
+    "sheet": "move.png",
+    "x": 256,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "move/left/03": {
+    "sheet": "move.png",
+    "x": 512,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "move/left/04": {
+    "sheet": "move.png",
+    "x": 768,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "move/left/05": {
+    "sheet": "move.png",
+    "x": 1024,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "move/left/06": {
+    "sheet": "move.png",
+    "x": 1280,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "move/right/01": {
+    "sheet": "move.png",
+    "x": 0,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "move/right/02": {
+    "sheet": "move.png",
+    "x": 256,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "move/right/03": {
+    "sheet": "move.png",
+    "x": 512,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "move/right/04": {
+    "sheet": "move.png",
+    "x": 768,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "move/right/05": {
+    "sheet": "move.png",
+    "x": 1024,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "move/right/06": {
+    "sheet": "move.png",
+    "x": 1280,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "attack/down/01": {
+    "sheet": "attack.png",
+    "x": 0,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "attack/down/02": {
+    "sheet": "attack.png",
+    "x": 256,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "attack/down/03": {
+    "sheet": "attack.png",
+    "x": 512,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "attack/down/04": {
+    "sheet": "attack.png",
+    "x": 768,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "attack/down/05": {
+    "sheet": "attack.png",
+    "x": 1024,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "attack/down/06": {
+    "sheet": "attack.png",
+    "x": 1280,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "attack/up/01": {
+    "sheet": "attack.png",
+    "x": 0,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "attack/up/02": {
+    "sheet": "attack.png",
+    "x": 256,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "attack/up/03": {
+    "sheet": "attack.png",
+    "x": 512,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "attack/up/04": {
+    "sheet": "attack.png",
+    "x": 768,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "attack/up/05": {
+    "sheet": "attack.png",
+    "x": 1024,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "attack/up/06": {
+    "sheet": "attack.png",
+    "x": 1280,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "attack/left/01": {
+    "sheet": "attack.png",
+    "x": 0,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "attack/left/02": {
+    "sheet": "attack.png",
+    "x": 256,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "attack/left/03": {
+    "sheet": "attack.png",
+    "x": 512,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "attack/left/04": {
+    "sheet": "attack.png",
+    "x": 768,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "attack/left/05": {
+    "sheet": "attack.png",
+    "x": 1024,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "attack/left/06": {
+    "sheet": "attack.png",
+    "x": 1280,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "attack/right/01": {
+    "sheet": "attack.png",
+    "x": 0,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "attack/right/02": {
+    "sheet": "attack.png",
+    "x": 256,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "attack/right/03": {
+    "sheet": "attack.png",
+    "x": 512,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "attack/right/04": {
+    "sheet": "attack.png",
+    "x": 768,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "attack/right/05": {
+    "sheet": "attack.png",
+    "x": 1024,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "attack/right/06": {
+    "sheet": "attack.png",
+    "x": 1280,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "hurt/down/01": {
+    "sheet": "hurt.png",
+    "x": 0,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "hurt/down/02": {
+    "sheet": "hurt.png",
+    "x": 256,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "hurt/down/03": {
+    "sheet": "hurt.png",
+    "x": 512,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "hurt/down/04": {
+    "sheet": "hurt.png",
+    "x": 768,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "hurt/down/05": {
+    "sheet": "hurt.png",
+    "x": 1024,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "hurt/down/06": {
+    "sheet": "hurt.png",
+    "x": 1280,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "hurt/up/01": {
+    "sheet": "hurt.png",
+    "x": 0,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "hurt/up/02": {
+    "sheet": "hurt.png",
+    "x": 256,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "hurt/up/03": {
+    "sheet": "hurt.png",
+    "x": 512,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "hurt/up/04": {
+    "sheet": "hurt.png",
+    "x": 768,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "hurt/up/05": {
+    "sheet": "hurt.png",
+    "x": 1024,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "hurt/up/06": {
+    "sheet": "hurt.png",
+    "x": 1280,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "hurt/left/01": {
+    "sheet": "hurt.png",
+    "x": 0,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "hurt/left/02": {
+    "sheet": "hurt.png",
+    "x": 256,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "hurt/left/03": {
+    "sheet": "hurt.png",
+    "x": 512,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "hurt/left/04": {
+    "sheet": "hurt.png",
+    "x": 768,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "hurt/left/05": {
+    "sheet": "hurt.png",
+    "x": 1024,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "hurt/left/06": {
+    "sheet": "hurt.png",
+    "x": 1280,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "hurt/right/01": {
+    "sheet": "hurt.png",
+    "x": 0,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "hurt/right/02": {
+    "sheet": "hurt.png",
+    "x": 256,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "hurt/right/03": {
+    "sheet": "hurt.png",
+    "x": 512,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "hurt/right/04": {
+    "sheet": "hurt.png",
+    "x": 768,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "hurt/right/05": {
+    "sheet": "hurt.png",
+    "x": 1024,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "hurt/right/06": {
+    "sheet": "hurt.png",
+    "x": 1280,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "awaken/down/01": {
+    "sheet": "awaken.png",
+    "x": 0,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "awaken/down/02": {
+    "sheet": "awaken.png",
+    "x": 256,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "awaken/down/03": {
+    "sheet": "awaken.png",
+    "x": 512,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "awaken/down/04": {
+    "sheet": "awaken.png",
+    "x": 768,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "awaken/down/05": {
+    "sheet": "awaken.png",
+    "x": 1024,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "awaken/down/06": {
+    "sheet": "awaken.png",
+    "x": 1280,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "awaken/up/01": {
+    "sheet": "awaken.png",
+    "x": 0,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "awaken/up/02": {
+    "sheet": "awaken.png",
+    "x": 256,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "awaken/up/03": {
+    "sheet": "awaken.png",
+    "x": 512,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "awaken/up/04": {
+    "sheet": "awaken.png",
+    "x": 768,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "awaken/up/05": {
+    "sheet": "awaken.png",
+    "x": 1024,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "awaken/up/06": {
+    "sheet": "awaken.png",
+    "x": 1280,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "awaken/left/01": {
+    "sheet": "awaken.png",
+    "x": 0,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "awaken/left/02": {
+    "sheet": "awaken.png",
+    "x": 256,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "awaken/left/03": {
+    "sheet": "awaken.png",
+    "x": 512,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "awaken/left/04": {
+    "sheet": "awaken.png",
+    "x": 768,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "awaken/left/05": {
+    "sheet": "awaken.png",
+    "x": 1024,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "awaken/left/06": {
+    "sheet": "awaken.png",
+    "x": 1280,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "awaken/right/01": {
+    "sheet": "awaken.png",
+    "x": 0,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "awaken/right/02": {
+    "sheet": "awaken.png",
+    "x": 256,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "awaken/right/03": {
+    "sheet": "awaken.png",
+    "x": 512,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "awaken/right/04": {
+    "sheet": "awaken.png",
+    "x": 768,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "awaken/right/05": {
+    "sheet": "awaken.png",
+    "x": 1024,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "awaken/right/06": {
+    "sheet": "awaken.png",
+    "x": 1280,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "death/down/01": {
+    "sheet": "death.png",
+    "x": 0,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "death/down/02": {
+    "sheet": "death.png",
+    "x": 256,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "death/down/03": {
+    "sheet": "death.png",
+    "x": 512,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "death/down/04": {
+    "sheet": "death.png",
+    "x": 768,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "death/down/05": {
+    "sheet": "death.png",
+    "x": 1024,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "death/down/06": {
+    "sheet": "death.png",
+    "x": 1280,
+    "y": 0,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "death/up/01": {
+    "sheet": "death.png",
+    "x": 0,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "death/up/02": {
+    "sheet": "death.png",
+    "x": 256,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "death/up/03": {
+    "sheet": "death.png",
+    "x": 512,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "death/up/04": {
+    "sheet": "death.png",
+    "x": 768,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "death/up/05": {
+    "sheet": "death.png",
+    "x": 1024,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "death/up/06": {
+    "sheet": "death.png",
+    "x": 1280,
+    "y": 256,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "death/left/01": {
+    "sheet": "death.png",
+    "x": 0,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "death/left/02": {
+    "sheet": "death.png",
+    "x": 256,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "death/left/03": {
+    "sheet": "death.png",
+    "x": 512,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "death/left/04": {
+    "sheet": "death.png",
+    "x": 768,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "death/left/05": {
+    "sheet": "death.png",
+    "x": 1024,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "death/left/06": {
+    "sheet": "death.png",
+    "x": 1280,
+    "y": 512,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "death/right/01": {
+    "sheet": "death.png",
+    "x": 0,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "death/right/02": {
+    "sheet": "death.png",
+    "x": 256,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "death/right/03": {
+    "sheet": "death.png",
+    "x": 512,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "death/right/04": {
+    "sheet": "death.png",
+    "x": 768,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "death/right/05": {
+    "sheet": "death.png",
+    "x": 1024,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  },
+  "death/right/06": {
+    "sheet": "death.png",
+    "x": 1280,
+    "y": 768,
+    "w": 256,
+    "h": 256,
+    "pivotX": 128,
+    "pivotY": 240
+  }
+}

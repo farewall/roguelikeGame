@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { createRequire } = require('node:module');
 const source = fs.readFileSync(path.join(__dirname, '../miniprogram/pages/index/index.js'), 'utf8');
 
 function setup() {
@@ -12,6 +13,7 @@ function setup() {
   vm.runInNewContext(source, {
     Page(page) { definition = page; },
     Date: { now: () => now },
+    require: createRequire(path.join(__dirname, '../miniprogram/pages/index/index.js')),
     wx: { vibrateShort() {} },
     setInterval(fn) { const id = ++nextTimer; timers.set(id, fn); return id; },
     setTimeout(fn) { const id = ++nextTimer; timers.set(id, fn); return id; },
@@ -34,7 +36,7 @@ function setup() {
   };
   game.beginGame();
   game.setData({ enemies: [] });
-  return { game, timers, advance(ms = 32) { now += ms; game.moveFrame(); } };
+  return { game, timers, advance(ms = 32) { now += ms; game.moveFrame(); }, fireTimer(id) { const callback = timers.get(id); timers.delete(id); callback(); } };
 }
 
 function enemy(id = 1, patch = {}) {
@@ -90,7 +92,6 @@ test('touch cancellation, backgrounding and upgrades stop movement; delayed fram
   closeTo(game.player.x, 52.25);
   game.levelUp();
   game.onTouchStart({ touches: [touch(10, 100)] });
-  game.dash();
   advance();
   closeTo(game.player.x, 52.25);
 });
@@ -107,19 +108,11 @@ test('a second finger does not take over movement or stop the first finger', () 
   closeTo(game.player.x, 51.44);
 });
 
-test('dash travels over multiple frames in the last direction and respects cooldown', () => {
-  const { game, advance } = setup();
-  game.dash();
-  closeTo(game.player.x, 50);
-  advance();
-  closeTo(game.player.x, 54.32);
-  const remaining = game.dashRemaining;
-  game.dash();
-  closeTo(game.dashRemaining, remaining);
-  for (let i = 0; i < 8; i++) advance();
-  const stopped = { ...game.player };
-  advance();
-  assert.deepEqual(game.data.player, stopped);
+test('dash is removed from both gameplay and touch controls', () => {
+  const { game } = setup();
+  assert.equal(game.dash, undefined);
+  const template = fs.readFileSync(path.join(__dirname, '../miniprogram/pages/index/index.wxml'), 'utf8');
+  assert.ok(!template.includes('bindtap="dash"'));
 });
 
 test('level-up commits enemy deaths once and resumes combat after selection', () => {
@@ -258,16 +251,99 @@ test('killing a boss on the level-up hit advances the stage and never repeats th
   assert.equal(game.data.xp, 0);
 });
 
-test('restart resets boss/dash/element state and unload clears all timers', () => {
+test('restart resets boss/animation/element state and unload clears all timers', () => {
   const { game, timers } = setup();
   game.bossSpawned = true;
-  choose(game, 'fire'); game.dash();
+  choose(game, 'fire');
   game.restart();
   assert.equal(game.bossSpawned, false);
-  assert.equal(game.dashRemaining, 0);
+  assert.equal(game.data.actorFrame.action, 'idle');
   assert.equal(game.elements.length, 0);
   assert.equal(game.power, 1);
   assert.equal(timers.size, 3);
   game.onUnload();
   assert.equal(timers.size, 0);
+});
+
+test('the game plays movement frames and faces the real movement direction', () => {
+  const { game, advance } = setup();
+  assert.equal(game.data.actorFrame.action, 'idle');
+  game.onTouchStart({ touches: [touch(100, 200)] });
+  game.onTouchMove({ touches: [touch(148, 200)] });
+  advance();
+  assert.equal(game.data.actorFrame.action, 'move');
+  assert.equal(game.data.actorFrame.direction, 'right');
+  assert.equal(game.data.actorFrame.top, -3 * 192);
+  for (let i = 0; i < 4; i++) advance();
+  assert.equal(game.data.actorFrame.index, 1);
+  game.onTouchEnd({ touches: [] });advance();
+  assert.equal(game.data.actorFrame.action, 'idle');
+  assert.equal(game.data.actorFrame.direction, 'right');
+});
+
+test('attacks face their target while moving, then return to the current travel direction', () => {
+  const { game, advance } = setup();
+  game.onTouchStart({ touches: [touch(100, 200)] });
+  game.onTouchMove({ touches: [touch(148, 200)] });advance();
+  game.setData({ enemies: [enemy(1, { x: game.player.x, y: 20 })] });
+  game.tick();
+  assert.equal(game.data.actorFrame.action, 'attack');
+  assert.equal(game.data.actorFrame.direction, 'up');
+  game.onTouchMove({ touches: [touch(52, 200)] });
+  const before = game.player.x;advance();
+  assert.ok(game.player.x < before);
+  assert.equal(game.data.actorFrame.direction, 'up');
+  for (let i = 0; i < 16; i++) advance();
+  assert.equal(game.data.actorFrame.action, 'move');
+  assert.equal(game.data.actorFrame.direction, 'left');
+});
+
+test('target facing uses the measured arena aspect ratio', () => {
+  const { game } = setup();
+  game.setData({ enemies: [enemy(1, { x: 60, y: 64 })] });
+  game.tick(); // 10% * 400px is less than 9% * 600px.
+  assert.equal(game.data.actorFrame.direction, 'down');
+});
+
+test('damage and upgrade selection trigger their own six-frame clips', () => {
+  const { game, advance } = setup();
+  game.attackCd = 100;
+  game.setData({ enemies: [enemy(1, { x: 50, y: 55 })] });
+  game.tick();
+  assert.equal(game.data.actorFrame.action, 'hurt');
+  for (let i = 0; i < 13; i++) advance();
+  assert.equal(game.data.actorFrame.action, 'idle');
+  choose(game, 'power');
+  assert.equal(game.data.actorFrame.action, 'awaken');
+  for (let i = 0; i < 33; i++) advance();
+  assert.equal(game.data.actorFrame.action, 'idle');
+});
+
+test('death plays before the ending modal; combat and movement remain stopped', () => {
+  const { game, advance, fireTimer, timers } = setup();
+  game.finish(false);
+  assert.equal(game.data.ended, true);
+  assert.equal(game.data.showEnding, false);
+  assert.equal(game.data.actorFrame.action, 'death');
+  assert.ok(!timers.has(game.gameTimer));
+  assert.ok(!timers.has(game.spawnTimer));
+  for (let i = 0; i < 30; i++) advance();
+  assert.equal(game.data.actorFrame.index, 5);
+  assert.deepEqual(game.data.player, { x: 50, y: 55 });
+  fireTimer(game.endingTimer);
+  assert.equal(game.data.showEnding, true);
+  assert.equal(timers.size, 0);
+});
+
+test('animation assets fit the main package and retain the required grid', () => {
+  const root = path.join(__dirname, '../miniprogram');
+  const files = fs.readdirSync(root, { recursive: true }).filter(file => fs.statSync(path.join(root, file)).isFile());
+  const size = files.reduce((sum, file) => sum + fs.statSync(path.join(root, file)).size, 0);
+  assert.ok(size < 2 * 1024 * 1024, 'Mini-program main package exceeds 2 MiB: ' + size);
+  for (const action of ['idle', 'move', 'attack', 'hurt', 'awaken', 'death']) {
+    const png = fs.readFileSync(path.join(root, 'images/pangu', action + '.png'));
+    assert.equal(png.readUInt32BE(16), 768);
+    assert.equal(png.readUInt32BE(20), 512);
+    assert.ok(png.includes(Buffer.from('tRNS')), 'Missing alpha transparency: ' + action);
+  }
 });

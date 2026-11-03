@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "character": "盘古",
+  "status": "local-design-draft",
+  "columns": 6,
+  "rows": 4,
+  "cell": {
+    "width": 256,
+    "height": 256
+  },
+  "pivot": {
+    "x": 128,
+    "y": 240
+  },
+  "directions": [
+    "down",
+    "up",
+    "left",
+    "right"
+  ],
+  "clips": {
+    "idle": {
+      "file": "idle.png",
+      "frames": 6,
+      "fps": 5,
+      "loop": true
+    },
+    "move": {
+      "file": "move.png",
+      "frames": 6,
+      "fps": 10,
+      "loop": true
+    },
+    "attack": {
+      "file": "attack.png",
+      "frames": 6,
+      "fps": 12,
+      "loop": false
+    },
+    "hurt": {
+      "file": "hurt.png",
+      "frames": 6,
+      "fps": 16,
+      "loop": false
+    },
+    "awaken": {
+      "file": "awaken.png",
+      "frames": 6,
+      "fps": 6,
+      "loop": false
+    },
+    "death": {
+      "file": "death.png",
+      "frames": 6,
+      "fps": 6,
+      "loop": false
+    }
+  },
+  "totalFrames": 144,
+  "excluded": [
+    "dash",
+    "elemental-cast"
+  ]
+}
