@@ -88,13 +88,14 @@ test('bell echo and ward paths have distinct behavior and cannot be switched or 
     else { assert.equal(c.wardTime, 0); hit(c, a.id); assert.equal(c.wardTime, 5); c.hurt(10, 'test'); near(c.hp, 94); assert.equal(c.wardTime, 0); c.invulnerable = 0; c.hurt(10, 'test'); near(c.hp, 84); }
   }
 });
-test('banner crowd path changes cone geometry while rend specializes against elites', () => {
-  const degrees = 70 * Math.PI / 180;
+test('banner crowd path widens the flying volley while rend specializes against elites', () => {
+  const degrees = 40 * Math.PI / 180;
   for (const id of ['sweep', 'rend']) {
     const c = fresh('banner'); path(c, id); const diagonal = enemy(c, 50 + Math.cos(degrees) * 120 / c.width * 100, 55 + Math.sin(degrees) * 120 / c.height * 100);
     const normal = enemy(c, 55), elite = enemy(c, 56, 55, 'elite'); hit(c, normal.id);
+    const count = c.projectiles[0].bolts.length; for (let i = 0; i < 24; i++) c.updateArtifacts(0.025);
     assert.equal(diagonal.hp < 100, id === 'sweep'); near(100 - normal.hp, WEAPONS.banner.damage); near(100 - elite.hp, WEAPONS.banner.damage * (id === 'rend' ? 1.3 : 1));
-    assert.equal(c.snapshot().effects[0].cone, id === 'sweep' ? 80 : 40);
+    assert.equal(count, id === 'sweep' ? 5 : 1);
   }
 });
 test('tiger exposes a damage window only when its charge misses the player', () => {

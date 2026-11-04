@@ -29,13 +29,28 @@ jobs:
           npm run build
           npm test
           node --check minigame/game.js
+      - name: Install pinned browser check runner
+        run: npm install --no-save --package-lock=false --ignore-scripts --no-audit --no-fund playwright@1.58.2
+      - name: Validate Canvas attacks and native touch
+        env:
+          CHROMIUM_EXECUTABLE: /usr/bin/google-chrome
+        run: node tools/preview.test.cjs
+      - name: Save Canvas verification screenshots
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: canvas-checks
+          path: /tmp/pangu-minigame/*.png
+          if-no-files-found: ignore
+          retention-days: 1
       - name: Install official WeChat CI
+        if: success()
         run: npm ci --prefix tools/wechat-ci --no-audit --no-fund
       - name: Upload Mini Game and generate preview QR
         env:
           WECHAT_APPID: ${{ vars.WECHAT_APPID }}
           WECHAT_PRIVATE_KEY: ${{ secrets.WECHAT_PRIVATE_KEY }}
-          WECHAT_VERSION: 0.2.${{ github.run_number }}
+          WECHAT_VERSION: 0.3.${{ github.run_number }}
         run: node tools/wechat-ci/upload.cjs
       - name: Save Mini Game preview QR
         if: success()

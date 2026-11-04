@@ -28,11 +28,12 @@ test('a moving target can escape the windup; the hit does not home beyond range'
   const c = fresh(); const e = target(c, 55); c.update(0.025); e.x = 95; simulate(c, 0.2);
   closeTo(e.hp, 100); assert.ok(c.effects.some(f => f.type === 'bell'));
 });
-test('banner pierces a forward cone and leaves enemies behind and beyond range untouched', () => {
-  const c = fresh('banner'); const forward = target(c, 57), diagonal = target(c, 60, 62), behind = target(c, 44), far = target(c, 90);
-  c.strike({ direction: { x: 1, y: 0 } }); closeTo(forward.hp, 96.4); closeTo(diagonal.hp, 96.4); closeTo(behind.hp, 100); closeTo(far.hp, 100);
-  assert.equal(c.effects[0].type, 'blade');
-  const overlap = target(c, c.player.x, c.player.y); c.strike({ direction: { x: 1, y: 0 } }); closeTo(overlap.hp, 96.4);
+test('banner blades travel before impact, pierce a line once each and leave the rear and distant targets safe', () => {
+  const c = fresh('banner'); const forward = target(c, 57), second = target(c, 65), behind = target(c, 44), far = target(c, 90);
+  c.strike({ direction: { x: 1, y: 0 } }); closeTo(forward.hp, 100); assert.equal(c.projectiles.length, 1);
+  for (let i = 0; i < 24; i++) c.updateArtifacts(0.025);
+  closeTo(forward.hp, 96.4); closeTo(second.hp, 96.4); closeTo(behind.hp, 100); closeTo(far.hp, 100); assert.equal(c.strikeCount, 1);
+  const overlap = target(c, c.player.x, c.player.y); c.strike({ direction: { x: 1, y: 0 } }); c.updateArtifacts(0.025); closeTo(overlap.hp, 96.4);
 });
 test('stacked haste always changes continuous intervals until the explicit cap', () => {
   const c = fresh(); c.attackCd = 1;
@@ -52,9 +53,9 @@ test('water controls enemy speed, strengthens with tiers, and expires without ch
   c.upgrade('water'); c.strike({ direction: { x: 1, y: 0 } }); const third = { ...e }; simulate(c, 0.25, false); closeTo(c.distance(e, third), 52 * 0.51 * 0.25);
 });
 test('earth expands real splash radius and knockback across repeated upgrades', () => {
-  const c = fresh('banner'); c.upgrade('earth'); const main = target(c, 57), splash = target(c, 57, 72), distant = target(c, 95);
-  c.strike({ direction: { x: 1, y: 0 } }); assert.ok(main.hp < 96); assert.ok(splash.hp < 100); closeTo(distant.hp, 100);
-  const firstRadius = c.effects.find(f => f.type === 'earth').radius; c.upgrade('earth'); c.strike({ direction: { x: 1, y: 0 } });
+  const c = fresh('banner'); c.upgrade('earth'); const main = target(c, 57), splash = target(c, 57, 67), distant = target(c, 95);
+  c.strike({ direction: { x: 1, y: 0 } }); for (let i = 0; i < 12; i++) c.updateArtifacts(0.025); assert.ok(main.hp < 96); assert.ok(splash.hp < 100); closeTo(distant.hp, 100);
+  const firstRadius = c.effects.find(f => f.type === 'earth').radius; c.upgrade('earth'); c.strike({ direction: { x: 1, y: 0 } }); for (let i = 0; i < 12; i++) c.updateArtifacts(0.025);
   assert.ok(c.effects.filter(f => f.type === 'earth').at(-1).radius > firstRadius);
 });
 test('steam damages an area once per attack even when many struck enemies overlap', () => {

@@ -103,7 +103,7 @@ test('all four memories survive death/restart, stay hidden until unlocked, and a
 });
 test('weapon selection changes real attack mechanics; restart preserves selection but resets the build', () => {
   const { game } = setup(); game.selectWeapon({ currentTarget: { dataset: { weapon: 'banner' } } }); game.beginGame();
-  assert.equal(game.combat.weapon, 'banner'); assert.equal(game.data.attackRange, 205);
+  assert.equal(game.combat.weapon, 'banner'); assert.equal(game.data.attackRange, 360);
   choose(game, 'fire'); game.restart(); assert.equal(game.combat.elements.fire, 0); assert.equal(game.combat.weapon, 'banner');
 });
 test('death plays six frames before summary; settings freezes the animation and its timer', () => {
@@ -142,7 +142,7 @@ test('runtime assets fit the 4 MiB Mini Game budget, preserve animation transpar
   for (const action of ['idle', 'move', 'attack', 'hurt', 'awaken', 'death']) {
     const png = fs.readFileSync(path.join(root, 'assets/images/pangu', action + '.png')); assert.equal(png.readUInt32BE(16), 768); assert.equal(png.readUInt32BE(20), 512); assert.ok(png.includes(Buffer.from('tRNS')));
   }
-  for (const name of ['attack', 'bell', 'banner', 'warning', 'hurt', 'upgrade', 'victory', 'death']) {
+  for (const name of ['attack', 'bell', 'banner', 'dominion', 'rift', 'ready', 'warning', 'hurt', 'upgrade', 'victory', 'death']) {
     const wav = fs.readFileSync(path.join(root, 'assets/audio', name + '.wav')); assert.equal(wav.toString('ascii', 0, 4), 'RIFF'); assert.equal(wav.readUInt16LE(22), 1); assert.equal(wav.readUInt16LE(34), 16); assert.equal(wav.readUInt32LE(40), wav.length - 44);
   }
 });

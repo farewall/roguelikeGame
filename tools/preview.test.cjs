@@ -1,14 +1,15 @@
 'use strict';
 const assert = require('node:assert/strict'), fs = require('node:fs');
 const { chromium } = require('playwright');
-const { createPreview } = require('./minigame-preview.cjs');
+const { createPreview, previewPage } = require('./minigame-preview.cjs');
 (async () => {
-  const server = await createPreview(), output = '/tmp/pangu-minigame'; fs.mkdirSync(output, { recursive: true });
+  const server = await createPreview(0, { listen: false }), output = '/tmp/pangu-minigame'; fs.mkdirSync(output, { recursive: true });
   let browser;
   try {
-    browser = await chromium.launch({ executablePath: '/usr/bin/chromium', headless: true, args: ['--no-sandbox'] });
+    browser = await chromium.launch({ executablePath: process.env.CHROMIUM_EXECUTABLE || '/usr/bin/chromium', headless: true, args: ['--no-sandbox'] });
+    await require('./artifact-preview.cjs').checkArtifacts(server, browser, output);
     for (const route of ['/', '/native']) {
-      const page = await browser.newPage({ viewport: { width: 844, height: 390 } }), errors = [];
+      const page = await previewPage(browser, server, { viewport: { width: 844, height: 390 } }), errors = [];
       page.on('pageerror', e => errors.push(e.message)); page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
       await page.goto('http://127.0.0.1:' + server.address().port + route);
       await page.waitForFunction(() => Boolean(window.kaitian && kaitian.presentation.ready) || Boolean(window.bootError), null, { timeout: 15000 });
@@ -68,5 +69,5 @@ const { createPreview } = require('./minigame-preview.cjs');
       console.log('PASS ' + route + ': 844×390 / 667×320, native pointer input, pause/background, sprites, upgrades, paths, event/trial, ending and archive');
       await page.close();
     }
-  } finally { if (browser) await browser.close(); server.close(); }
+  } finally { if (browser) await browser.close(); if (server.listening) server.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

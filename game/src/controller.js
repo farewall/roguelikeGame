@@ -27,7 +27,7 @@ const definition = {
     ended: false, showEnding: false, won: false, endingTitle: '', endingCopy: '', showMemory: false, memory: null,
     selectedWeapon: 'bell', weapons: Object.keys(WEAPONS).map(id => ({ id, ...WEAPONS[id] })),
     archiveMemories: [], archiveEnemies: [], archiveRuns: [], memoryCount: 0, enemyCount: 0, runSummary: null, runReport: null,
-    rewardChoices: [], rewardSelectedId: '', rewardKind: '', rewardTitle: ''
+    rewardChoices: [], rewardSelectedId: '', rewardKind: '', rewardTitle: '', energy: 100, skillReady: true, skillName: '镇界', skillAim: null
   },
   onLoad() {
     this.updateLayout();
@@ -40,7 +40,7 @@ const definition = {
     this.audio = new GameAudio(wx, this.data); this.archive = readArchive(wx); this.refreshArchive();
   },
   onUnload() { this.stopLoops(); if (this.audio) this.audio.destroy(); },
-  onHide() { this.upgradeTouch = null; this.pauseGame(); this.stopMovement(); if (this.audio) this.audio.stopAll(); },
+  onHide() { this.upgradeTouch = null; this.cancelSkillAim(); this.pauseGame(); this.stopMovement(); if (this.audio) this.audio.stopAll(); },
   onShow() { if (this.data.paused && !this.data.showSettings) this.resumeGame(); },
   onResize() { this.stopMovement(); this.updateLayout(); this.actorFrameKey = ''; if (this.actor) this.renderActor(0); this.measureArena(); },
   openIntro() { this.setData({ showIntro: true, showSettings: false }); },
@@ -86,6 +86,7 @@ const definition = {
     if (!this.data.paused) this[name] = setTimeout(() => { delete this.pendingTimers[name]; this[name] = null; callback(); }, delay);
   },
   pauseGame() {
+    this.cancelSkillAim();
     if (this.data.view !== 'game' || this.data.paused) return;
     this.stopMovement(); this.upgradeTouch = null;
     for (const [name, task] of Object.entries(this.pendingTimers || {})) {
@@ -109,18 +110,20 @@ const definition = {
     this.layout = { w, h, arena: { x: left, y: 96, width: w - left - right, height: h - 144 } };
     const arena = this.layout.arena;
     this.layout.joystick = { x: arena.x + 16, y: arena.y + arena.height - 220, width: 200, height: 200 };
+    this.layout.skill = { x: arena.x + arena.width - 212, y: arena.y + arena.height - 220, width: 192, height: 200 };
     const physical = r => ({ left: r.x * scale, top: r.y * scale, width: r.width * scale, height: r.height * scale });
     this.arenaRect = physical(arena); this.joystickRect = physical(this.layout.joystick);
     if (this.combat) this.combat.configureArena(this.arenaRect.width, this.arenaRect.height, scale);
     this.setData({ uiScale: scale });
   },
   resetGame() {
+    this.cancelSkillAim();
     this.stopLoops(); if (this.audio) this.audio.stopAll();
     this.combat = new Combat(this.data.selectedWeapon); this.player = this.combat.player;
     this.updateLayout(); this.actor = new PanguAnimation(); this.actorFrameKey = '';
     this.choiceApplying = false; this.upgradePending = false; this.upgradeTouch = null;
     this.viewCache = {}; this.renderStats = { ticks: 0, calls: 0, bytes: 0, fullBytes: 0, maxBytes: 0 };
-    this.setData({ ...this.combat.snapshot(), paused: false, hurt: false, player: { ...this.player }, message: '摇杆走位，至宝自动攻击。避开有纹样的危险预警。', showChoice: false, choices: [], showMemory: false, ended: false, showEnding: false, won: false, runSummary: null, actorSheets: ACTOR_SHEETS }, () => this.measureArena());
+    this.setData({ ...this.combat.snapshot(), paused: false, hurt: false, player: { ...this.player }, message: this.combat.weapon === 'bell' ? '东皇钟自动震荡 · 右下「镇界」满能可释放解围' : '盘古幡自动发射飞刃 · 拖动右下「裂天」瞄准，松手释放', showChoice: false, choices: [], showMemory: false, ended: false, showEnding: false, won: false, runSummary: null, actorSheets: ACTOR_SHEETS }, () => this.measureArena());
     this.renderActor(0); this.startLoops();
     this.schedule('toastTimer', () => this.setData({ message: '' }), 2600);
   },
@@ -130,6 +133,15 @@ const definition = {
   },
   notify(message) { this.setData({ message }); this.schedule('toastTimer', () => this.setData({ message: '' }), 2300); },
   isBlocked() { return this.data.view !== 'game' || this.data.paused || this.data.ended || this.data.showChoice || this.data.showMemory || this.upgradePending; },
+  aimSkill(direction) {
+    if (this.isBlocked() || !this.combat || !this.combat.snapshot().skillReady || this.combat.weapon !== 'banner') return false;
+    this.setData({ skillAim: this.combat.skillDirection(direction) }); return true;
+  },
+  cancelSkillAim() { if (this.data.skillAim) this.setData({ skillAim: null }); },
+  castSkill(direction) {
+    if (this.isBlocked() || !this.combat || !this.combat.useSkill(direction)) { this.cancelSkillAim(); return false; }
+    this.cancelSkillAim(); this.syncCombat(); return true;
+  },
   tick(delta) {
     const now = Date.now(), dt = Math.min(0.05, typeof delta === 'number' ? Math.max(0, delta) : Math.max(0, (now - this.lastTickTime) / 1000));
     this.lastTickTime = now;
@@ -138,7 +150,15 @@ const definition = {
     let warned = false;
     for (const event of this.combat.drainEvents()) {
       if (event.type === 'attack') { this.actor.attack(event.direction.x, event.direction.y); this.renderActor(0); }
-      if (event.type === 'hit' && this.audio) this.audio.play(event.weapon === 'banner' ? 'banner' : 'bell');
+      if ((event.type === 'launch' || event.type === 'hit' && event.weapon === 'bell') && this.audio) this.audio.play(event.weapon === 'banner' ? 'banner' : 'bell');
+      if (event.type === 'skill') {
+        this.actor.direction = Math.abs(event.direction.x) > Math.abs(event.direction.y) ? (event.direction.x > 0 ? 'right' : 'left') : (event.direction.y > 0 ? 'down' : 'up');
+        this.actor.play('attack'); this.renderActor(0);
+        if (this.audio) this.audio.play(event.weapon === 'bell' ? 'dominion' : 'rift');
+        if (this.data.vibrationOn && wx.vibrateShort) wx.vibrateShort({ type: 'medium' });
+        this.notify(event.weapon === 'bell' ? '镇界 · 震退群敌，短暂护身' : '裂天 · 贯穿爆发，留下裂隙');
+      }
+      if (event.type === 'skill-ready' && this.audio) this.audio.play('ready');
       if (event.type === 'hurt') {
         this.actor.hurt(); if (this.audio) this.audio.play('hurt');
         if (this.data.vibrationOn && wx.vibrateShort) wx.vibrateShort({ type: 'light' });
@@ -157,6 +177,7 @@ const definition = {
   syncCombat() { this.setData({ ...this.combat.snapshot(), player: { ...this.player }, hurt: this.actor.state === 'hurt' }); },
   levelUp() {
     if (this.isBlocked() || this.combat.xp < this.combat.xpNeed) return;
+    this.cancelSkillAim();
     this.stopMovement(); this.combat.pendingAttack = null;
     this.choiceSequence = (this.choiceSequence || 0) + 1;
     this.setData({ showChoice: true, choices: this.combat.choices(), choiceToken: this.choiceSequence });
@@ -216,11 +237,12 @@ const definition = {
     this.stopLoops(); this.combat.ended = true; this.upgradePending = false;
     if (this.audio) { this.audio.stopAll(); this.audio.play(win ? 'victory' : 'death'); }
     if (win) this.actor.awaken(); else this.actor.die();
+    this.cancelSkillAim();
     const report = this.combat.battleReport();
     const run = { won: win, seconds: Math.floor(this.combat.time), kills: this.combat.kills, stage: this.combat.stage, weaponId: this.combat.weapon, build: this.combat.buildLabel(), detail: report.damage + '；' + report.cause };
     this.archive.runs.unshift(run); this.archive.runs = this.archive.runs.slice(0, 8); saveArchive(wx, this.archive);
     this.setData({ ended: true, showEnding: false, showMemory: false, won: win, showChoice: false, hazards: [], runSummary: runView(run), runReport: report, endingTitle: win ? '开天一念' : '神念归寂', endingCopy: win ? '你汇聚四象遗力，镇压天道，劈开混沌。第一缕晨光照亮人间。此后万物，将自行书写未来。' : '止步于' + (this.combat.lastDamageName || '混沌劫境') + '。已苏醒的记忆与图鉴仍留在手记中。' });
-    this.combat.hazards = []; this.renderActor(0);
+    this.combat.hazards = []; this.combat.projectiles = []; this.combat.followups = []; this.renderActor(0);
     this.lastMoveTime = Date.now();
     this.schedule('endingTimer', () => { this.renderActor(1); this.setData({ showEnding: true }); }, 1050);
   },

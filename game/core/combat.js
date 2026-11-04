@@ -1,18 +1,19 @@
 'use strict';
 // All combat geometry uses short-edge UI units, all clocks use seconds.
 // The page only supplies input, renders snapshots, and handles modal pauses.
+const { ArtifactCombat } = require('./artifacts');
 const STAGES = ['东方·初生之野', '西方·白骨战场', '南方·焚天熔界', '北方·归墟寒海', '天道之庭'];
 const BOSSES = ['青龙', '白虎', '朱雀', '玄武', '天道'];
 const PLAYER_SPEED = 300; // Short-edge UI units per second on every device.
 const WEAPONS = {
-  bell: { name: '东皇钟', range: 160, interval: 1.6, damage: 3, desc: '近身音波 · 全周清群，每三击追加回响' },
-  banner: { name: '盘古幡', range: 205, interval: 1.8, damage: 3.6, desc: '定向混沌刃 · 远距扇面，适合诱导敌群' }
+  bell: { name: '东皇钟', range: 160, interval: 1.6, damage: 3, desc: '环形音波 · 近身震退，蓄能镇界解围' },
+  banner: { name: '盘古幡', range: 360, interval: 1.8, damage: 3.6, desc: '贯穿飞刃 · 远距御敌，拖动裂天定向爆发' }
 };
 const PATHS = {
   echo: { id: 'echo', weapon: 'bell', name: '万壑回声', desc: '回响改为每两击触发，余波伤害提升', change: '回响：三击一次 → 两击一次' },
   ward: { id: 'ward', weapon: 'bell', name: '玄钟护念', desc: '每三击获得护体，抵挡下一次伤害的 40%', change: '护体持续 5 秒，不叠加' },
-  sweep: { id: 'sweep', weapon: 'banner', name: '横扫八荒', desc: '攻击扇面扩大，更容易清理包围敌群', change: '扇面：120° → 160°' },
-  rend: { id: 'rend', weapon: 'banner', name: '破劫裂空', desc: '收窄扇面，对精英与首领额外造成伤害', change: '扇面 80° · 精英/首领伤害 +30%' }
+  sweep: { id: 'sweep', weapon: 'banner', name: '横扫八荒', desc: '每轮发射五道飞刃，覆盖更宽的敌群', change: '三道飞刃 → 五道飞刃，展开至 80°' },
+  rend: { id: 'rend', weapon: 'banner', name: '破劫裂空', desc: '飞刃汇聚为一道，对精英与首领额外造成伤害', change: '凝聚贯穿 · 精英/首领伤害 +30%' }
 };
 const ELEMENTS = { fire: '离火', water: '坎水', earth: '厚土' };
 const ENEMIES = [
@@ -31,8 +32,9 @@ function segmentDistance(p, a, b) {
   return Math.hypot(p.x - a.x - dx * t, p.y - a.y - dy * t);
 }
 
-class Combat {
+class Combat extends ArtifactCombat {
   constructor(weapon = 'bell', random = Math.random) {
+    super();
     this.weapon = Object.keys(WEAPONS).includes(weapon) ? weapon : 'bell'; this.random = random;
     this.width = 1400; this.height = 550;
     this.player = { x: 50, y: 55 }; this.hp = 100; this.maxHp = 100;
@@ -71,7 +73,7 @@ class Combat {
   interval() { return Math.max(0.52, WEAPONS[this.weapon].interval * this.haste); }
   startStage() {
     this.phase = -1; this.phaseTime = 0; this.stageTime = 0; this.climateCd = 9;
-    this.enemies = []; this.hazards = []; this.effects = []; this.pendingAttack = null; this.followups = [];
+    this.enemies = []; this.hazards = []; this.effects = []; this.projectiles = []; this.pendingAttack = null; this.followups = [];
     this.cleared = false; this.attackCd = 0; this.nextWave();
     if (this.trialPending) { const e = this.spawn('elite'); if (e) e.trial = true; this.trialPending = false; }
   }
@@ -143,6 +145,7 @@ class Combat {
     this.collectDeaths(); if (this.cleared) return;
     this.updateHazards(dt);
     if (this.ended) return;
+    this.updateArtifacts(dt);
     this.updateFollowups(dt);
     if (this.pendingAttack) {
       this.pendingAttack.remaining -= dt;
@@ -205,7 +208,7 @@ class Combat {
     e.shielded = e.bossType === 4 && e.phase2 && e.castTime > 0;
   }
   hazard(data) {
-    if (this.hazards.length >= 16) return;
+    if (this.hazards.length >= 16 && !data.skill) return;
     const hazard = { id: ++this.nextId, age: 0, active: false, damage: 10, owner: null, friendly: false, ...data };
     this.hazards.push(hazard); return hazard;
   }
@@ -262,7 +265,7 @@ class Combat {
       if (!h.active || h.age > h.delay + h.duration) continue;
       if (h.friendly) {
         for (const enemy of this.enemies) if (enemy.hp > 0 && this.contains(h, enemy)) {
-          this.deal(enemy, (h.dps || 0) * dt, 'field', false);
+          this.deal(enemy, (h.dps || 0) * dt, h.skill ? 'skill' : 'field', false);
           if (h.slow || h.kind === 'mud') enemy.slowTime = Math.max(enemy.slowTime, 0.3);
         }
       } else {
@@ -291,14 +294,15 @@ class Combat {
   }
   strike(attack) {
     const weapon = WEAPONS[this.weapon], origin = { ...this.player }, damage = this.damage();
-    const targets = this.enemies.filter(e => {
-      if (e.hp <= 0 || this.distance(origin, e) > weapon.range + 1e-6) return false;
-      if (this.weapon === 'bell' || this.distance(origin, e) < 1e-6) return true;
-      const d = this.vector(origin, e); return d.x * attack.direction.x + d.y * attack.direction.y >= Math.cos(this.coneAngle() * Math.PI / 180);
-    });
-    this.effect(this.weapon === 'bell' ? 'bell' : 'blade', origin, weapon.range, { angle: Math.atan2(attack.direction.y, attack.direction.x) * 180 / Math.PI, cone: this.coneAngle() });
-    if (!targets.length) return;
-    this.strikeCount++; this.emit('hit', { weapon: this.weapon });
+    if (this.weapon === 'banner') { this.launchBlades(attack, origin, weapon.range); return; }
+    const targets = this.enemies.filter(e => e.hp > 0 && this.distance(origin, e) <= weapon.range + 1e-6);
+    this.effect('bell', origin, weapon.range, { life: 0.55 });
+    this.lastAimDirection = this.skillDirection(attack.direction);
+    if (targets.length) this.applyStrike(attack, targets, origin);
+  }
+  applyStrike(attack, targets, origin) {
+    const weapon = WEAPONS[this.weapon], damage = this.damage(), firstImpact = !attack.registered;
+    if (firstImpact) { attack.registered = true; this.strikeCount++; this.gainEnergy(12); this.emit('hit', { weapon: this.weapon }); }
     const primary = targets.find(e => e.id === attack.targetId) || this.nearest(targets, origin);
     const center = { x: primary.x, y: primary.y };
     for (const e of targets) {
@@ -307,6 +311,7 @@ class Combat {
       if (this.elements.fire) { e.burnTime = 2 + this.elements.fire * 0.65; e.burnDps = damage * (0.12 + this.elements.fire * 0.07); }
       if (this.elements.water) e.slowTime = 2 + this.elements.water * 0.55;
     }
+    if (!firstImpact) return;
     if (this.weapon === 'bell' && this.strikeCount % (this.path === 'echo' ? 2 : 3) === 0) {
       this.followups.push({ kind: 'echo', center: origin, radius: weapon.range, remaining: 0.32, damage: damage * (this.path === 'echo' ? 0.6 : 0.45) });
       if (this.path === 'ward') this.wardTime = 5;
@@ -338,7 +343,7 @@ class Combat {
     if (this.elements.earth && (this.elements.fire || this.elements.water)) {
       const kind = this.elements.fire && this.elements.water ? 'confluence' : this.elements.fire ? 'lava' : 'mud';
       // Refresh one field rather than accumulating unbounded per-hit zones.
-      this.hazards = this.hazards.filter(h => !h.friendly);
+      this.hazards = this.hazards.filter(h => !h.friendly || h.skill);
       this.circle(center, 80 + this.elements.earth * 10, 0, 2, kind === 'confluence' ? '熔沼' : kind === 'lava' ? '熔' : '沼', kind, 0);
       const h = this.hazards[this.hazards.length - 1];
       if (h && h.kind === kind) { h.friendly = true; h.dps = this.elements.fire ? damage * 0.25 : 0; h.slow = Boolean(this.elements.water); }
@@ -347,6 +352,7 @@ class Combat {
   updateFollowups(dt) {
     for (const f of this.followups) {
       f.remaining -= dt; if (f.remaining > 0) continue;
+      if (f.kind === 'rift') { this.resolveRift(f); continue; }
       for (const e of this.enemies) if (e.hp > 0 && this.distance(f.center, e) <= f.radius) {
         this.deal(e, f.damage, f.kind);
         if (f.freeze) e.freezeTime = Math.max(e.freezeTime, e.boss ? 0.2 : 0.55);
@@ -383,12 +389,13 @@ class Combat {
     this.enemies = this.enemies.filter(e => e.hp > 0); this.kills += dead.length;
     for (const e of dead) {
       this.xp += e.boss ? 5 : e.kind === 'elite' ? 3 : 1;
+      this.gainEnergy(e.boss ? 12 : e.kind === 'elite' ? 6 : 2);
       if (e.trial) { this.xp += 6; this.hp = Math.min(this.maxHp, this.hp + 10); this.trialCleared = true; this.emit('trial-clear'); }
       this.effect('dissolve', e, e.boss ? 80 : 38, { life: 0.7 });
       this.hazards = this.hazards.filter(h => h.owner !== e.id);
     }
     if (dead.some(e => e.boss)) {
-      this.cleared = true; this.enemies = []; this.hazards = []; this.pendingAttack = null; this.followups = [];
+      this.cleared = true; this.enemies = []; this.hazards = []; this.projectiles = []; this.pendingAttack = null; this.followups = [];
       this.emit('stage-clear', { stage: this.stage });
     }
   }
@@ -434,7 +441,7 @@ class Combat {
   elementLabel() { return Object.keys(ELEMENTS).filter(k => this.elements[k]).map(k => ELEMENTS[k] + this.elements[k] + '重').join(' · ') || '未附魔'; }
   buildLabel() { return (this.path ? PATHS[this.path].name + ' · ' : '') + this.elementLabel(); }
   battleReport() {
-    const names = { direct: '直击', burn: '灼烧', field: '区域', earth: '震荡', steam: '蒸腾', tide: '潮涌', echo: '回响', aftershock: '余震', ignite: '爆燃' };
+    const names = { direct: '直击', burn: '灼烧', field: '区域', earth: '震荡', steam: '蒸腾', tide: '潮涌', echo: '回响', aftershock: '余震', ignite: '爆燃', skill: this.weapon === 'bell' ? '镇界' : '裂天' };
     const total = Object.values(this.damageBySource).reduce((a, b) => a + b, 0);
     const top = Object.entries(this.damageBySource).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([key, damage]) => names[key] + ' ' + Math.round(damage / (total || 1) * 100) + '%').join(' · ');
     const cause = Object.entries(this.damageByCause).sort((a, b) => b[1] - a[1])[0];
@@ -465,6 +472,7 @@ class Combat {
       weaponName: WEAPONS[this.weapon].name, weaponId: this.weapon, attackRange: WEAPONS[this.weapon].range,
       elementName: this.elementLabel(), combatStats: `伤害 ${round(this.damage())} · 间隔 ${this.interval().toFixed(2)}秒`, pathName: this.path ? PATHS[this.path].name : '', warded: this.wardTime > 0,
       comboName: this.elements.fire && this.elements.water && this.elements.earth ? '蒸腾 + 熔沼' : this.elements.fire && this.elements.water ? '水火 · 蒸腾' : this.elements.earth && this.elements.fire ? '地火 · 熔流' : this.elements.earth && this.elements.water ? '地水 · 泥沼' : '',
+      energy: Math.floor(this.energy), skillReady: this.energy >= 100 && this.skillCooldown <= 0, skillName: this.weapon === 'bell' ? '镇界' : '裂天', skillUses: this.skillUses,
       kills: this.kills
     };
   }

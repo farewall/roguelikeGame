@@ -99,7 +99,7 @@ class Presentation {
     this.button(layer, 'start', '踏入混沌', bx, h * 0.28, bw, 76, () => c.openIntro(), { primary: true, size: 29 });
     this.button(layer, 'archive', '山河手记 · ' + c.data.memoryCount + ' / 4', bx, h * 0.28 + 98, bw, 66, () => { c.setData({ archiveScroll: 0 }); c.openArchive(); });
     this.button(layer, 'home-settings', '设置', bx, h * 0.28 + 186, bw, 66, () => c.openSettings());
-    this.text(layer, 'home-version', '东方玄幻 · 动作肉鸽', bx + bw / 2, h * 0.28 + 289, 19, MUTE, { center: true });
+    this.text(layer, 'home-version', '御宝战斗 · 双至宝新篇', bx + bw / 2, h * 0.28 + 289, 19, MUTE, { center: true });
   }
   intro() {
     const c = this.c, width = Math.min(c.layout.w - 100, 1220), panel = this.modal(width, 570), { layer, x, y } = panel;
@@ -125,7 +125,7 @@ class Presentation {
     this.rect(bg, a.x, a.y, a.width, a.height, 0x09171c, 0.15, 0x756f51, 7);
     const point = p => ({ x: a.x + p.x * a.width / 100, y: a.y + p.y * a.height / 100 });
     for (const hazard of c.combat.hazards) {
-      const p = point(hazard), color = ({ root: 0xb5d17c, flame: 0xf5aa6a, tide: 0xa4d9ea, slash: 0xebbc82, order: 0xd4afe4, arcane: 0xc2ace0, lava: 0xd2a169, mud: 0x95c6b1, confluence: 0xb8c49d })[hazard.kind] || GOLD;
+      const p = point(hazard), color = ({ root: 0xb5d17c, flame: 0xf5aa6a, tide: 0xa4d9ea, slash: 0xebbc82, order: 0xd4afe4, arcane: 0xc2ace0, rift: 0xb9efdc, lava: 0xd2a169, mud: 0x95c6b1, confluence: 0xb8c49d })[hazard.kind] || GOLD;
       const alpha = hazard.friendly ? 0.13 : hazard.active ? 0.34 : 0.1;
       if (hazard.shape === 'line') {
         const q = point(hazard.end), dx = q.x - p.x, dy = q.y - p.y, length = Math.hypot(dx, dy) || 1, nx = -dy / length * hazard.width / 2, ny = dx / length * hazard.width / 2;
@@ -142,15 +142,20 @@ class Presentation {
       this.text(world, 'hazard-' + hazard.id, (hazard.friendly ? '+' : '') + hazard.label, label.x, label.y - (hazard.shape === 'ring' ? hazard.radius : 0), 23, color, { center: true });
     }
     const player = point(d.player);
-    if (!d.ended) { g.lineStyle(1.5, GOLD, 0.2); g.drawCircle(player.x, player.y, d.attackRange); }
-    for (const effect of c.combat.effects) {
-      const p = point(effect), life = clamp(1 - effect.age / effect.life, 0, 1), radius = effect.radius * (effect.type === 'impact' ? 0.7 : clamp(effect.age / effect.life * 1.4 + 0.15, 0, 1));
-      const color = ({ steam: 0xd6edf0, earth: 0xc8aa7b, 'water-pulse': 0xace1e8, ember: 0xf3a367, ward: 0xb8dcb4 })[effect.type] || GOLD;
-      g.lineStyle(effect.type === 'earth' ? 4 : 2, color, life);
-      if (effect.type === 'blade') {
-        const angle = effect.angle * Math.PI / 180, cone = (effect.cone || 60) * Math.PI / 180;
-        g.beginFill(color, life * 0.25); g.moveTo(p.x, p.y); g.arc(p.x, p.y, effect.radius, angle - cone, angle + cone); g.lineTo(p.x, p.y); g.endFill();
-      } else { g.drawCircle(p.x, p.y, radius); if (effect.type === 'steam' || effect.type === 'impact') { g.beginFill(color, life * 0.16); g.drawCircle(p.x, p.y, radius * 0.7); g.endFill(); } }
+    if (!d.ended && d.weaponId === 'bell') { g.lineStyle(1.5, GOLD, 0.2); g.drawCircle(player.x, player.y, d.attackRange); }
+    for (const effect of c.combat.effects) this.drawEffect(world, effect, point);
+    for (const volley of c.combat.projectiles) for (const bolt of volley.bolts) {
+      const p = point(bolt), dx = bolt.direction.x, dy = bolt.direction.y, trail = Math.min(64, volley.traveled);
+      g.lineStyle(10, 0x8bcdd5, 0.14); g.moveTo(p.x - dx * trail, p.y - dy * trail); g.lineTo(p.x, p.y);
+      g.lineStyle(3, 0xd5f4df, 0.85); g.moveTo(p.x - dx * trail * 0.7, p.y - dy * trail * 0.7); g.lineTo(p.x + dx * 12, p.y + dy * 12);
+      g.lineStyle(1, 0xe9f7d9, 0.9); g.beginFill(0xa9dfd0, 0.8);
+      g.drawPolygon([p.x + dx * 24, p.y + dy * 24, p.x - dy * 10 - dx * 12, p.y + dx * 10 - dy * 12, p.x - dx * 4, p.y - dy * 4, p.x + dy * 10 - dx * 12, p.y - dx * 10 - dy * 12]); g.endFill();
+    }
+    if (d.skillAim && !c.isBlocked()) {
+      const q = { x: player.x + d.skillAim.x * 650, y: player.y + d.skillAim.y * 650 };
+      this.beam(g, player, q, 100, 0x99e4dc, 0.07);
+      g.lineStyle(2, 0xc5f6df, 0.75); g.moveTo(player.x, player.y); g.lineTo(q.x, q.y); g.drawCircle(q.x, q.y, 17);
+      this.text(hud, 'aim-help', '拖动调整方向 · 松手裂天', a.x + a.width / 2, a.y + 112, 24, 0xbcead8, { center: true });
     }
     for (const enemy of c.combat.enemies) {
       const p = point(enemy), size = enemy.boss ? (enemy.bossType === 5 ? 205 : 190) : enemy.kind === 'elite' ? 98 : 78;
@@ -166,8 +171,9 @@ class Presentation {
       if (enemy.burnTime > 0) { g.lineStyle(3, 0xf29358, 0.8); g.drawCircle(p.x, p.y + size * 0.2, size * 0.25); }
       if (enemy.slowTime > 0) { g.lineStyle(2, 0xa3d5e4, 0.8); g.drawEllipse(p.x, p.y + size * 0.3, size * 0.4, size * 0.15); }
     }
-    const frame = d.actorFrame, atlas = this.assets.frames[frame.action || 'idle'], texture = atlas[(ROWS[frame.direction || 'down'] || 0) * 6 + (frame.index || 0)];
-    const hero = this.image(world, 'hero', texture, player.x - 96, player.y - 104, 192, 192, d.hurt ? 0.65 : 1);
+    const frame = d.actorFrame, atlas = d.ended && d.won ? this.assets.frames[frame.action || 'idle'] : this.assets.frames.artifact[frame.action || 'idle'], texture = atlas[(ROWS[frame.direction || 'down'] || 0) * 6 + (frame.index || 0)];
+    const hero = this.image(world, 'hero', texture, player.x - 96, player.y - 104, 192, 192, d.ended && !d.won ? Math.max(0, 1 - (frame.index || 0) / 5) : d.hurt ? 0.65 : 1);
+    if (!d.ended) this.artifact(world, player, d.weaponId, c.combat.time, frame.action === 'attack');
     hero.tint = d.hurt ? 0xffd4a8 : 0xffffff;
     if (d.warded) { g.lineStyle(3, 0xbcdfc8, 0.9); g.drawCircle(player.x, player.y, 68); }
     this.text(hud, 'brand', '开天一念', a.x, 22, 31, GOLD, { bold: true });
@@ -186,23 +192,77 @@ class Presentation {
       this.text(hud, 'boss-state', d.boss.state, bx + bw * 0.49, a.y + 23, 19, MUTE);
       this.rect(hud, bx + 14, a.y + 67, bw - 28, 5, 0x35443d); this.rect(hud, bx + 14, a.y + 67, (bw - 28) * d.boss.hpPct / 100, 5, 0xcd9d71);
     }
-    const buildW = 380, buildX = a.x + a.width - buildW - 18, buildY = a.y + a.height - (d.pathName ? 140 : 112);
+    const buildW = 350, buildX = a.x + a.width - buildW - 240, buildY = a.y + a.height - (d.pathName ? 140 : 112);
     this.rect(hud, buildX, buildY, buildW, d.pathName ? 125 : 99, 0x0c1d25, 0.73);
     this.text(hud, 'build-weapon', d.weaponName + (d.comboName ? ' · ' + d.comboName : ''), buildX + 15, buildY + 8, 24, GOLD);
     this.text(hud, 'build-elements', d.elementName, buildX + 15, buildY + (d.pathName ? 64 : 42), 20, LIGHT);
     if (d.pathName) this.text(hud, 'build-path', d.pathName + (d.warded ? ' · 护体中' : ''), buildX + 15, buildY + 40, 20, MUTE);
     this.text(hud, 'build-stats', d.combatStats, buildX + 15, buildY + (d.pathName ? 92 : 70), 19, MUTE);
     if (!d.ended) {
+      this.skillControl(hud);
       g.lineStyle(2, 0xc8cdb8, 0.28); g.beginFill(0x142c30, 0.18); g.drawCircle(joy.x + 100, joy.y + 100, 100); g.endFill();
       g.lineStyle(2, GOLD, 0.45); g.beginFill(0xbacabb, 0.12); g.drawCircle(joy.x + 100 + d.joystick.x, joy.y + 100 + d.joystick.y, 38); g.endFill();
     }
     if (d.message) {
       const tw = Math.min(900, a.width * 0.66), tx = a.x + (a.width - tw) / 2;
       this.rect(hud, tx, a.y + 104, tw, 62, 0x0b1d26, 0.9, 0x6a735c); this.text(hud, 'toast', d.message, tx + tw / 2, a.y + 135, 22, GOLD, { center: true });
-    } else if (d.hintsOn) this.text(hud, 'hint', d.boss ? d.boss.hint : '左下摇杆移动 · 自动攻击 · 清波可提前推进', a.x + a.width / 2, a.y + a.height - 20, 19, MUTE, { center: true });
+    } else if (d.hintsOn) this.text(hud, 'hint', d.boss ? d.boss.hint : '左手走位 · 至宝自动攻击 · 右下蓄能技', a.x + a.width / 2, a.y + a.height - 20, 19, MUTE, { center: true });
     this.text(hud, 'xp', '灵气 ' + d.xp + ' / ' + d.xpNeed, a.x, h - 39, 21, MUTE);
     this.rect(hud, a.x + 160, h - 28, a.width - 465, 5, 0x2b3e42); this.rect(hud, a.x + 160, h - 28, (a.width - 465) * d.xpPct / 100, 5, 0xafbf8b);
     this.text(hud, 'kills', '击破 ' + d.kills + '       ' + (d.stage === 5 ? '天道终战' : '四象 ' + d.stage + ' / 4'), a.x + a.width - 280, h - 39, 20, MUTE);
+  }
+  beam(g, p, q, width, color, alpha) {
+    const length = Math.hypot(q.x - p.x, q.y - p.y) || 1, nx = -(q.y - p.y) / length * width / 2, ny = (q.x - p.x) / length * width / 2;
+    g.lineStyle(1.5, color, Math.min(0.75, alpha * 3)); g.beginFill(color, alpha);
+    g.drawPolygon([p.x + nx, p.y + ny, q.x + nx, q.y + ny, q.x - nx, q.y - ny, p.x - nx, p.y - ny]); g.endFill();
+    g.lineStyle(0); g.beginFill(color, alpha); g.drawCircle(p.x, p.y, width / 2); g.drawCircle(q.x, q.y, width / 2); g.endFill();
+  }
+  drawEffect(layer, effect, point) {
+    const g = layer.g, p = point(effect), t = clamp(effect.age / effect.life, 0, 1), life = 1 - t;
+    const color = ({ steam: 0xd6edf0, earth: 0xc8aa7b, 'water-pulse': 0xace1e8, ember: 0xf3a367, ward: 0xb8dcb4, rift: 0xb9efdc })[effect.type] || GOLD;
+    if (effect.type === 'rift' || effect.type === 'rift-windup') {
+      const q = point(effect.end), windup = effect.type === 'rift-windup';
+      this.beam(g, p, q, effect.width, color, windup ? 0.08 : life * 0.24);
+      g.lineStyle(windup ? 2 : 8 * life + 1, windup ? 0xaadcd2 : 0xebfff0, life * 0.9); g.moveTo(p.x, p.y); g.lineTo(q.x, q.y);
+      return;
+    }
+    if (effect.type === 'dominion') {
+      for (let i = 0; i < 3; i++) { const radius = effect.radius * clamp(t * 1.6 - i * 0.14, 0.04, 1); g.lineStyle(6 - i, GOLD, life * (1 - i * 0.2)); g.drawCircle(p.x, p.y, radius); }
+      g.lineStyle(0); g.beginFill(GOLD, life * 0.09); g.drawCircle(p.x, p.y, effect.radius); g.endFill();
+      for (let i = 0; i < 12; i++) { const angle = i * Math.PI / 6; g.lineStyle(3, GOLD, life); g.moveTo(p.x + Math.cos(angle) * effect.radius * 0.88, p.y + Math.sin(angle) * effect.radius * 0.88); g.lineTo(p.x + Math.cos(angle) * effect.radius, p.y + Math.sin(angle) * effect.radius); }
+      return;
+    }
+    const radius = effect.radius * (effect.type === 'impact' ? 0.7 : clamp(t * 1.4 + 0.15, 0, 1));
+    g.lineStyle(effect.type === 'earth' ? 4 : 2, color, life);
+    if (effect.type === 'earth') {
+      for (let i = 0; i < 7; i++) { const angle = i * Math.PI * 2 / 7, dx = Math.cos(angle), dy = Math.sin(angle); g.moveTo(p.x + dx * 15, p.y + dy * 15); g.lineTo(p.x + dx * radius * 0.55 - dy * 8, p.y + dy * radius * 0.55 + dx * 8); g.lineTo(p.x + dx * radius, p.y + dy * radius); }
+    } else { g.drawCircle(p.x, p.y, radius); }
+    if (effect.type === 'bell' || effect.type === 'water-pulse') { g.lineStyle(1, color, life * 0.65); g.drawCircle(p.x, p.y, radius * 0.75); g.drawEllipse(p.x, p.y, radius, radius * 0.5); }
+    if (effect.type === 'steam' || effect.type === 'impact') { g.beginFill(color, life * 0.16); g.drawCircle(p.x, p.y, radius * 0.7); g.endFill(); }
+  }
+  artifact(layer, player, weapon, time, casting) {
+    const g = layer.g, x = player.x + 69, y = player.y - 38 + Math.sin(time * 2.5) * 5, glow = casting ? 0.34 : 0.1;
+    g.lineStyle(0); g.beginFill(weapon === 'bell' ? GOLD : 0x9be2d3, glow); g.drawCircle(x, y, casting ? 52 : 36); g.endFill();
+    if (weapon === 'bell') {
+      g.lineStyle(2.5, GOLD, 0.95); g.drawCircle(x, y - 36, 8); g.beginFill(0x806633, 0.95);
+      g.moveTo(x - 15, y - 28); g.bezierCurveTo(x - 28, y - 14, x - 18, y + 14, x - 31, y + 23); g.lineTo(x + 31, y + 23); g.bezierCurveTo(x + 18, y + 14, x + 28, y - 14, x + 15, y - 28); g.closePath(); g.endFill();
+      g.drawEllipse(x, y + 23, 31, 8); g.moveTo(x - 18, y - 7); g.lineTo(x + 18, y - 7); g.moveTo(x, y - 22); g.lineTo(x, y + 13); g.drawCircle(x, y + 5, 6);
+    } else {
+      const wave = Math.sin(time * 6) * 6;
+      g.lineStyle(3, 0xb9d9b4, 0.95); g.moveTo(x - 23, y - 46); g.lineTo(x - 23, y + 48); g.moveTo(x - 30, y - 37); g.lineTo(x + 31, y - 37);
+      g.beginFill(0x427b79, 0.9); g.drawPolygon([x - 21, y - 34, x + 30, y - 28 + wave, x + 24, y + 35 + wave, x + 2, y + 24, x - 19, y + 37]); g.endFill();
+      g.lineStyle(2, 0xc8e5bd, 0.9); g.moveTo(x + 3, y - 18); g.lineTo(x + 15, y - 2); g.lineTo(x + 2, y + 16); g.lineTo(x - 8, y); g.lineTo(x + 3, y - 18);
+    }
+  }
+  skillControl(layer) {
+    const c = this.c, d = c.data, r = c.layout.skill, g = layer.g, x = r.x + 96, y = r.y + 92, ready = d.skillReady && !c.isBlocked(), color = d.weaponId === 'bell' ? GOLD : 0xb1e4d7;
+    g.lineStyle(2, color, ready ? 0.9 : 0.35); g.beginFill(0x102a31, 0.92); g.drawCircle(x, y, 77); g.endFill();
+    g.lineStyle(7, color, ready ? 0.95 : 0.65); g.arc(x, y, 84, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.001, d.energy / 100));
+    if (ready) { g.lineStyle(1.5, color, 0.3 + Math.sin(c.combat.time * 4) * 0.14); g.drawCircle(x, y, 92); }
+    this.text(layer, 'skill-name', d.skillName, x, y - 13, 35, color, { center: true, serif: true, bold: true });
+    this.text(layer, 'skill-charge', ready ? '释放' : d.energy + '%', x, y + 29, 22, ready ? LIGHT : MUTE, { center: true });
+    this.text(layer, 'skill-help', d.weaponId === 'banner' && ready ? '拖动瞄准 · 松手释放' : ready ? '点击震退 · 打断施法' : '命中与击破蓄能', x, r.y + 193, 17, MUTE, { center: true });
+    this.regions.push({ id: 'skill', type: 'skill', ...r, enabled: ready });
   }
   upgrades() {
     const c = this.c, width = Math.min(c.layout.w - 100, 1450), { layer, x, y } = this.modal(width, 505), cardW = (width - 104) / 3;

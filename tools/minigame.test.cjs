@@ -18,7 +18,7 @@ test('project is a native landscape Mini Game and ships only built game assets',
   assert.ok(fs.existsSync(path.join(root, 'minigame/game.js'))); assert.ok(!fs.existsSync(path.join(root, 'minigame/app.json')));
   const build = JSON.parse(fs.readFileSync(path.join(root, 'minigame/build-info.json'))); assert.ok(build.framework.startsWith('Eva.js'));
   for (const file of build.assets) assert.ok(fs.existsSync(path.join(root, 'minigame', file)), file);
-  assert.equal(build.assets.filter(f => /pangu\//.test(f)).length, 6); assert.ok(require('./package-budget.cjs').budget().fits);
+  assert.equal(build.assets.filter(f => /pangu\//.test(f)).length, 7); assert.ok(require('./package-budget.cjs').budget().fits);
 });
 test('native controller has one externally driven frame loop, without WXML selectors or intervals', () => {
   const h = setup({ nativeLayout: true }); const t = h.game.combat.time; h.frame(25); assert.ok(h.game.combat.time > t);

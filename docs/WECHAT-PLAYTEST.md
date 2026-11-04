@@ -11,7 +11,7 @@ Settings → Secrets and variables → Actions：
 
 AppID 只注入临时项目配置；密钥在进程环境中读取，不写入项目、Git 或二维码 artifact。上传 SDK 项目类型为 `miniGame`，项目配置为 `compileType: game`。预览不传小程序 `pagePath`。不需要 AppSecret。
 
-工作流安装锁定版本的 Eva/Pixi 和构建工具，生成 `minigame/game.js`、`game.json` 及 assets，运行 `npm test`，随后调用 CI 机器人 1。版本格式 `0.2.<run_number>`，开发上传不等于提审或正式发布。
+工作流安装锁定版本的 Eva/Pixi 和构建工具，生成 `minigame/game.js`、`game.json` 及 assets，运行 `npm test`，随后调用 CI 机器人 1。版本格式 `0.3.<run_number>`，开发上传不等于提审或正式发布。
 
 ## 获取试玩
 
@@ -33,3 +33,7 @@ AppID 只注入临时项目配置；密钥在进程环境中读取，不写入�
 - `invalid ip`：按错误中的上传出口 IP 配置微信代码上传白名单；GitHub 托管 Runner 出口会变化，需要时改用固定出口 Runner。
 - 签名或 AppID 错误：确认私钥来自该小游戏的代码上传密钥，而非 AppSecret。
 - 扫码无权限：为对应微信号配置开发者或体验者，并核对二维码类型。
+
+## 御宝战斗版本
+
+这一版新增四向徒手施法动作、悬浮钟/幡、贯穿飞刃和两种蓄能技。开局满能，右下可直接释放；镇界点击解围，裂天可拖动瞄准并松手释放。详见 [战斗说明](ARTIFACT-COMBAT.md)。CI 在微信上传前检查两种横屏尺寸、两种至宝与隔离 GameGlobal 的生产入口；截图保存在 canvas-checks artifact。
