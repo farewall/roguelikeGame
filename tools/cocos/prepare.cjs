@@ -10,8 +10,9 @@ function node(name, parent, children, components, camera = false) {
     _lpos: { __type__: 'cc.Vec3', x: 0, y: 0, z: camera ? 1000 : 0 }, _lrot: { __type__: 'cc.Quat', x: 0, y: 0, z: 0, w: 1 }, _lscale: { __type__: 'cc.Vec3', x: 1, y: 1, z: 1 }, _mobility: 0, _layer: 33554432, _euler: { __type__: 'cc.Vec3', x: 0, y: 0, z: 0 }, _id: uuid(name) };
 }
 async function prepare() {
-  const generated = path.join(assets, 'scripts/generated/game-core.js');
-  await esbuild.build({ entryPoints: [path.join(root, 'game/runtime-core.mjs')], outfile: generated, bundle: true, format: 'esm', platform: 'neutral', target: ['es2017'], legalComments: 'none' });
+  const generated = path.join(assets, 'scripts/generated/game-core.ts');
+  for (const old of ['game-core.js', 'game-core.js.meta']) fs.rmSync(path.join(assets, 'scripts/generated', old), { force: true });
+  await esbuild.build({ entryPoints: [path.join(root, 'game/runtime-core.mjs')], outfile: generated, bundle: true, format: 'esm', platform: 'neutral', banner: { js: '// @ts-nocheck' }, target: ['es2017'], legalComments: 'none' });
   const component = (type, nodeId, data = {}) => ({ __type__: type, _name: '', _objFlags: 0, __editorExtras__: {}, node: { __id__: nodeId }, _enabled: true, __prefab: null, ...data });
   const scene = [
     { __type__: 'cc.SceneAsset', _name: 'Main', _objFlags: 0, __editorExtras__: {}, _native: '', scene: { __id__: 1 } },

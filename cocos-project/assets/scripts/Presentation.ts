@@ -6,7 +6,7 @@ const ROWS = { down: 0, up: 1, left: 2, right: 3 };
 const clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
 export class CocosPresentation {
   c: any; ready = false; progress = 0; error = ''; assets: any;
-  layers: Record<string, any> = {}; regions: any[] = []; root: Node; worldClip: Node;
+  layers: Record<string, any> = {}; regions: any[] = []; root: Node; worldClip: Node; private lastVersion = -1; private lastReady = false;
   constructor(owner: Node, controller: any) {
     this.c = controller; this.root = this.makeNode('GameLayers'); owner.addChild(this.root);
     for (const name of ['background', 'world', 'hud', 'overlay']) {
@@ -35,15 +35,17 @@ export class CocosPresentation {
   text(layer: any, id: string, value: any, x: number, y: number, size = 24, color = LIGHT, options: any = {}) {
     const node = this.use(layer, id, () => { const n = this.makeNode(id); n.addComponent(Label); return n; });
     const label = node.getComponent(Label), ui = node.getComponent(UITransform), key = JSON.stringify([size, color, options.serif, options.bold, options.center, options.wrap, options.leading, options.alpha]);
+    let dirty = false;
     if ((node as any).styleKey !== key) {
+      dirty = true;
       label.useSystemFont = true; label.fontFamily = options.serif ? 'serif' : 'sans-serif'; label.fontSize = size; label.lineHeight = size * (options.leading || 1.5); label.isBold = Boolean(options.bold);
       label.horizontalAlign = options.center ? HorizontalTextAlignment.CENTER : HorizontalTextAlignment.LEFT; label.verticalAlign = options.center ? VerticalTextAlignment.CENTER : VerticalTextAlignment.TOP;
       label.overflow = options.wrap ? Label.Overflow.RESIZE_HEIGHT : Label.Overflow.NONE; label.enableWrapText = Boolean(options.wrap);
       ui.setAnchorPoint(options.center ? 0.5 : 0, options.center ? 0.5 : 1); if (options.wrap) ui.setContentSize(options.wrap, size * 2);
       label.color = rgba(color, options.alpha === undefined ? 1 : options.alpha); (node as any).styleKey = key;
     }
-    const content = String(value === undefined || value === null ? '' : value); if (label.string !== content) label.string = content;
-    this.place(layer, node, x, y, options.mask); label.updateRenderData(true);
+    const content = String(value === undefined || value === null ? '' : value); if (label.string !== content) { label.string = content; dirty = true; }
+    this.place(layer, node, x, y, options.mask); if (dirty) label.updateRenderData(true);
     return { height: ui.contentSize.height, node, label };
   }
   mask(layer: any, id: string, x: number, y: number, w: number, h: number) {
@@ -81,7 +83,9 @@ export class CocosPresentation {
     this.rect(layer, box.x, box.y, width, height, INK, 1, 0x9e966d, 7); return { layer, ...box };
   }
   render() {
-    const c = this.c, d = c.data, { w, h } = c.layout; this.regions = [];
+    const c = this.c, d = c.data, { w, h } = c.layout;
+    if (this.ready && this.lastReady && c.isBlocked() && this.lastVersion === c.version) return;
+    this.lastVersion = c.version; this.lastReady = this.ready; this.regions = [];
     this.begin('background'); this.begin('world'); this.begin('hud'); this.begin('overlay');
     this.root.setPosition(-w / 2, h / 2);
     const arena = c.layout.arena;
