@@ -16,9 +16,14 @@ export class CocosPresentation {
       this.layers[name] = { node, g: new DrawList(node.addComponent(Graphics)), nodes: new Map(), used: new Set() };
     }
   }
+  finishLayers() {
+    for (const layer of Object.values(this.layers) as any[]) {
+      layer.g.flush(); for (const [id, node] of layer.nodes) if (!layer.used.has(id)) node.active = false;
+    }
+  }
   makeNode(name: string) { const node = new Node(name); node.layer = Layers.Enum.UI_2D; node.addComponent(UITransform).setAnchorPoint(0, 1); return node; }
   begin(name: string) {
-    const layer = this.layers[name]; layer.g.clear(); layer.used.clear(); for (const node of layer.nodes.values()) node.active = false; return layer;
+    const layer = this.layers[name]; layer.g.clear(); layer.used.clear(); return layer;
   }
   use(layer: any, id: string, make: () => Node) {
     let node = layer.nodes.get(id); if (!node) { node = make(); node.name = id; layer.nodes.set(id, node); layer.node.addChild(node); }
@@ -96,7 +101,7 @@ export class CocosPresentation {
       this.text(layer, 'loading-title', '开天一念', w / 2, h / 2 - 75, 65, GOLD, { center: true, serif: true });
       this.text(layer, 'loading-progress', this.error || '山河正在苏醒 · ' + Math.round(this.progress * 100) + '%', w / 2, h / 2 + 20, 25, MUTE, { center: true });
       if (this.error) this.button(layer, 'retry-content', '重新载入', w / 2 - 130, h / 2 + 90, 260, 64, () => c.retryAssets(), { primary: true });
-      for (const item of Object.values(this.layers) as any[]) item.g.flush(); return;
+      this.finishLayers(); return;
     }
     if (d.view === 'home') this.home(); else this.battle();
     if (d.showIntro) this.intro();
@@ -105,14 +110,16 @@ export class CocosPresentation {
     if (d.showEnding) this.ending();
     if (d.showArchive) this.archive();
     if (d.showSettings) this.settings();
-    for (const layer of Object.values(this.layers) as any[]) layer.g.flush();
+    this.finishLayers();
     // Entity-specific display nodes are destroyed after leaving the arena, preventing run-length growth.
     const world = this.layers.world;
     for (const [id, node] of world.nodes) if (!world.used.has(id)) { node.destroy(); world.nodes.delete(id); }
   }
   home() {
     const { w, h } = this.c.layout, bg = this.layers.background, layer = this.layers.hud, c = this.c;
-    this.image(bg, 'title', this.assets.textures.title, 0, 0, w, h, 0.8, true); this.rect(bg, 0, 0, w, h, 0x0a1921, 0.34, null, 0);
+    this.image(bg, 'title', this.assets.textures.title, 0, 0, w, h, 0.8, true);
+    const veil = this.use(bg, 'home-veil', () => { const n = this.makeNode('home-veil'); n.addComponent(Graphics); return n; });
+    const shade = veil.getComponent(Graphics); shade.clear(); shade.fillColor = rgba(0x0a1921, 0.38); shade.rect(0, -h, w, h); shade.fill();
     this.text(layer, 'home-mark', '混沌纪 · 山河未醒', 60, 40, 21, MUTE);
     const x = w * 0.32, y = h * 0.39;
     this.text(layer, 'home-kicker', '天地重归混沌', x, y - 88, 23, 0xc0cebd, { center: true });
@@ -204,10 +211,11 @@ export class CocosPresentation {
     this.text(hud, 'brand', '开天一念', a.x, 22, 31, GOLD, { bold: true });
     this.text(hud, 'phase', d.phaseName, a.x + 200, 16, 23, GOLD);
     this.text(hud, 'objective', d.objective, a.x + 200, 48, 19, MUTE);
-    const healthX = w - 400 - (w - a.x - a.width);
+    const menu = c.viewport.menuButton, headerRight = Math.max(w - a.x - a.width, menu && menu.left > 0 && menu.left < c.viewport.windowWidth ? w - menu.left / c.rpxScale + 16 : 0);
+    const healthX = w - 400 - headerRight;
     this.text(hud, 'hp', '元气 ' + d.hp + ' / ' + d.maxHp + '     境界 ' + d.level, healthX, 23, 22, LIGHT);
     this.rect(hud, healthX, 66, 270, 6, 0x36423b); this.rect(hud, healthX, 66, 270 * d.hpPct / 100, 6, d.hpPct < 30 ? 0xd27b63 : GOLD);
-    this.button(hud, 'pause', '暂停', w - 112 - (w - a.x - a.width), 14, 100, 60, () => c.openSettings(), { size: 24 });
+    this.button(hud, 'pause', '暂停', w - 112 - headerRight, 14, 100, 60, () => c.openSettings(), { size: 24 });
     this.rect(hud, a.x, 84, a.width, 3, 0x263a3e); this.rect(hud, a.x, 84, a.width * d.progress / 100, 3, 0xa3b788);
     this.text(hud, 'stage', d.stageName, a.x + 24, a.y + 18, 23, GOLD);
     if (d.boss) {

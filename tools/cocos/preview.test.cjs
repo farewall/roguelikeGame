@@ -30,11 +30,11 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         assert.equal(await page.evaluate(() => kaitian.controller.combat.weapon), weapon);
         const joy = await page.evaluate(() => { const r = kaitian.controller.joystickRect; return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
         const before = await page.evaluate(() => kaitian.controller.player.x); await page.mouse.move(joy.x, joy.y); await page.mouse.down(); await page.mouse.move(joy.x + 30, joy.y, { steps: 3 });
-        await page.waitForFunction(x => kaitian.controller.player.x > x, before); await page.mouse.up(); assert.equal(await page.evaluate(() => kaitian.controller.data.joystick.active), false);
+        await page.waitForFunction(x => kaitian.controller.player.x > x, before, { timeout: 5000 }); await page.mouse.up(); assert.equal(await page.evaluate(() => kaitian.controller.data.joystick.active), false);
         await page.evaluate(() => {
           const c = kaitian.controller, core = c.combat; c.stopLoops(); core.phase = 3; core.remaining = 0; core.enemies = []; core.invulnerable = 100; core.player.x = 50; core.player.y = 55;
           for (const dx of [100, 240, -220]) { const e = core.spawn('wraith'); Object.assign(e, { x: core.player.x + dx / core.width * 100, y: core.player.y, hp: 1000, maxHp: 1000, cooldown: 100, speed: 0 }); }
-          c.setData({ message: '' }); c.syncCombat();
+          c.viewport.menuButton = { left: c.viewport.windowWidth - 88 }; c.setData({ message: '' }); c.syncCombat();
         });
         await page.waitForFunction(() => kaitian.controller.combat.strikeCount > 0);
         assert.ok(await page.evaluate(() => Boolean(kaitian.presentation.layers.world.nodes.get('hero').getComponent('cc.Sprite'))));
@@ -44,6 +44,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         else await page.mouse.click(skill.x, skill.y);
         await page.waitForFunction(() => kaitian.controller.combat.damageBySource.skill > 0); assert.equal(await page.evaluate(() => kaitian.controller.combat.skillUses), 1);
         await page.screenshot({ path: output + '/' + prefix + '-skill.png' });
+        assert.ok(await page.evaluate(() => { const r = kaitian.presentation.regions.find(r => r.id === 'pause'); return (r.x + r.width) * kaitian.controller.rpxScale < kaitian.controller.viewport.menuButton.left; }));
         await click('pause'); const paused = await page.evaluate(() => kaitian.controller.combat.time); await page.waitForTimeout(100); assert.equal(await page.evaluate(() => kaitian.controller.combat.time), paused); await click('settings-close');
         await page.evaluate(() => kaitian.api.emit('Hide', {})); const hidden = await page.evaluate(() => kaitian.controller.combat.time); await page.waitForTimeout(100); assert.equal(await page.evaluate(() => kaitian.controller.combat.time), hidden); await page.evaluate(() => kaitian.api.emit('Show', {}));
         await page.evaluate(() => { const c = kaitian.controller; c.combat.xp = c.combat.xpNeed; c.levelUp(); });
@@ -58,6 +59,6 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         await click('ending-home'); await click('archive'); await click('archive-runs'); assert.ok(await page.evaluate(() => kaitian.controller.data.archiveRuns.length > 0)); await click('archive-close');
         assert.deepEqual(errors, [], prefix); console.log('PASS Cocos Creator ' + prefix + ': native nodes, joystick, skill, pause/background, upgrades, route, trial, ending, archive');
       }
-    } catch (error) { await page.screenshot({ path: output + '/failure.png' }); console.error('Creator browser errors:', errors); console.error(await page.evaluate(() => window.kaitian ? { ready: kaitian.presentation.ready, error: kaitian.presentation.error, view: kaitian.controller.data.view } : { runtime: false })); throw error; }
+    } catch (error) { await page.screenshot({ path: output + '/failure.png' }); console.error('Creator browser errors:', errors); console.error(await page.evaluate(() => window.kaitian ? { ready: kaitian.presentation.ready, error: kaitian.presentation.error, view: kaitian.controller.data.view, data: { paused: kaitian.controller.data.paused, choice: kaitian.controller.data.showChoice, joystick: kaitian.controller.data.joystick }, joyId: kaitian.input.joyId, touchId: kaitian.controller.touchId, origin: kaitian.controller.touchOrigin, move: kaitian.controller.moveVector, player: kaitian.controller.player } : { runtime: false })); throw error; }
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
