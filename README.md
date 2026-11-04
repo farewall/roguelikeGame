@@ -1,46 +1,43 @@
-# 开天一念 · 微信小游戏
+# 开天一念 · Cocos Creator 微信小游戏
 
-横屏动作肉鸽，使用 **Eva.js 1.2.8 + PixiJS 4.8.9**。通过微信原生 Canvas、触摸、音频及生命周期适配运行，统一由 Eva 帧循环推进战斗与动画。原有 Page/WXML 原型保存在 `legacy/`。
+项目使用 **Cocos Creator 3.8.8**。场景、精灵、文字、几何特效、裁切、音频和输入由 Cocos 组件处理，战斗与存档逻辑保留为独立 JavaScript 模块。旧小程序及 Eva 原型归档在 `legacy/`。
 
-## 构建与运行
+## 打开与构建
 
-需要 Node.js 22：
+需要 Node.js 22 和 Cocos Creator 3.8.8：
 
 ```sh
 npm ci --ignore-scripts --no-audit --no-fund
-npm run build
+npm run prepare:cocos
 npm test
 ```
 
-用微信开发者工具打开仓库根目录，选择小游戏项目。`project.config.json` 已设置 `compileType: game`，运行目录为构建生成的 `minigame/`。本地 `touristappid` 为占位，真机调试时填入自己的小游戏 AppID；GitHub 上传从仓库变量自动注入实际 AppID。
+在 Cocos Dashboard 中添加并打开 **`cocos-project/`**，启动场景为 `assets/Main.scene`。`prepare:cocos` 将经过测试的 `game/` 业务模块生成到 Creator 的 `assets/scripts/generated/`，生成文件不手动维护。已有场景和资源 UUID 不会被准备脚本覆盖。
 
-本地辅助预览：
+配置 `COCOS_CREATOR` 为实际编辑器可执行文件后，可以使用命令行构建：
 
 ```sh
-npm run preview -- 4173
-node tools/preview.test.cjs
-node tools/package-budget.cjs
+npm run build:web
+npm run build
+npm run test:package
 ```
 
-浏览器访问 `http://127.0.0.1:4173/`；`/native` 执行正式构建的 `game.js`，用隔离的 GameGlobal 和模拟 wx 检查适配。自动交互检查需要 Python 3、Playwright 和 Chromium，默认截图在 `/tmp/pangu-minigame/`。这些检查不等价于微信开发者工具或真机测试。
+以上调用正式 Creator CLI，分别生成 Web 检查版和 `wechatgame` 包。微信输出同步到根目录 `minigame/`；用微信开发者工具打开仓库根目录即可导入。根配置保留占位 AppID，GitHub 上传从现有仓库变量注入真实小游戏 AppID。
 
-## 玩法
+## 玩法与操作
 
-左下摇杆移动，至宝自动攻击。东皇钟近身环形音波，盘古幡远距贯穿飞刃；首境后选择回响/护体或清群/破劫路线。每境包含普通波、混合波、精英和首领，四象与天道各有预警、收招窗口和半血强化。
+横屏摇杆移动，至宝自动攻击。东皇钟释放近身音波，右下「镇界」用于震退、打断普通敌人和短暂护身；盘古幡发射贯穿飞刃，拖动右下「裂天」瞄准并松手释放，轻点则朝最近敌人释放。开局技能满能，命中与击破补充能量。
 
-升级三选一暂停战斗，展示提升前后数值。火、水、土最高四重，二/四重解锁传火、爆燃、潮涌、冰封、余震与震慑；元素组合产生蒸腾、熔流和泥沼，三元素保留伤害与减速。第二境后随机遭遇清泉、残卷或可选精英试炼。
+五境、四象与天道、两件至宝的路线、火水土四阶附魔与组合、关后事件、手记和最近八局记录均保留。每局重新构筑，没有永久数值成长；中途续玩未接入。同一小游戏 AppID 下继续使用原有存储键，已有偏好和手记可继续读取。
 
-主角使用四向徒手御宝动作，至宝悬浮在身侧；开天结局保留原有觉醒演出；设置支持音效、音量、震动和操作提示，切入后台冻结战斗。已见记忆、图鉴和最近八局结算保存在本机，含伤害构成与主要受伤来源。本局构筑每次重开，不提供永久数值成长或中途续玩。
+## 目录与验证
 
-右下角为蓄能技，开局满能：东皇钟点击「镇界」震退、打断普通敌人施法并短暂护身；盘古幡拖动「裂天」瞄准、松手释放贯穿裂隙，轻点则朝最近敌人释放。命中、击破和战斗时间补充能量。详见 [本版战斗说明](docs/ARTIFACT-COMBAT.md)。
+- `cocos-project/assets/scripts/`：Cocos 入口、场景呈现、资源与平台接入。
+- `cocos-project/assets/game-content/`：运行图片和声音，微信构建时成为独立资源分包。
+- `game/`：共享战斗、动画状态、输入状态、控制器和存档逻辑。
+- `tools/cocos/`：工程准备、正式编辑器构建及真实 Web 输出交互检查。
+- `art/`：动作原图与参考素材，不进入微信运行包。
 
-## 工程与验收
+CI 使用官方 Creator 3.8.8 编辑器导出，检查生成包、两种横屏尺寸的实际渲染与交互，再通过现有 AppID/上传密钥上传微信开发版及二维码。构建和上传结果见对应 Actions；浏览器检查不替代微信手机性能验收。
 
-- `game/core/`：战斗、动画、音频与手记；`game/src/`：控制器、Eva 场景和原生触摸；`game/platform/`：微信适配。
-- `game/assets/`：运行图像和短音效；`art/`：离线动作源和参考图，不上传。
-- `minigame/`：可重建产物，不提交 Git；构建会清空旧产物。
-- 92 项逻辑/适配回归，以及 6 组核心流程和 12 组含摇杆、动画、升级等待的流程模拟。浏览器检查覆盖两种横屏尺寸及生产入口。
-
-[迁移说明](docs/MINIGAME-MIGRATION.md) · [上传与试玩](docs/WECHAT-PLAYTEST.md) · [资源预算](docs/RESOURCES.md) · [美术说明](docs/ART.md) · [玩法优化记录](docs/OPTIMIZATION.md)
-
-独立普通怪动作、首领逐帧动画、正式记忆 CG、真人平衡及微信真机性能验收仍待完成。当前采用 Canvas 渲染，不能据此声称已达到真机目标帧率。
+[迁移说明](docs/MINIGAME-MIGRATION.md) · [试玩上传](docs/WECHAT-PLAYTEST.md) · [资源预算](docs/RESOURCES.md) · [御宝战斗](docs/ARTIFACT-COMBAT.md) · [美术说明](docs/ART.md)

@@ -1,18 +1,15 @@
 {
   "name": "kaitian-yinian-minigame",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "开天一念 · 微信小游戏",
   "scripts": {
-    "build": "node tools/build-game.cjs",
+    "prepare:cocos": "node tools/cocos/prepare.cjs",
+    "build": "node tools/cocos/build.cjs",
+    "build:web": "node tools/cocos/build.cjs web-mobile",
     "test": "node --test tools/combat.test.cjs tools/game.test.cjs tools/refinements.test.cjs tools/minigame.test.cjs tools/artifact.test.cjs",
-    "preview": "node tools/minigame-preview.cjs"
-  },
-  "dependencies": {
-    "@eva/eva.js": "1.2.8",
-    "@eva/plugin-renderer": "1.2.8",
-    "@eva/plugin-renderer-graphics": "1.2.8",
-    "pixi.js": "4.8.9"
+    "test:package": "node --test tools/cocos/package.test.cjs",
+    "test:visual": "node tools/cocos/preview.test.cjs"
   },
   "devDependencies": {
     "esbuild": "0.25.11"

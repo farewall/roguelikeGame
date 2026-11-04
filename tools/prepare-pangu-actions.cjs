@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const root = path.join(__dirname, '..');
 const source = path.join(root, 'art/pangu-actions');
-const target = path.join(root, 'game/assets/images/pangu');
+const target = path.join(root, 'cocos-project/assets/game-content/images/pangu');
 const actions = ['idle', 'move', 'attack', 'hurt', 'awaken', 'death'];
 (async () => {
   fs.mkdirSync(target, { recursive: true });

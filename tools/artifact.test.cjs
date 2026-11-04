@@ -89,7 +89,7 @@ test('skills cannot fire during upgrades, memories, death or from the home menu'
 });
 test('the unarmed pose atlas maps idle, walking and casting into valid four-direction frames', () => {
   assert.deepEqual(ARTIFACT_COLUMNS.attack.slice(0, 3), [4, 4, 5]); assert.ok(ARTIFACT_COLUMNS.move.includes(2) && ARTIFACT_COLUMNS.move.includes(3));
-  const fs = require('node:fs'), path = require('node:path'), png = fs.readFileSync(path.join(__dirname, '../game/assets/images/pangu/artifact-cast.png'));
+  const fs = require('node:fs'), path = require('node:path'), png = fs.readFileSync(path.join(__dirname, '../cocos-project/assets/game-content/images/pangu/artifact-cast.png'));
   assert.equal(png.readUInt32BE(16), 768); assert.equal(png.readUInt32BE(20), 512); assert.ok(png.includes(Buffer.from('tRNS')));
   assert.ok(Object.values(ARTIFACT_COLUMNS).every(columns => columns.length === 6 && columns.every(v => v >= 0 && v < 6)));
 });

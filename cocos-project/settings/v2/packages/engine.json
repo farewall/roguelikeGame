@@ -1,0 +1,101 @@
+{
+  "__version__": "1.0.12",
+  "modules": {
+    "configs": {
+      "defaultConfig": {
+        "name": "2D Game",
+        "cache": {
+          "base": {
+            "_value": true
+          },
+          "gfx-webgl": {
+            "_value": true
+          },
+          "gfx-webgl2": {
+            "_value": true
+          },
+          "2d": {
+            "_value": true
+          },
+          "graphics": {
+            "_value": true
+          },
+          "ui": {
+            "_value": true
+          },
+          "mask": {
+            "_value": true
+          },
+          "audio": {
+            "_value": true
+          },
+          "animation": {
+            "_value": true
+          },
+          "tween": {
+            "_value": true
+          },
+          "legacy-pipeline": {
+            "_value": true
+          },
+          "render-pipeline": {
+            "_value": true,
+            "_option": "legacy-pipeline"
+          },
+          "3d": {
+            "_value": false
+          },
+          "physics": {
+            "_value": false
+          },
+          "physics-2d": {
+            "_value": false
+          },
+          "spine": {
+            "_value": false
+          },
+          "dragon-bones": {
+            "_value": false
+          },
+          "video": {
+            "_value": false
+          },
+          "webview": {
+            "_value": false
+          },
+          "particle": {
+            "_value": false
+          },
+          "particle-2d": {
+            "_value": false
+          },
+          "custom-pipeline": {
+            "_value": false
+          },
+          "profiler": {
+            "_value": false
+          }
+        },
+        "includeModules": [
+          "base",
+          "gfx-webgl",
+          "gfx-webgl2",
+          "2d",
+          "graphics",
+          "ui",
+          "mask",
+          "audio",
+          "animation",
+          "tween",
+          "legacy-pipeline"
+        ],
+        "noDeprecatedFeatures": {
+          "value": false,
+          "version": ""
+        },
+        "flags": {}
+      }
+    },
+    "globalConfigKey": "defaultConfig"
+  }
+}

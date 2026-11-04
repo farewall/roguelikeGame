@@ -4,3 +4,12 @@ private.*.pem
 wechat-preview/
 minigame/
 preview-game/
+
+.cache/
+cocos-project/library/
+cocos-project/temp/
+cocos-project/local/
+cocos-project/profiles/
+cocos-project/build/
+cocos-project/logs/
+cocos-project/assets/scripts/generated/

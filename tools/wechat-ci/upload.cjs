@@ -11,11 +11,13 @@ async function main(options = {}) {
   if (!/^wx[a-f0-9]{16}$/i.test(appid || '')) throw new Error('WECHAT_APPID is missing or invalid. Set the Mini Game AppID in repository Actions Variables.');
   if (!privateKey) throw new Error('WECHAT_PRIVATE_KEY is missing. Set the Mini Game upload key in repository Actions Secrets.');
   crypto.createPrivateKey(privateKey);
-  const version = env.WECHAT_VERSION || '0.2.0';
+  const version = env.WECHAT_VERSION || '0.4.0';
   if (!/^[\w.-]{1,32}$/.test(version)) throw new Error('Invalid upload version.');
   const config = JSON.parse(fs.readFileSync(path.join(root, 'project.config.json'), 'utf8'));
   if (config.compileType !== 'game' || config.miniprogramRoot !== 'minigame/') throw new Error('Expected a built WeChat Mini Game project (compileType=game, root=minigame/).');
   for (const file of ['game.js', 'game.json', 'build-info.json']) if (!fs.existsSync(path.join(root, 'minigame', file))) throw new Error('Missing minigame/' + file + '; run npm ci and npm run build first.');
+  const proof = JSON.parse(fs.readFileSync(path.join(root, 'minigame/build-info.json'), 'utf8'));
+  if (proof.framework !== 'Cocos Creator 3.8.8' || proof.builder !== 'official Creator CLI' || proof.platform !== 'wechatgame') throw new Error('Upload requires a verified official Cocos Creator WeChat build.');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wechat-minigame-'));
   const output = path.join(root, 'wechat-preview');
   try {

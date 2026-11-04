@@ -1,3 +1,5 @@
+> 当前使用 Cocos Creator 正式导出，准备和构建命令以根目录 README 为准。
+
 # 微信小游戏试玩上传
 
 工作流 `.github/workflows/wechat-playtest.yml` 在推送 `wechat-playtest/**` 分支时执行，或从 Actions 手动运行。它构建小游戏、执行回归，再用官方 `miniprogram-ci` 上传开发版本并生成临时预览二维码。
@@ -11,11 +13,11 @@ Settings → Secrets and variables → Actions：
 
 AppID 只注入临时项目配置；密钥在进程环境中读取，不写入项目、Git 或二维码 artifact。上传 SDK 项目类型为 `miniGame`，项目配置为 `compileType: game`。预览不传小程序 `pagePath`。不需要 AppSecret。
 
-工作流安装锁定版本的 Eva/Pixi 和构建工具，生成 `minigame/game.js`、`game.json` 及 assets，运行 `npm test`，随后调用 CI 机器人 1。版本格式 `0.3.<run_number>`，开发上传不等于提审或正式发布。
+工作流安装锁定版本的 Cocos Creator 和构建工具，生成 `minigame/game.js`、`game.json` 及 assets，运行 `npm test`，随后调用 CI 机器人 1。版本格式 `0.4.<run_number>`，开发上传不等于提审或正式发布。
 
 ## 获取试玩
 
-1. 打开 Actions → **WeChat Mini Game playtest**，核对提交与任务结果。
+1. 打开 Actions → **Cocos Creator WeChat playtest**，核对提交与任务结果。
 2. 下载成功任务的 `wechat-preview` artifact，解压后微信扫描 `qrcode.png`。有效期和可访问账号受微信限制，artifact 保留一天。
 3. 也可在微信公众平台版本管理查看上传的开发版本，再按需要设置体验版、添加体验者。此操作不等于正式发布。
 
@@ -23,7 +25,7 @@ AppID 只注入临时项目配置；密钥在进程环境中读取，不写入�
 
 ## 本地与真机
 
-先运行根目录 README 中的构建命令，再用微信开发者工具导入根目录。小游戏固定横屏，所有菜单、升级卡、设置滑条与手记由 Canvas 绘制；摇杆和 UI 通过 wx 原生触摸事件处理。音频位于 `game/assets/audio/`，偏好与手记使用本机存储。
+先运行根目录 README 中的构建命令，再用微信开发者工具导入根目录。小游戏固定横屏，所有菜单、升级卡、设置滑条与手记由 Cocos UI 绘制；摇杆和 UI 通过 wx 原生触摸事件处理。音频位于 `cocos-project/assets/game-content/audio/`，偏好与手记使用本机存储。
 
 已检查 844×390 和 667×320 浏览器布局、生产入口适配、触摸取消/多指、暂停/后台、升级、路线、试炼及结算。仍需微信开发者工具和手机确认真实 API、刘海安全区、扬声器、震动、长时间稳定性和高敌人数帧率。小程序与小游戏的存储空间不保证共享，不应假定旧手记会自动迁移。
 
@@ -37,3 +39,5 @@ AppID 只注入临时项目配置；密钥在进程环境中读取，不写入�
 ## 御宝战斗版本
 
 这一版新增四向徒手施法动作、悬浮钟/幡、贯穿飞刃和两种蓄能技。开局满能，右下可直接释放；镇界点击解围，裂天可拖动瞄准并松手释放。详见 [战斗说明](ARTIFACT-COMBAT.md)。CI 在微信上传前检查两种横屏尺寸、两种至宝与隔离 GameGlobal 的生产入口；截图保存在 canvas-checks artifact。
+
+Creator 构建、真实 Web 画面检查及微信上传由同一提交串联执行，截图 artifact 为 cocos-checks，完整输出为 cocos-builds。私钥仅传入最后的上传步骤，不参与编辑器构建。

@@ -1,0 +1,63 @@
+'use strict';
+const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
+const { chromium } = require('playwright');
+const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), output = '/tmp/pangu-cocos';
+(async () => {
+  assert.equal(JSON.parse(fs.readFileSync(path.join(build, 'build-info.json'))).builder, 'official Creator CLI'); fs.mkdirSync(output, { recursive: true });
+  const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_EXECUTABLE || '/usr/bin/chromium', headless: true, args: ['--no-sandbox', '--enable-unsafe-swiftshader', '--use-gl=angle', '--use-angle=swiftshader'] });
+  try {
+    const page = await browser.newPage({ viewport: { width: 844, height: 390 } }), errors = [];
+    page.on('pageerror', e => errors.push(e.message)); page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+    await page.route('http://127.0.0.1:4173/**', async route => {
+      try {
+        const url = new URL(route.request().url()), relative = decodeURIComponent(url.pathname) === '/' ? 'index.html' : decodeURIComponent(url.pathname).slice(1), file = path.resolve(build, relative);
+        if (!file.startsWith(build + path.sep) || !fs.existsSync(file)) { await route.fulfill({ status: url.pathname === '/favicon.ico' ? 204 : 404 }); return; }
+        await route.fulfill({ status: 200, contentType: ({ '.js': 'application/javascript', '.json': 'application/json', '.html': 'text/html', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.wav': 'audio/wav', '.wasm': 'application/wasm' })[path.extname(file)] || 'application/octet-stream', body: fs.readFileSync(file) });
+      } catch (error) { await route.fulfill({ status: 500, body: error.message }); }
+    });
+    async function click(id) {
+      await page.waitForFunction(id => window.kaitian && kaitian.presentation.regions.some(r => r.id === id && r.enabled !== false), id, { timeout: 10000 });
+      const p = await page.evaluate(id => { const r = kaitian.presentation.regions.find(r => r.id === id), s = kaitian.controller.rpxScale; return { x: (r.x + r.width / 2) * s, y: (r.y + r.height / 2) * s }; }, id);
+      await page.mouse.click(p.x, p.y);
+    }
+    try {
+      await page.goto('http://127.0.0.1:4173/', { waitUntil: 'domcontentloaded' });
+      await page.waitForFunction(() => window.kaitian && kaitian.presentation.ready, null, { timeout: 60000 });
+      await page.screenshot({ path: output + '/cocos-home.png' });
+      for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) for (const weapon of ['bell', 'banner']) {
+        await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);
+        await click('start'); await click('weapon-' + weapon); await click('intro-enter');
+        assert.equal(await page.evaluate(() => kaitian.controller.combat.weapon), weapon);
+        const joy = await page.evaluate(() => { const r = kaitian.controller.joystickRect; return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+        const before = await page.evaluate(() => kaitian.controller.player.x); await page.mouse.move(joy.x, joy.y); await page.mouse.down(); await page.mouse.move(joy.x + 30, joy.y, { steps: 3 });
+        await page.waitForFunction(x => kaitian.controller.player.x > x, before); await page.mouse.up(); assert.equal(await page.evaluate(() => kaitian.controller.data.joystick.active), false);
+        await page.evaluate(() => {
+          const c = kaitian.controller, core = c.combat; c.stopLoops(); core.phase = 3; core.remaining = 0; core.enemies = []; core.invulnerable = 100; core.player.x = 50; core.player.y = 55;
+          for (const dx of [100, 240, -220]) { const e = core.spawn('wraith'); Object.assign(e, { x: core.player.x + dx / core.width * 100, y: core.player.y, hp: 1000, maxHp: 1000, cooldown: 100, speed: 0 }); }
+          c.setData({ message: '' }); c.syncCombat();
+        });
+        await page.waitForFunction(() => kaitian.controller.combat.strikeCount > 0);
+        assert.ok(await page.evaluate(() => Boolean(kaitian.presentation.layers.world.nodes.get('hero').getComponent('cc.Sprite'))));
+        const prefix = weapon + '-' + viewport.width; await page.screenshot({ path: output + '/' + prefix + '-normal.png' });
+        const skill = await page.evaluate(() => { const r = kaitian.presentation.regions.find(r => r.id === 'skill'), s = kaitian.controller.rpxScale; return { x: (r.x + r.width / 2) * s, y: (r.y + r.height / 2) * s }; });
+        if (weapon === 'banner') { await page.mouse.move(skill.x, skill.y); await page.mouse.down(); await page.mouse.move(skill.x - 70, skill.y, { steps: 4 }); await page.waitForFunction(() => kaitian.controller.data.skillAim && kaitian.controller.data.skillAim.x < -0.99); await page.screenshot({ path: output + '/' + prefix + '-aim.png' }); await page.mouse.up(); }
+        else await page.mouse.click(skill.x, skill.y);
+        await page.waitForFunction(() => kaitian.controller.combat.damageBySource.skill > 0); assert.equal(await page.evaluate(() => kaitian.controller.combat.skillUses), 1);
+        await page.screenshot({ path: output + '/' + prefix + '-skill.png' });
+        await click('pause'); const paused = await page.evaluate(() => kaitian.controller.combat.time); await page.waitForTimeout(100); assert.equal(await page.evaluate(() => kaitian.controller.combat.time), paused); await click('settings-close');
+        await page.evaluate(() => kaitian.api.emit('Hide', {})); const hidden = await page.evaluate(() => kaitian.controller.combat.time); await page.waitForTimeout(100); assert.equal(await page.evaluate(() => kaitian.controller.combat.time), hidden); await page.evaluate(() => kaitian.api.emit('Show', {}));
+        await page.evaluate(() => { const c = kaitian.controller; c.combat.xp = c.combat.xpNeed; c.levelUp(); });
+        await page.waitForFunction(() => kaitian.presentation.regions.some(r => r.id.startsWith('upgrade-'))); await page.screenshot({ path: output + '/' + prefix + '-upgrade.png' });
+        await click(await page.evaluate(() => kaitian.presentation.regions.find(r => r.id.startsWith('upgrade-')).id)); assert.equal(await page.evaluate(() => kaitian.controller.data.level), 2);
+        await page.evaluate(() => { const c = kaitian.controller; c.stopLoops(); c.upgradePending = false; c.combat.xp = 0; c.combat.cleared = true; c.combat.stage = 1; c.completeStage(); });
+        const route = weapon === 'bell' ? 'echo' : 'sweep'; await click('reward-' + route); await click('memory-continue'); assert.equal(await page.evaluate(() => kaitian.controller.combat.path), route);
+        await page.evaluate(() => { const c = kaitian.controller; c.stopLoops(); c.combat.cleared = true; c.combat.stage = 2; c.combat.random = () => 0.9; c.completeStage(); });
+        await click('reward-trial'); await click('memory-continue'); assert.ok(await page.evaluate(() => kaitian.controller.combat.enemies.some(e => e.trial)));
+        await page.evaluate(() => { const c = kaitian.controller.combat; c.invulnerable = 0; c.hurt(1000, '火羽焚地'); });
+        await page.waitForFunction(() => kaitian.controller.data.showEnding, null, { timeout: 5000 }); await page.screenshot({ path: output + '/' + prefix + '-ending.png' });
+        await click('ending-home'); await click('archive'); await click('archive-runs'); assert.ok(await page.evaluate(() => kaitian.controller.data.archiveRuns.length > 0)); await click('archive-close');
+        assert.deepEqual(errors, [], prefix); console.log('PASS Cocos Creator ' + prefix + ': native nodes, joystick, skill, pause/background, upgrades, route, trial, ending, archive');
+      }
+    } catch (error) { await page.screenshot({ path: output + '/failure.png' }); console.error('Creator browser errors:', errors); console.error(await page.evaluate(() => window.kaitian ? { ready: kaitian.presentation.ready, error: kaitian.presentation.error, view: kaitian.controller.data.view } : { runtime: false })); throw error; }
+  } finally { await browser.close(); }
+})().catch(error => { console.error(error); process.exitCode = 1; });

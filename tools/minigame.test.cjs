@@ -4,21 +4,20 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto'), os = require('node:os');
 const { setup, touch } = require('./game-harness.cjs');
 const { NativeInput } = require('../game/src/input');
-const { installPlatform } = require('../game/platform/wechat');
 const { main, safeError } = require('./wechat-ci/upload.cjs');
 const root = path.resolve(__dirname, '..');
 function fakeView(h, regions = []) { return { regions }; }
 function event(t, remaining = []) { return { changedTouches: [t], touches: remaining }; }
 function pointFor(h, x, y, id = 0) { return touch(x * h.game.rpxScale, y * h.game.rpxScale, id); }
 
-test('project is a native landscape Mini Game and ships only built game assets', () => {
+test('Creator project declares a landscape WeChat target and a separate content bundle', () => {
   const config = JSON.parse(fs.readFileSync(path.join(root, 'project.config.json')));
   assert.equal(config.compileType, 'game'); assert.equal(config.miniprogramRoot, 'minigame/');
-  const game = JSON.parse(fs.readFileSync(path.join(root, 'minigame/game.json'))); assert.equal(game.deviceOrientation, 'landscape');
-  assert.ok(fs.existsSync(path.join(root, 'minigame/game.js'))); assert.ok(!fs.existsSync(path.join(root, 'minigame/app.json')));
-  const build = JSON.parse(fs.readFileSync(path.join(root, 'minigame/build-info.json'))); assert.ok(build.framework.startsWith('Eva.js'));
-  for (const file of build.assets) assert.ok(fs.existsSync(path.join(root, 'minigame', file)), file);
-  assert.equal(build.assets.filter(f => /pangu\//.test(f)).length, 7); assert.ok(require('./package-budget.cjs').budget().fits);
+  const { compressed } = require('./cocos/prepare.cjs'); assert.equal(compressed('69e93e92-878c-44af-95c7-6494cf4c23e0'), '69e936Sh4xEr5XHZJTPTCPg');
+  const scene = JSON.parse(fs.readFileSync(path.join(root, 'cocos-project/assets/Main.scene'))); const mainMeta = JSON.parse(fs.readFileSync(path.join(root, 'cocos-project/assets/scripts/Main.ts.meta'))); assert.ok(scene.some(item => item.__type__ === compressed(mainMeta.uuid)));
+  const creator = JSON.parse(fs.readFileSync(path.join(root, 'cocos-project/package.json'))); assert.equal(creator.creator.version, '3.8.8');
+  const target = JSON.parse(fs.readFileSync(path.join(root, 'cocos-project/build-config/wechatgame.json'))); assert.equal(target.platform, 'wechatgame'); assert.equal(target.packages.wechatgame.orientation, 'landscape');
+  const content = JSON.parse(fs.readFileSync(path.join(root, 'cocos-project/assets/game-content.meta'))); assert.equal(content.userData.bundleName, 'game-content'); assert.equal(content.userData.compressionType.wechatgame, 'subpackage');
 });
 test('native controller has one externally driven frame loop, without WXML selectors or intervals', () => {
   const h = setup({ nativeLayout: true }); const t = h.game.combat.time; h.frame(25); assert.ok(h.game.combat.time > t);
@@ -65,13 +64,10 @@ test('canvas volume slider persists on release and archive dragging scrolls with
   c.closeSettings(); c.openArchive(); c.archiveMaxScroll = 300; view.regions = [{ id: 'scroll', type: 'scroll', x: 100, y: 100, width: 400, height: 400 }];
   const p = pointFor(h, 200, 300), q = pointFor(h, 200, 200); input.start(event(p, [p])); input.move(event(q, [q])); input.end(event(q)); assert.ok(c.data.archiveScroll > 0); input.destroy();
 });
-test('native platform uses wx canvases/images and its shim does not require an existing DOM', () => {
-  let canvases = 0, images = 0;
-  const api = { getWindowInfo: () => ({ windowWidth: 844, windowHeight: 390, pixelRatio: 2 }), createCanvas: () => { canvases++; return { width: 844, height: 390, getContext: () => ({}) }; }, createImage: () => { images++; return {}; } };
-  const host = { requestAnimationFrame() {}, cancelAnimationFrame() {} }, p = installPlatform(api, host);
-  assert.equal(canvases, 1); const other = host.document.createElement('canvas'); assert.equal(canvases, 2); assert.ok(other instanceof host.HTMLCanvasElement);
-  const image = p.createImage(); assert.ok(image instanceof host.HTMLImageElement); assert.equal(images, 1); assert.equal(host.window.navigator.userAgent, 'WeChat MiniGame');
-  let called = 0; host.window.addEventListener('resize', () => called++); host.window.dispatchEvent({ type: 'resize' }); assert.equal(called, 1);
+test('Creator owns input, audio and frame scheduling without the legacy renderer adapter', () => {
+  const source = fs.readFileSync(path.join(root, 'cocos-project/assets/scripts/Platform.ts'), 'utf8');
+  assert.ok(source.includes('Input.EventType.TOUCH_START')); assert.ok(source.includes('Game.EVENT_HIDE')); assert.ok(source.includes('AudioSource'));
+  assert.ok(!fs.existsSync(path.join(root, 'game/platform/wechat.js')));
 });
 test('uploader packages the Mini Game type and root, omits pagePath, and never writes the key', async () => {
   const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048, privateKeyEncoding: { type: 'pkcs8', format: 'pem' }, publicKeyEncoding: { type: 'spki', format: 'pem' } });
@@ -83,8 +79,10 @@ test('uploader packages the Mini Game type and root, omits pagePath, and never w
       for (const file of fs.readdirSync(temporary, { recursive: true })) { const p = path.join(temporary, file); if (fs.statSync(p).isFile()) assert.ok(!fs.readFileSync(p).includes(Buffer.from('BEGIN PRIVATE KEY')), file); }
     }
   }, async upload(options) { assert.ok(options.project); uploaded = true; }, async preview(options) { assert.ok(uploaded); assert.equal('pagePath' in options, false); previewed = true; } };
-  await main({ root, env: { WECHAT_APPID: 'wx0123456789abcdef', WECHAT_PRIVATE_KEY: privateKey, WECHAT_VERSION: '0.2.test' }, sdk, log() {} });
-  assert.ok(uploaded && previewed); assert.equal(fs.existsSync(temporary), false);
+  const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'creator-upload-fixture-')); fs.mkdirSync(path.join(fixture, 'minigame')); fs.copyFileSync(path.join(root, 'project.config.json'), path.join(fixture, 'project.config.json'));
+  for (const [file, content] of Object.entries({ 'game.js': 'require("./cocos-js/cc")', 'game.json': JSON.stringify({ deviceOrientation: 'landscape' }), 'build-info.json': JSON.stringify({ framework: 'Cocos Creator 3.8.8', builder: 'official Creator CLI', platform: 'wechatgame' }) })) fs.writeFileSync(path.join(fixture, 'minigame', file), content);
+  await main({ root: fixture, env: { WECHAT_APPID: 'wx0123456789abcdef', WECHAT_PRIVATE_KEY: privateKey, WECHAT_VERSION: '0.2.test' }, sdk, log() {} });
+  assert.ok(uploaded && previewed); assert.equal(fs.existsSync(temporary), false); fs.rmSync(fixture, { recursive: true, force: true });
 });
 test('upload validation rejects wrong IDs and missing builds before calling the SDK and sanitizes errors', async () => {
   await assert.rejects(() => main({ env: { WECHAT_APPID: 'bad' }, sdk: {} }), /missing or invalid/);

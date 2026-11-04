@@ -1,7 +1,7 @@
 'use strict';
 // Original, short synthesized cues; no external recordings or runtime synthesis.
 const fs = require('node:fs'), path = require('node:path');
-const root = path.join(__dirname, '../game/assets/audio');
+const root = path.join(__dirname, '../cocos-project/assets/game-content/audio');
 fs.mkdirSync(root, { recursive: true });
 const rate = 11025;
 const cues = { attack: [0.10, 185, 540], bell: [0.22, 260, 210], banner: [0.12, 720, 110], dominion: [0.65, 150, 82], rift: [0.46, 1050, 90], ready: [0.18, 520, 1040], warning: [0.20, 660, 880], hurt: [0.10, 88, 120], upgrade: [0.24, 440, 660], victory: [0.32, 330, 660], death: [0.28, 130, 65] };

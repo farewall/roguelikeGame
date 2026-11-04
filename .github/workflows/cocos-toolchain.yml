@@ -1,7 +1,5 @@
 name: Cocos Creator toolchain
 on:
-  push:
-    branches: ['cocos-migration/**']
   workflow_dispatch:
 permissions:
   contents: read

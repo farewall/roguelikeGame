@@ -132,17 +132,17 @@ test('audio settings persist independently of a run and control playback and cle
 test('short-edge scaling survives resize and the Mini Game remains landscape without dash controls', () => {
   const { game, windowInfo } = setup({ windowInfo: { windowWidth: 844, windowHeight: 390 } });
   closeTo(game.data.uiScale, 390 / 750); windowInfo.windowWidth = 390; windowInfo.windowHeight = 844; game.onResize(); closeTo(game.data.uiScale, 390 / 750);
-  const app = JSON.parse(fs.readFileSync(path.join(__dirname, '../game/game.json'))); assert.equal(app.deviceOrientation, 'landscape'); assert.equal(game.dash, undefined);
+  const app = JSON.parse(fs.readFileSync(path.join(__dirname, '../cocos-project/build-config/wechatgame.json'))); assert.equal(app.packages.wechatgame.orientation, 'landscape'); assert.equal(game.dash, undefined);
 });
 test('runtime assets fit the 4 MiB Mini Game budget, preserve animation transparency and contain valid local audio', () => {
-  const root = path.join(__dirname, '../minigame');
+  const root = path.join(__dirname, '../cocos-project/assets/game-content');
   const files = fs.readdirSync(root, { recursive: true }).filter(file => fs.statSync(path.join(root, file)).isFile());
   const size = files.reduce((sum, file) => sum + fs.statSync(path.join(root, file)).size, 0); assert.ok(size < 4 * 1024 * 1024, 'Mini Game build exceeds 4 MiB: ' + size);
-  assert.ok(require('./package-budget.cjs').budget().fits, 'Keep at least 64 KiB reserved before adding runtime resources');
+  assert.ok(size < 3 * 1024 * 1024, 'Keep source art/audio within the content subpackage budget');
   for (const action of ['idle', 'move', 'attack', 'hurt', 'awaken', 'death']) {
-    const png = fs.readFileSync(path.join(root, 'assets/images/pangu', action + '.png')); assert.equal(png.readUInt32BE(16), 768); assert.equal(png.readUInt32BE(20), 512); assert.ok(png.includes(Buffer.from('tRNS')));
+    const png = fs.readFileSync(path.join(root, 'images/pangu', action + '.png')); assert.equal(png.readUInt32BE(16), 768); assert.equal(png.readUInt32BE(20), 512); assert.ok(png.includes(Buffer.from('tRNS')));
   }
   for (const name of ['attack', 'bell', 'banner', 'dominion', 'rift', 'ready', 'warning', 'hurt', 'upgrade', 'victory', 'death']) {
-    const wav = fs.readFileSync(path.join(root, 'assets/audio', name + '.wav')); assert.equal(wav.toString('ascii', 0, 4), 'RIFF'); assert.equal(wav.readUInt16LE(22), 1); assert.equal(wav.readUInt16LE(34), 16); assert.equal(wav.readUInt32LE(40), wav.length - 44);
+    const wav = fs.readFileSync(path.join(root, 'audio', name + '.wav')); assert.equal(wav.toString('ascii', 0, 4), 'RIFF'); assert.equal(wav.readUInt16LE(22), 1); assert.equal(wav.readUInt16LE(34), 16); assert.equal(wav.readUInt32LE(40), wav.length - 44);
   }
 });

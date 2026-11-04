@@ -1,27 +1,21 @@
-# 小程序迁移至小游戏
+# Cocos Creator 迁移
 
-## 架构
+当前工程固定为 Cocos Creator 3.8.8，使用官方编辑器 CLI 导出 Web 和微信小游戏。运行入口是 `cocos-project/assets/Main.scene` 与 `KaitianGame` 组件，已经脱离 Eva/Pixi 渲染器。
 
-选用 Eva.js 1.2.8 的组件与生命周期，配合 PixiJS 4.8.9 Canvas 渲染器。当前 2D 竞技场、四向图集和程序几何特效不需要引入完整 3D 编辑器；版本通过锁文件固定，升级前需重跑平台适配和上传检查。
+`Main.ts` 使用 Cocos 生命周期推进控制器和场景。`Presentation.ts` 使用原生 Node、Sprite、Label、Graphics、Mask；`Platform.ts` 使用 Cocos Input、Game 前后台事件和 AudioSource，微信存储/震动继续调用同一 AppID 的 wx API。主角继续使用新的四向徒手御宝图集，钟/幡、贯穿飞刃和蓄能技均保留。
 
-`game/main.js` 先安装微信适配，再加载引擎。`game/platform/wechat.js` 将 wx 创建的 Canvas、Image 和必要环境接口提供给渲染器，不依赖浏览器页面。`game/src/app.js` 创建 Eva 场景与唯一帧循环，负责前后台、窗口尺寸和资源加载。`presentation.js` 绘制场景、精灵、预警、菜单和弹层，`input.js` 直接接收 wx 原生触摸。
+`game/` 是玩法逻辑的唯一源；准备脚本只生成 Creator 可导入的 ES 模块、缺失元数据和初始配置。已有 `Main.scene` 和资产 UUID 保留，避免每次准备工程覆盖编辑器修改。界面目前由 Cocos 组件动态组成，后续可以逐步提取成可视化预制体。
 
-战斗保留在 `game/core/combat.js`，控制器不再注册 Page、不调用页面查询或定时刷新。保留的 `setData` 方法只修改本地状态。所有画面由 Eva/Pixi 绘制，地图与碰撞共享同一短边坐标尺度；UI 点击、摇杆、安全区及碰撞随窗口尺寸更新。
+## 正式构建
 
-## 迁移内容
+先运行根目录 README 的准备命令，再用编辑器打开 `cocos-project/`。命令行构建要求 `COCOS_CREATOR` 指向实际 Creator 3.8.8 可执行文件；缺失时直接报错，不使用旧引擎产物兜底。
 
-- 保留五境、两种至宝、四条路线、三元素阶位/组合、首领招式、关后事件、手记与音效设置。
-- 六张四向六帧主角图集预切为 144 帧纹理，复用场景显示对象；危险区按实际碰撞几何绘制。
-- 触控支持标识符 0、多指摇杆/暂停、拖动取消、升级批次去重、音量滑条和手记滚动。
-- 后台停止帧循环、音频和触摸；恢复时保留设置暂停及升级/结算延迟状态。
-- 构建与微信上传切换到小游戏类型，上传目录仅包含生成产物。原 Page 原型保存在 `legacy/`，离线资源工具输出到 `game/assets/`。
+`tools/cocos/build.cjs` 清理目标输出后调用正式 CLI，校验退出码与关键文件，记录引擎、平台和源码提交信息。微信输出复制到 `minigame/`，上传脚本只接受这一类产物。
 
-## 验证与边界
+## 资源与验证
 
-`npm run build`、79 项回归、6 组核心流程与 12 组控制器流程通过。浏览器分别运行开发入口和隔离 GameGlobal 下的生产 `game.js`，在 844×390、667×320 检查首页、武器、摇杆、暂停、升级、路线、试炼、消散结算和手记，未发现脚本错误。
+`game-content` 资源 Bundle 在微信构建中导出为小游戏分包，通过 Cocos `assetManager.loadBundle` 加载；失败会提供重试入口。主包与分包分别检查预算。图片、声音按 Creator 的资源系统导入，不依赖旧静态文件路径。
 
-[Canvas 战斗预览](minigame-battle.png) · [Canvas 路线预览](minigame-path.png)
+玩法回归继续覆盖原有战斗、路线、事件、技能、多指输入与暂停。CI 另检查真实 Creator Web 输出的两种横屏尺寸、两种至宝、升级/记忆/试炼/结算与手记，再上传微信开发版。最终构建、画面和上传状态以对应 Actions 为准；真机帧率、发热和手感仍需手机试玩。
 
-截图为浏览器运行真实 Canvas 场景，wx 为模拟。SDK 参数回归也使用 mock，不代表平台已接受代码；实际上传以对应 GitHub Actions 任务结果为准。微信开发者工具/手机验收、真人平衡与性能采样仍需进行。
-
-迁移会改变 UI 和特效的绘制方式，保留玩法、原有素材与构筑规则。Canvas 文字和精灵边缘在不同设备上可能有差别，不承诺与旧 WXML 像素完全一致。新小游戏与旧小程序存储隔离时，历史手记不会自动转移。
+旧页面及 Eva 实现只在 `legacy/` 保留，旧迁移记录见 [历史说明](EVA-MIGRATION-HISTORY.md)。

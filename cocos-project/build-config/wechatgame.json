@@ -1,0 +1,36 @@
+{
+  "name": "kaitian-yinian",
+  "platform": "wechatgame",
+  "outputName": "wechatgame",
+  "buildPath": "project://build",
+  "startScene": "c4628814-4394-41d0-88d1-933e59b69b7a",
+  "scenes": [
+    {
+      "url": "db://assets/Main.scene",
+      "uuid": "c4628814-4394-41d0-88d1-933e59b69b7a"
+    }
+  ],
+  "debug": false,
+  "md5Cache": false,
+  "includedModules": [
+    "base",
+    "gfx-webgl",
+    "gfx-webgl2",
+    "2d",
+    "graphics",
+    "ui",
+    "mask",
+    "audio",
+    "animation",
+    "tween",
+    "legacy-pipeline"
+  ],
+  "packages": {
+    "wechatgame": {
+      "appid": "touristappid",
+      "orientation": "landscape",
+      "separateEngine": false,
+      "useSubpackage": true
+    }
+  }
+}

@@ -3,7 +3,7 @@
 const sharp = require('sharp');
 const fs = require('node:fs');
 const path = require('node:path');
-const out = path.join(__dirname, '../game/assets/images');
+const out = path.join(__dirname, '../cocos-project/assets/game-content/images');
 async function split(file, names, size, transparent) {
   const {width, height} = await sharp(file).metadata();
   for (let i=0; i<names.length; i++) {

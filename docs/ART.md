@@ -4,7 +4,7 @@
 
 ## 本地资源
 
-所有运行时图像位于 `game/assets/images/`，无需图片服务或额外运行依赖。旧版静态盘古立绘已移至 `art/reference/master.png` 保留，不占主包；当前主角使用 `images/pangu/` 六组动作图。
+所有运行时图像位于 `cocos-project/assets/game-content/images/`，无需图片服务或额外运行依赖。旧版静态盘古立绘已移至 `art/reference/master.png` 保留，不占主包；当前主角使用 `images/pangu/` 六组动作图。
 
 | 文件 | 用途 |
 | --- | --- |
@@ -55,8 +55,10 @@ Sharp 仅用于离线素材处理；小游戏运行时不加载 Sharp。仅运�
 
 ## 小游戏呈现
 
-运行图像现统一从 `game/assets/images/` 加载，主角通过 Pixi 纹理裁切播放。危险区使用 Canvas 几何绘制，菜单与弹层均已迁出 WXML。当前截图见 [战斗](minigame-battle.png) 与 [至宝路线](minigame-path.png)；上述 `current-*.png` 保留为迁移前历史对照。
+运行图像现统一从 `cocos-project/assets/game-content/images/` 加载，主角通过 Pixi 纹理裁切播放。危险区使用 Canvas 几何绘制，菜单与弹层均已迁出 WXML。当前截图见 [战斗](minigame-battle.png) 与 [至宝路线](minigame-path.png)；上述 `current-*.png` 保留为迁移前历史对照。
 
 ## 御宝施法素材
 
 新增 `art/pangu-actions/artifact-cast.png`：四向、六列的透明徒手动作源，列依次为两帧待机、两帧行走、蓄势和释放。`tools/prepare-artifact-actions.cjs` 生成 768×512 的运行图，动画映射见 `game/core/artifact-animation.js`。常规战斗、受击和消散均使用该徒手角色，钟/幡以程序绘制随身悬浮，不再复用挥斧攻击。开天成功结局保留原有觉醒图集。新增镇界、裂天与满能提示三段合成音效，遵守音效开关、音量和暂停。
+
+当前图像与声音由 Cocos Bundle 导入，渲染组件为 Sprite、Label、Graphics 与 Mask；原 Canvas 截图保留作历史对照，当前 Creator 画面以 CI 的 cocos-checks 截图为准。
