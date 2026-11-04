@@ -13,8 +13,8 @@ function readArchive(api) {
     const value = api.getStorageSync ? api.getStorageSync(ARCHIVE_KEY) : null;
     if (!value || typeof value !== 'object') return emptyArchive();
     return {
-      memories: Array.isArray(value.memories) ? [...new Set(value.memories.filter(id => Number.isInteger(id) && id >= 1 && id <= 4))] : [],
-      enemies: Array.isArray(value.enemies) ? [...new Set(value.enemies.filter(id => ENEMIES.some(e => e.id === id)))] : [],
+      memories: Array.isArray(value.memories) ? Array.from(new Set(value.memories.filter(id => Number.isInteger(id) && id >= 1 && id <= 4))) : [],
+      enemies: Array.isArray(value.enemies) ? Array.from(new Set(value.enemies.filter(id => ENEMIES.some(e => e.id === id)))) : [],
       runs: Array.isArray(value.runs) ? value.runs.filter(run => run && typeof run === 'object' && typeof run.won === 'boolean' && Object.keys(WEAPONS).includes(run.weaponId) && Number.isFinite(run.seconds) && run.seconds >= 0 && Number.isFinite(run.kills) && run.kills >= 0 && Number.isInteger(run.stage) && run.stage >= 1 && run.stage <= 5 && typeof run.build === 'string').slice(0, 8).map(run => ({ won: run.won, weaponId: run.weaponId, seconds: Math.floor(run.seconds), kills: Math.floor(run.kills), stage: run.stage, build: run.build.slice(0, 100), detail: typeof run.detail === 'string' ? run.detail.slice(0, 180) : '' })) : []
     };
   } catch (_) { return emptyArchive(); }

@@ -22,7 +22,8 @@ export function createPlatform(controller: () => any, owner: Node) {
       // Creator already converts desktop mouse events to identifier-zero touch events.
       const changed = (event.touch ? [event.touch] : event.getTouches()).map(t => point(t, t.getID()));
       for (const t of changed) { if (key === 'TouchEnd' || key === 'TouchCancel') touches.delete(t.identifier); else touches.set(t.identifier, t); }
-      emit(key, { changedTouches: changed, touches: [...touches.values()] });
+      // Creator's loose spread transform assumes arrays; materialize this iterator explicitly.
+      emit(key, { changedTouches: changed, touches: Array.from(touches.values()) });
     };
     input.on(type, handler); disposers.push(() => input.off(type, handler));
   }

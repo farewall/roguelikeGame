@@ -6,7 +6,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
   assert.equal(JSON.parse(fs.readFileSync(path.join(build, 'build-info.json'))).builder, 'official Creator CLI'); fs.mkdirSync(output, { recursive: true });
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_EXECUTABLE || '/usr/bin/chromium', headless: true, args: ['--no-sandbox', '--enable-unsafe-swiftshader', '--use-gl=angle', '--use-angle=swiftshader'] });
   try {
-    const page = await browser.newPage({ viewport: { width: 844, height: 390 } }), errors = [];
+    const page = await browser.newPage({ viewport: { width: 844, height: 390 }, hasTouch: true }), errors = [];
     page.on('pageerror', e => errors.push(e.message)); page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
     await page.route('http://127.0.0.1:4173/**', async route => {
       try {
@@ -31,6 +31,12 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         const joy = await page.evaluate(() => { const r = kaitian.controller.joystickRect; return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
         const before = await page.evaluate(() => kaitian.controller.player.x); await page.mouse.move(joy.x, joy.y); await page.mouse.down(); await page.mouse.move(joy.x + 30, joy.y, { steps: 3 });
         await page.waitForFunction(x => kaitian.controller.player.x > x, before, { timeout: 5000 }); await page.mouse.up(); assert.equal(await page.evaluate(() => kaitian.controller.data.joystick.active), false);
+        const touchSession = await page.context().newCDPSession(page), touchBefore = await page.evaluate(() => kaitian.controller.player.x);
+        await touchSession.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: joy.x, y: joy.y, id: 1 }] });
+        await touchSession.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: joy.x + 30, y: joy.y, id: 1 }] });
+        await page.waitForFunction(x => kaitian.controller.player.x > x, touchBefore, { timeout: 5000 });
+        await touchSession.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await touchSession.detach();
+        assert.equal(await page.evaluate(() => kaitian.controller.data.joystick.active), false);
         await page.evaluate(() => {
           const c = kaitian.controller, core = c.combat; c.stopLoops(); core.phase = 3; core.remaining = 0; core.enemies = []; core.invulnerable = 100; core.player.x = 50; core.player.y = 55;
           for (const dx of [100, 240, -220]) { const e = core.spawn('wraith'); Object.assign(e, { x: core.player.x + dx / core.width * 100, y: core.player.y, hp: 1000, maxHp: 1000, cooldown: 100, speed: 0 }); }
@@ -59,6 +65,11 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         await click('ending-home'); await click('archive'); await click('archive-runs'); assert.ok(await page.evaluate(() => kaitian.controller.data.archiveRuns.length > 0)); await click('archive-close');
         assert.deepEqual(errors, [], prefix); console.log('PASS Cocos Creator ' + prefix + ': native nodes, joystick, skill, pause/background, upgrades, route, trial, ending, archive');
       }
+      const saved = await page.evaluate(() => kaitian.api.getStorageSync('pangu.archive.v1'));
+      await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForFunction(() => window.kaitian && kaitian.presentation.ready, null, { timeout: 60000 });
+      assert.deepEqual(await page.evaluate(() => kaitian.controller.archive.memories), saved.memories);
+      assert.deepEqual(await page.evaluate(() => kaitian.controller.archive.enemies), saved.enemies);
+      assert.deepEqual(errors, []); console.log('PASS Cocos Creator: archive survives a full reload');
     } catch (error) { await page.screenshot({ path: output + '/failure.png' }); console.error('Creator browser errors:', errors); console.error(await page.evaluate(() => window.kaitian ? { ready: kaitian.presentation.ready, error: kaitian.presentation.error, view: kaitian.controller.data.view, data: { paused: kaitian.controller.data.paused, choice: kaitian.controller.data.showChoice, joystick: kaitian.controller.data.joystick }, joyId: kaitian.input.joyId, touchId: kaitian.controller.touchId, origin: kaitian.controller.touchOrigin, move: kaitian.controller.moveVector, player: kaitian.controller.player } : { runtime: false })); throw error; }
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
