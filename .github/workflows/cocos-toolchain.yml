@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   toolchain:
-    runs-on: windows-2022
+    runs-on: macos-15
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -16,27 +16,27 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: ${{ runner.temp }}/CocosCreator-3.8.8
-          key: creator-win-3.8.8-010512
+          key: creator-macos-3.8.8-121518
       - name: Download official Cocos Creator
         if: steps.creator-cache.outputs.cache-hit != 'true'
-        shell: pwsh
+        shell: bash
         run: |
-          $zip = Join-Path $env:RUNNER_TEMP "CocosCreator-3.8.8.zip"
-          $target = Join-Path $env:RUNNER_TEMP "CocosCreator-3.8.8"
-          curl.exe --location --fail --retry 2 --connect-timeout 30 --max-time 900 --output $zip "https://download.cocos.com/CocosCreator/v3.8.8/CocosCreator-v3.8.8-win-010512.zip"
-          if ($LASTEXITCODE -ne 0) { throw "Official Creator download failed" }
-          Get-FileHash $zip -Algorithm SHA256
-          7z x $zip "-o$target" -y | Out-Null
-          if ($LASTEXITCODE -ne 0) { throw "Creator extraction failed" }
+          set -euo pipefail
+          zip="$RUNNER_TEMP/CocosCreator-3.8.8.zip"
+          target="$RUNNER_TEMP/CocosCreator-3.8.8"
+          curl --location --fail --retry 2 --connect-timeout 30 --max-time 900 --output "$zip" "https://download.cocos.com/CocosCreator/v3.8.8/CocosCreator-v3.8.8-mac-121518.zip"
+          shasum -a 256 "$zip"
+          mkdir -p "$target"
+          ditto -x -k "$zip" "$target"
       - name: Verify Creator executable and engine version
-        shell: pwsh
+        shell: bash
         run: |
-          $target = Join-Path $env:RUNNER_TEMP "CocosCreator-3.8.8"
-          $exe = Get-ChildItem $target -Filter CocosCreator.exe -Recurse | Select-Object -First 1
-          if (!$exe) { throw "CocosCreator.exe is missing" }
-          Write-Host "Creator: $($exe.FullName)"
-          $engine = Get-ChildItem $target -Filter package.json -Recurse | Where-Object { $_.FullName -match '[\\/]engine[\\/]package.json$' } | Select-Object -First 1
-          if (!$engine) { throw "Creator engine package metadata is missing" }
-          $version = (Get-Content $engine.FullName -Raw | ConvertFrom-Json).version
-          Write-Host "Engine version: $version"
-          if ($version -ne "3.8.8") { throw "Unexpected Creator engine version" }
+          set -euo pipefail
+          target="$RUNNER_TEMP/CocosCreator-3.8.8"
+          app=$(find "$target" -name CocosCreator.app -type d -print -quit)
+          test -n "$app"
+          test -x "$app/Contents/MacOS/CocosCreator"
+          file "$app/Contents/MacOS/CocosCreator"
+          engine=$(find "$app/Contents/Resources" -path '*/engine/package.json' -print -quit)
+          test -n "$engine"
+          node -e 'const d=require(process.argv[1]); console.log("Creator engine:",d.version); if(d.version!=="3.8.8")process.exit(1)' "$engine"
