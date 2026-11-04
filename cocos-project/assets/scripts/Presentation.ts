@@ -190,9 +190,12 @@ export class CocosPresentation {
       this.text(hud, 'aim-help', '拖动调整方向 · 松手裂天', a.x + a.width / 2, a.y + 112, 24, 0xbcead8, { center: true });
     }
     for (const enemy of c.combat.enemies) {
-      const p = point(enemy), size = enemy.boss ? (enemy.bossType === 5 ? 205 : 190) : enemy.kind === 'elite' ? 98 : 78;
-      const sprite = this.image(world, 'enemy-' + enemy.id, this.assets.textures[enemy.boss ? 'boss' + enemy.bossType : 'wraith'], p.x - size / 2, p.y - size / 2, size, size);
-      sprite.tint = enemy.hitTime > 0 ? 0xffe8b5 : enemy.freezeTime > 0 ? 0xb5e4f1 : enemy.kind === 'ranged' ? 0xa4cce4 : enemy.kind === 'charger' ? 0xe0b58f : 0xffffff;
+      const p = point(enemy), size = enemy.boss ? (enemy.bossType === 5 ? 205 : 190) : enemy.kind === 'elite' ? 98 : enemy.fodder ? 58 : 78;
+      const hit = clamp(enemy.hitTime / 0.16, 0, 1), punch = Math.sin(hit * Math.PI), direction = enemy.hitDirection || { x: 0, y: 0 };
+      const sw = size * (1 + punch * 0.13), sh = size * (1 - punch * 0.1), recoil = punch * (enemy.boss ? 2 : 8);
+      const sprite = this.image(world, 'enemy-' + enemy.id, this.assets.textures[enemy.boss ? 'boss' + enemy.bossType : 'wraith'], p.x - sw / 2 + direction.x * recoil, p.y - sh / 2 + direction.y * recoil, sw, sh);
+      sprite.tint = hit > 0.5 ? 0xffffff : hit > 0 ? 0xffd39a : enemy.freezeTime > 0 ? 0xb5e4f1 : enemy.kind === 'ranged' ? 0xa4cce4 : enemy.kind === 'charger' ? 0xe0b58f : 0xffffff;
+      if (hit > 0.5) { g.lineStyle(2, 0xfff1ce, hit * 0.9); g.drawCircle(p.x, p.y, size * 0.36); }
       if (!enemy.boss) {
         if (enemy.kind === 'ranged') { g.lineStyle(4, 0xa4cce4, 1); g.moveTo(p.x + 32, p.y - 25); g.lineTo(p.x + 40, p.y + 30); g.lineStyle(2); g.drawCircle(p.x + 32, p.y - 29, 7); }
         if (enemy.kind === 'charger') { g.lineStyle(3, 0xe0b58f); g.moveTo(p.x + 27, p.y - 13); g.lineTo(p.x + 47, p.y - 21); g.lineTo(p.x + 35, p.y + 6); }
@@ -252,6 +255,21 @@ export class CocosPresentation {
   }
   drawEffect(layer, effect, point) {
     const g = layer.g, p = point(effect), t = clamp(effect.age / effect.life, 0, 1), life = 1 - t;
+    if (effect.type === 'damage') {
+      this.text(layer, 'damage-' + effect.id, effect.amount, p.x, p.y - 38 - t * 48, effect.heavy ? 32 : 23, effect.heavy ? 0xffe6a0 : 0xfff4d4, { center: true, bold: true, alpha: life });
+      return;
+    }
+    if (effect.type === 'dissolve' || effect.type === 'impact') {
+      const death = effect.type === 'dissolve', rays = death ? 8 : 4;
+      const radius = effect.radius * (0.25 + t * (death ? 1.4 : 1));
+      g.lineStyle(death ? 3 * life + 0.5 : 2, death ? 0xe3c88b : 0xfff3da, life);
+      for (let i = 0; i < rays; i++) {
+        const angle = i * Math.PI * 2 / rays + (effect.id % 7) * 0.37, dx = Math.cos(angle), dy = Math.sin(angle);
+        g.moveTo(p.x + dx * radius * 0.5, p.y + dy * radius * 0.5); g.lineTo(p.x + dx * radius, p.y + dy * radius);
+      }
+      g.lineStyle(1, 0xffebbd, life * 0.65); g.drawCircle(p.x, p.y, radius * (death ? 0.7 : 0.35));
+      return;
+    }
     const color = ({ steam: 0xd6edf0, earth: 0xc8aa7b, 'water-pulse': 0xace1e8, ember: 0xf3a367, ward: 0xb8dcb4, rift: 0xb9efdc })[effect.type] || GOLD;
     if (effect.type === 'rift' || effect.type === 'rift-windup') {
       const q = point(effect.end), windup = effect.type === 'rift-windup';

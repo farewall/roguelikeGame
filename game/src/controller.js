@@ -152,6 +152,9 @@ const definition = {
     for (const event of this.combat.drainEvents()) {
       if (event.type === 'attack') { this.actor.attack(event.direction.x, event.direction.y); this.renderActor(0); }
       if ((event.type === 'launch' || event.type === 'hit' && event.weapon === 'bell') && this.audio) this.audio.play(event.weapon === 'banner' ? 'banner' : 'bell');
+      if (event.type === 'impact' && this.audio && now >= (this.impactSoundUntil || 0)) {
+        this.audio.play('attack'); this.impactSoundUntil = now + 110;
+      }
       if (event.type === 'skill') {
         this.actor.direction = Math.abs(event.direction.x) > Math.abs(event.direction.y) ? (event.direction.x > 0 ? 'right' : 'left') : (event.direction.y > 0 ? 'down' : 'up');
         this.actor.play('attack'); this.renderActor(0);

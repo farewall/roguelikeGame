@@ -69,7 +69,7 @@ test('earth/fire and earth/water form distinct persistent fields with bounded ac
     c.strike({ direction: { x: 1, y: 0 } }); const hp = e.hp; simulate(c, 0.1, false);
     const field = c.hazards.find(h => h.friendly); assert.equal(field.kind, element === 'fire' ? 'lava' : 'mud');
     if (element === 'fire') assert.ok(e.hp < hp); else assert.ok(e.slowTime > 0);
-    for (let i = 0; i < 20; i++) c.strike({ direction: { x: 1, y: 0 } }); assert.ok(c.hazards.filter(h => h.friendly).length <= 1); assert.ok(c.effects.length <= 24);
+    for (let i = 0; i < 20; i++) c.strike({ direction: { x: 1, y: 0 } }); assert.ok(c.hazards.filter(h => h.friendly).length <= 1); assert.ok(c.effects.length <= 40);
   }
 });
 test('element cap removes exhausted choices; each offer contains unique, usable upgrades', () => {
@@ -159,4 +159,54 @@ test('both weapons can complete all five stages with ordinary HP and actual offe
     assert.equal(result.won, true, JSON.stringify(result)); assert.equal(result.stages.length, 5);
     assert.ok(result.hp > 0); assert.ok(result.seconds < 900); assert.ok(result.kills > 80);
   }
+});
+
+
+test('weak enemies enter as a compact group, stay away from the player, and die to a basic bell hit', () => {
+  const c = new Combat('bell', () => 0.5);
+  c.update(0.025, false);
+  const pack = c.enemies.filter(e => e.fodder);
+  assert.equal(pack.length, 3);
+  for (const e of pack) {
+    assert.ok(c.distance(e, c.player) >= 150);
+    assert.ok(e.hp <= c.damage());
+    assert.ok(c.distance(pack[0], e) < 100);
+  }
+  const anchor = { ...pack[1] }; c.player.x = anchor.x; c.player.y = anchor.y;
+  c.strike({ direction: { x: 1, y: 0 } }); c.collectDeaths();
+  assert.equal(c.kills, 3); closeTo(c.xp, 1.5);
+  c.collectDeaths(); closeTo(c.xp, 1.5);
+});
+
+test('mixed waves still spawn ranged and charging threats between weak packs', () => {
+  const c = fresh(); c.phase = 0; c.nextWave();
+  const kinds = new Set();
+  for (let i = 0; i < 3; i++) {
+    c.spawnCd = 0; c.advanceWaves(0.025);
+    c.enemies.forEach(e => kinds.add(e.kind));
+  }
+  assert.deepEqual([...kinds].sort(), ['charger', 'ranged', 'wraith']);
+});
+
+test('a full swarm reserves a boss slot and does not consume queued enemies when full', () => {
+  const c = fresh(); c.enemies = [];
+  assert.equal(c.spawnSwarm(99), 23);
+  c.phase = 0; c.remaining = 5; c.spawnCd = 0; c.advanceWaves(0.025);
+  assert.equal(c.remaining, 5);
+  const boss = c.spawn('boss'); assert.ok(boss); assert.equal(c.enemies.length, 24);
+  assert.equal(c.spawn('wraith'), null);
+});
+
+test('impact feedback reports effective damage while burns remain quiet and boss timing stays intact', () => {
+  const c = fresh(), boss = target(c, 55, 55, 'boss');
+  boss.bossType = 4; boss.shielded = true; boss.castTime = 1;
+  c.deal(boss, 10, 'skill');
+  const number = c.effects.find(f => f.type === 'damage');
+  closeTo(number.amount, 5.5); assert.equal(number.heavy, true);
+  closeTo(boss.castTime, 1); assert.ok(boss.hitDirection);
+  const count = c.effects.length, impacts = c.events.filter(e => e.type === 'impact').length;
+  c.deal(boss, 1, 'burn', false);
+  assert.equal(c.effects.length, count); assert.equal(c.events.filter(e => e.type === 'impact').length, impacts);
+  for (let i = 0; i < 100; i++) { boss.hitTime = 0; c.deal(boss, 0.01); }
+  assert.ok(c.effects.length <= 40);
 });

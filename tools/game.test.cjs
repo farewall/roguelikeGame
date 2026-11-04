@@ -129,6 +129,16 @@ test('audio settings persist independently of a run and control playback and cle
   assert.deepEqual(storage['pangu.settings.v1'], { soundOn: true, effectVolume: 35, vibrationOn: false, hintsOn: false });
   game.onUnload(); assert.ok(audioCalls.at(-1).destroyed);
 });
+test('crowd impacts play one throttled hit cue and still respect the sound switch', () => {
+  const { game, audioCalls, elapse } = setup();
+  const hits = () => audioCalls.filter(call => call.src && call.src.endsWith('/attack.wav')).length;
+  for (let i = 0; i < 10; i++) game.combat.emit('impact');
+  game.tick(0); assert.equal(hits(), 1);
+  game.combat.emit('impact'); game.tick(0); assert.equal(hits(), 1);
+  elapse(120); game.combat.emit('impact'); game.tick(0); assert.equal(hits(), 2);
+  game.toggleSound({ detail: { value: false } });
+  elapse(120); game.combat.emit('impact'); game.tick(0); assert.equal(hits(), 2);
+});
 test('short-edge scaling survives resize and the Mini Game remains landscape without dash controls', () => {
   const { game, windowInfo } = setup({ windowInfo: { windowWidth: 844, windowHeight: 390 } });
   closeTo(game.data.uiScale, 390 / 750); windowInfo.windowWidth = 390; windowInfo.windowHeight = 844; game.onResize(); closeTo(game.data.uiScale, 390 / 750);

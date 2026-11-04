@@ -67,7 +67,7 @@ class Combat extends ArtifactCombat {
   drainEvents() { return this.events.splice(0); }
   effect(type, point, radius = 35, extra = {}) {
     this.effects.push({ id: ++this.nextId, type, x: point.x, y: point.y, radius, age: 0, life: 0.5, ...extra });
-    if (this.effects.length > 24) this.effects.shift();
+    if (this.effects.length > 40) this.effects.shift();
   }
   damage() { return WEAPONS[this.weapon].damage * this.power; }
   interval() { return Math.max(0.52, WEAPONS[this.weapon].interval * this.haste); }
@@ -78,8 +78,8 @@ class Combat extends ArtifactCombat {
     if (this.trialPending) { const e = this.spawn('elite'); if (e) e.trial = true; this.trialPending = false; }
   }
   nextWave() {
-    this.phase++; this.phaseTime = 0; this.spawnCd = 0;
-    this.remaining = [4 + this.stage, 6 + this.stage, 3, 0][this.phase];
+    this.phase++; this.phaseTime = 0; this.spawnCd = 0; this.waveSpawns = 0;
+    this.remaining = [8 + this.stage * 2, 10 + this.stage * 2, 3, 0][this.phase];
     this.emit('wave', { name: this.phaseLabel() });
     if (this.phase === 3) { this.spawn('boss'); this.emit('boss', { name: BOSSES[this.stage - 1] }); }
   }
@@ -113,7 +113,7 @@ class Combat extends ArtifactCombat {
     event.resolved = true; this.eventsTaken.push(choice.name); return true;
   }
   spawn(kind) {
-    if (this.enemies.length >= 14 || this.cleared || this.ended) return null;
+    if (this.enemies.length >= 24 || this.cleared || this.ended) return null;
     const edge = Math.floor(this.random() * 4);
     const p = { x: edge < 2 ? (edge ? 94 : 6) : 15 + this.random() * 70,
       y: edge >= 2 ? (edge === 2 ? 10 : 90) : 20 + this.random() * 60 };
@@ -126,6 +126,25 @@ class Combat extends ArtifactCombat {
       cooldown: boss ? 2 : kind === 'ranged' ? 1.3 : 2.5, castTime: 0, recoverTime: 0,
       burnTime: 0, slowTime: 0, freezeTime: 0, hitTime: 0, sequence: 0, phase2: false, chargeHit: false };
     this.enemies.push(e); this.emit('discover', { id: boss ? 'boss-' + this.stage : kind }); return e;
+  }
+  spawnSwarm(count) {
+    // A shared edge and tight formation make the group readable and pierceable.
+    // Reserve one entity slot for the next wave's elite or boss.
+    const size = Math.min(count, 23 - this.enemies.length);
+    let anchor = null, spawned = 0;
+    for (let i = 0; i < size; i++) {
+      const e = this.spawn('wraith'); if (!e) break;
+      if (!anchor) anchor = { x: e.x, y: e.y };
+      const offset = (i - (size - 1) / 2) * 32;
+      const p = { x: anchor.x, y: anchor.y };
+      if (anchor.x <= 10 || anchor.x >= 90) p.y = clamp(p.y + offset / this.height * 100, 10, 90);
+      else p.x = clamp(p.x + offset / this.width * 100, 6, 94);
+      if (this.distance(p, this.player) >= 150) Object.assign(e, p);
+      e.fodder = true; e.hp = e.maxHp = 1.8 + this.stage * 0.3;
+      e.speed = 58 + this.random() * 10;
+      spawned++;
+    }
+    return spawned;
   }
   update(dt, canAttack = true) {
     if (this.ended || this.cleared) return;
@@ -163,7 +182,7 @@ class Combat extends ArtifactCombat {
       }
     }
     for (const e of this.enemies) {
-      if (e.hp > 0 && this.distance(this.player, e) < (e.boss ? 45 : 28)) { this.hurt(e.boss ? 12 : e.kind === 'elite' ? 9 : 5, e.name); break; }
+      if (e.hp > 0 && this.distance(this.player, e) < (e.boss ? 45 : e.fodder ? 22 : 28)) { this.hurt(e.boss ? 12 : e.kind === 'elite' ? 9 : e.fodder ? 3 : 5, e.name); break; }
     }
     if (this.phase === 2 && this.enemies.length) {
       this.climateCd -= dt;
@@ -173,11 +192,18 @@ class Combat extends ArtifactCombat {
   advanceWaves(dt) {
     if (this.phase >= 3) return;
     this.spawnCd -= dt;
-    if (this.remaining > 0 && this.spawnCd <= 0 && this.enemies.length < 13) {
+    if (this.remaining > 0 && this.spawnCd <= 0 && this.enemies.length < 23) {
       const kind = this.phase === 2 && this.remaining === 3 ? 'elite'
-        : this.phase === 0 ? (this.stage > 1 && this.remaining % 3 === 0 ? 'charger' : 'wraith')
-        : ['wraith', 'ranged', 'charger'][this.remaining % 3];
-      this.spawn(kind); this.remaining--; this.spawnCd = this.phase === 0 ? 1.35 : 1.1;
+        : this.phase === 0 ? (this.stage > 1 && this.waveSpawns % 3 === 2 ? 'charger' : 'wraith')
+        : ['wraith', 'ranged', 'charger'][this.waveSpawns % 3];
+      if (kind === 'wraith') {
+        this.remaining -= this.spawnSwarm(Math.min(this.remaining, this.stage < 3 ? 3 : 5));
+        this.spawnCd = 2.2;
+      } else {
+        if (this.spawn(kind)) this.remaining--;
+        this.spawnCd = 1.1;
+      }
+      this.waveSpawns++;
     }
     if (!this.remaining && (!this.enemies.length || this.phaseTime >= [18, 22, 22][this.phase])) this.nextWave();
   }
@@ -307,7 +333,8 @@ class Combat extends ArtifactCombat {
     const center = { x: primary.x, y: primary.y };
     for (const e of targets) {
       this.deal(e, damage); this.effect('impact', e, 25);
-      if (this.weapon === 'bell') this.move(e, this.vector(origin, e), e.boss ? 8 : 20);
+      if (this.weapon === 'bell') this.move(e, this.vector(origin, e), e.boss ? 8 : e.fodder ? 32 : 20);
+      else if (e.fodder) this.move(e, attack.direction, 14);
       if (this.elements.fire) { e.burnTime = 2 + this.elements.fire * 0.65; e.burnDps = damage * (0.12 + this.elements.fire * 0.07); }
       if (this.elements.water) e.slowTime = 2 + this.elements.water * 0.55;
     }
@@ -367,7 +394,15 @@ class Combat extends ArtifactCombat {
     const multiplier = (e.shielded ? 0.55 : 1) * (exposed ? 1.35 : 1) * (this.path === 'rend' && (e.boss || e.kind === 'elite') ? 1.3 : 1);
     const damage = amount * multiplier, effective = Math.min(e.hp, damage);
     e.hp -= damage; e.lastDamageSource = source; this.damageBySource[source] = (this.damageBySource[source] || 0) + effective;
-    if (flash) e.hitTime = 0.14;
+    if (flash) {
+      // Continuous burns/fields do not spam numbers or retrigger the hit pose.
+      if (e.hitTime <= 0) {
+        this.effect('damage', e, 0, { amount: Math.round(effective * 10) / 10, life: 0.55, heavy: source === 'skill' });
+        this.emit('impact');
+      }
+      e.hitTime = 0.16;
+      e.hitDirection = this.vector(this.player, e);
+    }
   }
   collectDeaths() {
     const dead = [], processed = new Set();
@@ -388,10 +423,10 @@ class Combat extends ArtifactCombat {
     if (!dead.length) return;
     this.enemies = this.enemies.filter(e => e.hp > 0); this.kills += dead.length;
     for (const e of dead) {
-      this.xp += e.boss ? 5 : e.kind === 'elite' ? 3 : 1;
-      this.gainEnergy(e.boss ? 12 : e.kind === 'elite' ? 6 : 2);
+      this.xp += e.boss ? 5 : e.kind === 'elite' ? 3 : e.fodder ? 0.5 : 1;
+      this.gainEnergy(e.boss ? 12 : e.kind === 'elite' ? 6 : e.fodder ? 1 : 2);
       if (e.trial) { this.xp += 6; this.hp = Math.min(this.maxHp, this.hp + 10); this.trialCleared = true; this.emit('trial-clear'); }
-      this.effect('dissolve', e, e.boss ? 80 : 38, { life: 0.7 });
+      this.effect('dissolve', e, e.boss ? 80 : e.fodder ? 28 : 38, { life: 0.45 });
       this.hazards = this.hazards.filter(h => h.owner !== e.id);
     }
     if (dead.some(e => e.boss)) {
