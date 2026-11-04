@@ -16,7 +16,7 @@ test('Creator project declares a landscape WeChat target and a separate content 
   const { compressed } = require('./cocos/prepare.cjs'); assert.equal(compressed('69e93e92-878c-44af-95c7-6494cf4c23e0'), '69e936Sh4xEr5XHZJTPTCPg');
   const scene = JSON.parse(fs.readFileSync(path.join(root, 'cocos-project/assets/Main.scene'))); const mainMeta = JSON.parse(fs.readFileSync(path.join(root, 'cocos-project/assets/scripts/Main.ts.meta'))); assert.ok(scene.some(item => item.__type__ === compressed(mainMeta.uuid)));
   const creator = JSON.parse(fs.readFileSync(path.join(root, 'cocos-project/package.json'))); assert.equal(creator.creator.version, '3.8.8');
-  const target = JSON.parse(fs.readFileSync(path.join(root, 'cocos-project/build-config/wechatgame.json'))); assert.equal(target.platform, 'wechatgame'); assert.equal(target.packages.wechatgame.orientation, 'landscape');
+  const target = JSON.parse(fs.readFileSync(path.join(root, 'cocos-project/build-config/wechatgame.json'))); assert.equal(target.platform, 'wechatgame'); assert.equal(target.engineModulesConfigKey, 'kaitian2d'); assert.equal(target.bundleConfigs[0].compressionType, 'subpackage'); assert.equal(target.packages.wechatgame.orientation, 'landscape');
   const content = JSON.parse(fs.readFileSync(path.join(root, 'cocos-project/assets/game-content.meta'))); assert.equal(content.userData.bundleName, 'game-content'); assert.equal(content.userData.compressionType.wechatgame, 'subpackage');
 });
 test('native controller has one externally driven frame loop, without WXML selectors or intervals', () => {

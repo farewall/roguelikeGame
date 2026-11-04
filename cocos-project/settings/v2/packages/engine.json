@@ -2,7 +2,7 @@
   "__version__": "1.0.12",
   "modules": {
     "configs": {
-      "defaultConfig": {
+      "kaitian2d": {
         "name": "2D Game",
         "cache": {
           "base": {
@@ -96,6 +96,6 @@
         "flags": {}
       }
     },
-    "globalConfigKey": "defaultConfig"
+    "globalConfigKey": "kaitian2d"
   }
 }

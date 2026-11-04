@@ -12,18 +12,17 @@
   ],
   "debug": false,
   "md5Cache": false,
-  "includedModules": [
-    "base",
-    "gfx-webgl",
-    "gfx-webgl2",
-    "2d",
-    "graphics",
-    "ui",
-    "mask",
-    "audio",
-    "animation",
-    "tween",
-    "legacy-pipeline"
+  "engineModulesConfigKey": "kaitian2d",
+  "mainBundleCompressionType": "merge_dep",
+  "bundleConfigs": [
+    {
+      "root": "db://assets/game-content",
+      "name": "game-content",
+      "output": true,
+      "priority": 1,
+      "isRemote": false,
+      "compressionType": "merge_dep"
+    }
   ],
   "packages": {
     "web-mobile": {

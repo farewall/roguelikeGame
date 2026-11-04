@@ -26,12 +26,12 @@ async function prepare() {
   if (!fs.existsSync(path.join(assets, 'Main.scene'))) json(path.join(assets, 'Main.scene'), scene);
   const included = ['base', 'gfx-webgl', 'gfx-webgl2', '2d', 'graphics', 'ui', 'mask', 'audio', 'animation', 'tween', 'legacy-pipeline'];
   for (const platform of ['web-mobile', 'wechatgame']) {
-    json(path.join(project, 'build-config', platform + '.json'), { name: 'kaitian-yinian', platform, outputName: platform, buildPath: 'project://build', startScene: toolchain.sceneUuid, scenes: [{ url: 'db://assets/Main.scene', uuid: toolchain.sceneUuid }], debug: false, md5Cache: false, includedModules: included,
+    json(path.join(project, 'build-config', platform + '.json'), { name: 'kaitian-yinian', platform, outputName: platform, buildPath: 'project://build', startScene: toolchain.sceneUuid, scenes: [{ url: 'db://assets/Main.scene', uuid: toolchain.sceneUuid }], debug: false, md5Cache: false, engineModulesConfigKey: 'kaitian2d', mainBundleCompressionType: 'merge_dep', bundleConfigs: [{ root: 'db://assets/game-content', name: 'game-content', output: true, priority: 1, isRemote: false, compressionType: platform === 'wechatgame' ? 'subpackage' : 'merge_dep' }],
       packages: platform === 'wechatgame' ? { wechatgame: { appid: process.env.WECHAT_APPID || 'touristappid', orientation: 'landscape', separateEngine: false, useSubpackage: true } } : { 'web-mobile': { orientation: 'landscape' } } });
   }
   const cache = Object.fromEntries(included.map(key => [key, { _value: true }])); cache['render-pipeline'] = { _value: true, _option: 'legacy-pipeline' };
   for (const key of ['3d', 'physics', 'physics-2d', 'spine', 'dragon-bones', 'video', 'webview', 'particle', 'particle-2d', 'custom-pipeline', 'profiler']) cache[key] = { _value: false };
-  if (!fs.existsSync(path.join(project, 'settings/v2/packages/engine.json'))) json(path.join(project, 'settings/v2/packages/engine.json'), { __version__: '1.0.12', modules: { configs: { defaultConfig: { name: '2D Game', cache, includeModules: included, noDeprecatedFeatures: { value: false, version: '' }, flags: {} } }, globalConfigKey: 'defaultConfig' } });
+  if (!fs.existsSync(path.join(project, 'settings/v2/packages/engine.json'))) json(path.join(project, 'settings/v2/packages/engine.json'), { __version__: '1.0.12', modules: { configs: { kaitian2d: { name: '2D Game', cache, includeModules: included, noDeprecatedFeatures: { value: false, version: '' }, flags: {} } }, globalConfigKey: 'kaitian2d' } });
   if (!fs.existsSync(path.join(project, 'settings/v2/packages/project.json'))) json(path.join(project, 'settings/v2/packages/project.json'), { __version__: '1.0.6', general: { designResolution: { width: 1600, height: 750 }, fitWidth: true, fitHeight: true } });
   const all = fs.readdirSync(assets, { recursive: true }).filter(file => !file.endsWith('.meta')).sort();
   for (const file of all) {
