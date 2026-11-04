@@ -1,6 +1,6 @@
 'use strict';
 const inside = (p, r) => p.x >= r.x && p.x <= r.x + r.width && p.y >= r.y && p.y <= r.y + r.height;
-function epoch(data) {
+function screen(data) {
   if (data.showSettings) return 'settings:' + Boolean(data.confirmExit);
   if (data.showArchive) return 'archive:' + data.archiveTab;
   if (data.showEnding) return 'ending';
@@ -9,6 +9,7 @@ function epoch(data) {
   if (data.showIntro) return 'intro';
   return data.view;
 }
+function epoch(data) { return (data.inputEpoch || 0) + ':' + screen(data); }
 class NativeInput {
   constructor(api, controller, presentation) {
     this.api = api; this.controller = controller; this.presentation = presentation; this.presses = new Map(); this.joyId = null; this.skillId = null;

@@ -5,7 +5,7 @@
   "description": "开天一念 · 微信小游戏",
   "scripts": {
     "build": "node tools/build-game.cjs",
-    "test": "node --test --test-isolation=none tools/combat.test.cjs tools/game.test.cjs tools/refinements.test.cjs tools/minigame.test.cjs tools/artifact.test.cjs",
+    "test": "node --test tools/combat.test.cjs tools/game.test.cjs tools/refinements.test.cjs tools/minigame.test.cjs tools/artifact.test.cjs",
     "preview": "node tools/minigame-preview.cjs"
   },
   "dependencies": {

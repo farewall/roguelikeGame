@@ -69,7 +69,7 @@ test('second finger drags a directional skill while identifier-zero joystick ret
 test('touch cancel and opening a modal discard aimed skills without spending charge', () => {
   const h = inputHarness(), c = h.game; h.input.start(event(h.press, [h.press])); assert.ok(c.data.skillAim); h.input.cancel(); h.input.end(event(h.press));
   assert.equal(c.combat.skillUses, 0); near(c.combat.energy, 100); assert.equal(c.data.skillAim, null);
-  h.input.start(event(h.press, [h.press])); c.openSettings(); h.input.end(event(h.press)); assert.equal(c.combat.skillUses, 0); assert.equal(c.data.skillAim, null); h.input.destroy();
+  h.input.start(event(h.press, [h.press])); c.openSettings(); c.closeSettings(); h.input.end(event(h.press)); assert.equal(c.combat.skillUses, 0); assert.equal(c.data.skillAim, null); h.input.destroy();
 });
 test('only one finger owns skill aiming and duplicate releases cannot consume a second charge', () => {
   const h = inputHarness(), other = { ...h.press, identifier: 2 };

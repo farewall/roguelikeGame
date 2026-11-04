@@ -8,6 +8,7 @@ const ACTOR_SHEETS = ['idle', 'move', 'attack', 'hurt', 'awaken', 'death'];
 const DIRECTION_ROW = { down: 0, up: 1, left: 2, right: 3 };
 const ACTOR_FRAME_SIZE = 192;
 const NativeDate = Date;
+const INPUT_BOUNDARIES = ['view', 'paused', 'ended', 'showSettings', 'confirmExit', 'showArchive', 'archiveTab', 'showIntro', 'showChoice', 'choiceToken', 'showMemory', 'showEnding', 'rewardSelectedId'];
 
 
 // Pure controller: Eva.js owns the single frame loop. There is no Page/setData bridge.
@@ -294,7 +295,11 @@ const definition = {
   }
 };
   const controller = { ...definition, data: JSON.parse(JSON.stringify(definition.data)), viewport: options.viewport || wx.getWindowInfo() };
-  controller.setData = function(patch, callback) { Object.assign(this.data, patch); this.version = (this.version || 0) + 1; if (callback) callback(); };
+  controller.setData = function(patch, callback) {
+    const boundary = INPUT_BOUNDARIES.some(key => Object.prototype.hasOwnProperty.call(patch, key) && patch[key] !== this.data[key]);
+    Object.assign(this.data, patch); if (boundary) this.data.inputEpoch = (this.data.inputEpoch || 0) + 1;
+    this.version = (this.version || 0) + 1; if (callback) callback();
+  };
   controller.frame = function(dt) { this.moveFrame(dt); this.tick(dt); };
   controller.resize = function(viewport) { this.viewport = viewport; this.onResize(); };
   controller.scrollArchive = function(delta) { this.setData({ archiveScroll: Math.max(0, Math.min(this.archiveMaxScroll || 0, (this.data.archiveScroll || 0) + delta)) }); };
