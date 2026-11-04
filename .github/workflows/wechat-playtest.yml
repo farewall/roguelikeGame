@@ -1,4 +1,4 @@
-name: WeChat playtest
+name: WeChat Mini Game playtest
 on:
   workflow_dispatch:
   push:
@@ -7,7 +7,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: wechat-playtest
+  group: wechat-minigame-playtest
   cancel-in-progress: false
 jobs:
   upload:
@@ -19,23 +19,25 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: tools/wechat-ci/package-lock.json
-      - name: Check source syntax
+          cache-dependency-path: |
+            package-lock.json
+            tools/wechat-ci/package-lock.json
+      - name: Install pinned game framework
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build and validate Mini Game
         run: |
-          node --check miniprogram/app.js
-          node --check miniprogram/pages/index/index.js
-          node --check miniprogram/lib/pangu-animation.js
-          node --check miniprogram/lib/game-audio.js
-          node --test tools/game.test.cjs
+          npm run build
+          npm test
+          node --check minigame/game.js
       - name: Install official WeChat CI
         run: npm ci --prefix tools/wechat-ci --no-audit --no-fund
-      - name: Upload development version and generate preview QR
+      - name: Upload Mini Game and generate preview QR
         env:
           WECHAT_APPID: ${{ vars.WECHAT_APPID }}
           WECHAT_PRIVATE_KEY: ${{ secrets.WECHAT_PRIVATE_KEY }}
-          WECHAT_VERSION: 0.1.${{ github.run_number }}
+          WECHAT_VERSION: 0.2.${{ github.run_number }}
         run: node tools/wechat-ci/upload.cjs
-      - name: Save preview QR code
+      - name: Save Mini Game preview QR
         if: success()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

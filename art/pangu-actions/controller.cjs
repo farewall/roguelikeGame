@@ -1,4 +1,4 @@
-/* Shared four-direction animation controller; built into miniprogram/lib. */
+/* Shared four-direction animation controller; built into game/core. */
 (function(root) {
   const clips = {
     idle: { fps: 5, loop: true },

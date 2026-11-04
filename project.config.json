@@ -1,9 +1,9 @@
 {
-  "miniprogramRoot": "miniprogram/",
+  "miniprogramRoot": "minigame/",
   "projectname": "开天一念",
-  "description": "东方玄幻动作肉鸽游戏原型",
+  "description": "东方玄幻动作肉鸽 · Eva.js 微信小游戏",
   "appid": "touristappid",
-  "setting": { "urlCheck": false, "es6": true, "enhance": true, "postcss": true, "minified": false },
-  "compileType": "miniprogram",
+  "setting": { "urlCheck": false, "es6": true, "enhance": true, "minified": true },
+  "compileType": "game",
   "libVersion": "3.4.8"
 }

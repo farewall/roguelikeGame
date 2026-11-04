@@ -9,7 +9,7 @@ class GameAudio {
   }
   play(name) {
     if (!this.enabled || !this.volume || !this.api.createInnerAudioContext) return;
-    if (!['attack', 'hurt', 'upgrade', 'victory', 'death'].includes(name)) return;
+    if (!['attack', 'bell', 'banner', 'warning', 'hurt', 'upgrade', 'victory', 'death'].includes(name)) return;
     let context = this.contexts[name];
     if (!context) {
       context = this.api.createInnerAudioContext();
