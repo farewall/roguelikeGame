@@ -1,0 +1,40 @@
+name: Cocos Creator toolchain
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  toolchain:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Cache official Creator
+        id: creator-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: ${{ runner.temp }}/CocosCreator-3.8.8
+          key: creator-macos-3.8.8-121518
+      - name: Download official Cocos Creator
+        if: steps.creator-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip="$RUNNER_TEMP/CocosCreator-3.8.8.zip"
+          target="$RUNNER_TEMP/CocosCreator-3.8.8"
+          curl --location --fail --retry 2 --connect-timeout 30 --max-time 900 --output "$zip" "https://download.cocos.com/CocosCreator/v3.8.8/CocosCreator-v3.8.8-mac-121518.zip"
+          shasum -a 256 "$zip"
+          mkdir -p "$target"
+          ditto -x -k "$zip" "$target"
+      - name: Verify Creator executable and engine version
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="$RUNNER_TEMP/CocosCreator-3.8.8"
+          app=$(find "$target" -name CocosCreator.app -type d -print -quit)
+          test -n "$app"
+          test -x "$app/Contents/MacOS/CocosCreator"
+          file "$app/Contents/MacOS/CocosCreator"
+          engine=$(find "$app/Contents/Resources" -path '*/engine/package.json' -print -quit)
+          test -n "$engine"
+          node -e 'const d=require(process.argv[1]); console.log("Creator engine:",d.version); if(d.version!=="3.8.8")process.exit(1)' "$engine"

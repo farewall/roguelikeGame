@@ -1,11 +1,11 @@
 'use strict';
-// Offline build only: full-resolution art stays outside the mini-program package.
+// Offline build only: full-resolution art stays outside the Mini Game package.
 const sharp = require('sharp');
 const fs = require('node:fs');
 const path = require('node:path');
 const root = path.join(__dirname, '..');
 const source = path.join(root, 'art/pangu-actions');
-const target = path.join(root, 'miniprogram/images/pangu');
+const target = path.join(root, 'cocos-project/assets/game-content/images/pangu');
 const actions = ['idle', 'move', 'attack', 'hurt', 'awaken', 'death'];
 (async () => {
   fs.mkdirSync(target, { recursive: true });
@@ -17,6 +17,6 @@ const actions = ['idle', 'move', 'attack', 'hurt', 'awaken', 'death'];
     await sharp(input).resize(768, 512).png({ palette: true, colours: 96, dither: 0.5, effort: 10 }).toFile(output);
     console.log(action + ': ' + fs.statSync(output).size + ' bytes');
   }
-  fs.mkdirSync(path.join(root, 'miniprogram/lib'), { recursive: true });
-  fs.copyFileSync(path.join(source, 'controller.cjs'), path.join(root, 'miniprogram/lib/pangu-animation.js'));
+  fs.mkdirSync(path.join(root, 'game/core'), { recursive: true });
+  fs.copyFileSync(path.join(source, 'controller.cjs'), path.join(root, 'game/core/pangu-animation.js'));
 })().catch(error => { console.error(error.message); process.exitCode = 1; });

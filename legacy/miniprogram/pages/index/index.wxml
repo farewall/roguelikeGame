@@ -1,0 +1,113 @@
+<view class="app-shell" style="--ui:{{uiScale}}px">
+  <view wx:if="{{view === 'home'}}" class="home-screen">
+    <image class="home-background" src="../../images/titile-bg.png" mode="aspectFill"/>
+    <view class="home-scrim"></view>
+    <view class="home-top"><text class="home-mark">混沌纪 · 山河未醒</text></view>
+    <view class="home-title-wrap">
+      <text class="home-eyebrow">天地重归混沌</text><text class="home-title">开天一念</text><text class="home-subtitle">一念开天 · 万物新生</text>
+      <view class="title-rule"><view></view></view>
+      <text class="home-story">一道神念于混沌中苏醒。循四象遗迹，找回失落的记忆。\n再一次，你将如何开辟世界？</text>
+    </view>
+    <view class="home-menu">
+      <button class="start-button" bindtap="openIntro"><text>踏入混沌</text><text class="start-arrow">›</text></button>
+      <button class="menu-button" bindtap="openArchive">山河手记 · {{memoryCount}} / 4</button>
+      <button class="menu-button" bindtap="openSettings">设置</button>
+      <view class="home-version">东方玄幻 · 动作肉鸽</view>
+    </view>
+    <view wx:if="{{showIntro}}" class="intro-shade">
+      <view class="intro-card weapon-select">
+        <text class="intro-kicker">序章 · 混沌初醒</text><text class="intro-title">选择一件至宝</text>
+        <text class="intro-paragraph">远处传来天地崩裂的回声。你忘记了来处，只记得仍有一件事未曾完成。</text>
+        <view class="weapon-options">
+          <button wx:for="{{weapons}}" wx:key="id" class="weapon-option {{selectedWeapon === item.id ? 'weapon-selected' : ''}}" data-weapon="{{item.id}}" bindtap="selectWeapon">
+            <text class="weapon-symbol">{{item.id === 'bell' ? '钟' : '幡'}}</text><text class="weapon-option-name">{{item.name}}</text><text class="weapon-option-desc">{{item.desc}}</text>
+            <text class="weapon-check">{{selectedWeapon === item.id ? '已选定' : '选择至宝'}}</text>
+          </button>
+        </view>
+        <view class="intro-actions"><button class="intro-back" bindtap="closeIntro">返回</button><button class="intro-enter" bindtap="beginGame">循光而行</button></view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{view === 'game'}}" class="screen">
+    <view class="topbar">
+      <view><text class="brand">开天一念</text></view>
+      <view class="phase-status"><text>{{phaseName}}</text><text class="objective">{{objective}}</text></view>
+      <view class="health-hud"><view class="health-caption"><text>元气 {{hp}} / {{maxHp}}</text><text>境界 {{level}}</text></view><view class="health-track"><view class="health-fill {{hpPct < 30 ? 'health-low' : ''}}" style="width:{{hpPct}}%"></view></view></view>
+      <button class="game-settings" bindtap="openSettings">暂停</button>
+    </view>
+    <view class="progress"><view class="progress-fill" style="width:{{progress}}%"></view></view>
+    <view class="arena stage-{{stage}} {{paused || showChoice || showMemory ? 'world-paused' : ''}}">
+      <image class="arena-art" src="../../images/arena-{{stage}}.jpg" mode="aspectFill"/>
+      <view class="arena-vignette"></view><view class="scene-haze haze-one"></view><view class="scene-haze haze-two"></view>
+      <view class="arena-title">{{stageName}}</view>
+      <view wx:if="{{boss}}" class="boss-hud"><view class="boss-caption"><text>{{boss.name}} · {{boss.phase}}</text><text>{{boss.state}}</text></view><view class="boss-track"><view style="width:{{boss.hpPct}}%"></view></view></view>
+      <view wx:if="{{!ended}}" class="attack-range range-{{weaponId}}" style="left:{{player.x}}%;top:{{player.y}}%;width:{{attackRange * 2 * uiScale}}px;height:{{attackRange * 2 * uiScale}}px"></view>
+      <view wx:for="{{hazards}}" wx:key="id" class="hazard hazard-{{item.shape}} hazard-{{item.kind}} {{item.active ? 'hazard-active' : 'hazard-warning'}} {{item.friendly ? 'hazard-friendly' : ''}}" style="left:{{item.x}}%;top:{{item.y}}%;width:{{item.width * uiScale}}px;height:{{item.height * uiScale}}px;border-width:{{item.border * uiScale}}px;transform:translate(-50%,-50%) rotate({{item.angle}}deg)"><text class="hazard-mark">{{item.label}}</text></view>
+      <view wx:for="{{enemies}}" wx:key="id" class="enemy enemy-{{item.kind}} {{item.boss ? 'boss boss-' + item.bossType : ''}} {{item.burnTime > 0 ? 'enemy-burning' : ''}} {{item.slowTime > 0 ? 'enemy-slowed' : ''}} {{item.freezeTime > 0 ? 'enemy-frozen' : ''}} {{item.hitTime > 0 ? 'enemy-hit' : ''}} {{item.casting ? 'enemy-casting' : ''}} {{item.recovering ? 'enemy-recovering' : ''}} {{item.shielded ? 'enemy-shielded' : ''}} {{item.exposed ? 'enemy-exposed' : ''}}" style="left:{{item.x}}%;top:{{item.y}}%">
+        <view class="enemy-shadow"></view><view class="cast-aura"></view>
+        <view class="creature-art-wrap"><image class="creature-art" src="{{item.boss ? '../../images/boss-' + item.bossType + '.png' : '../../images/enemy-wraith.png'}}" mode="aspectFit"/></view>
+        <view wx:if="{{!item.boss}}" class="enemy-weapon"></view>
+        <text wx:if="{{!item.boss &amp;&amp; item.kind !== 'wraith'}}" class="enemy-role">{{item.trial ? '试炼' : item.kind === 'ranged' ? '祭徒' : item.kind === 'charger' ? '冲锋' : '精英'}}</text>
+        <view wx:if="{{!item.boss &amp;&amp; (item.hpPct < 100 || item.kind === 'elite')}}" class="enemy-hp"><view style="width:{{item.hpPct}}%"></view></view>
+      </view>
+      <view wx:for="{{effects}}" wx:key="id" class="combat-effect fx-{{item.type}}" style="--cone:{{item.cone}}deg;left:{{item.x}}%;top:{{item.y}}%;width:{{item.radius * 2 * uiScale}}px;height:{{item.radius * 2 * uiScale}}px;transform:translate(-50%,-50%) rotate({{item.angle || 0}}deg)"><view class="fx-shape"></view></view>
+      <view class="player {{hurt ? 'player-hurt' : ''}} {{warded ? 'player-warded' : ''}}" style="left:{{player.x}}%;top:{{player.y}}%">
+        <view wx:if="{{!ended}}" class="player-orbit"></view>
+        <view class="pangu-frame"><image wx:for="{{actorSheets}}" wx:key="*this" class="pangu-atlas" src="../../images/pangu/{{item}}.png" mode="scaleToFill" style="left:{{actorFrame.left}}px;top:{{actorFrame.top}}px;opacity:{{actorFrame.action === item ? 1 : 0}}"/></view>
+      </view>
+      <view class="build-hud"><text class="build-weapon">{{weaponName}}<text wx:if="{{comboName}}" class="combo-label"> · {{comboName}}</text></text><text wx:if="{{pathName}}" class="build-path">{{pathName}}{{warded ? ' · 护体中' : ''}}</text><text>{{elementName}}</text><text class="build-stats">{{combatStats}}</text></view>
+      <view wx:if="{{message}}" class="toast">{{message}}</view>
+      <view wx:if="{{hintsOn &amp;&amp; !message}}" class="hint">{{boss ? boss.hint : '摇杆移动 · 自动攻击 · 清波可提前推进'}}</view>
+      <view wx:if="{{!ended}}" class="joystick-pad {{joystick.active ? 'joystick-active' : ''}} {{showChoice || paused || showMemory ? 'joystick-disabled' : ''}}" catchtouchstart="onTouchStart" catchtouchmove="onTouchMove" catchtouchend="onTouchEnd" catchtouchcancel="onTouchEnd">
+        <view class="joystick-base"><text class="joystick-up">↑</text><text class="joystick-down">↓</text><text class="joystick-left">←</text><text class="joystick-right">→</text></view><view class="joystick-knob" style="margin-left:{{joystick.x * uiScale}}px;margin-top:{{joystick.y * uiScale}}px"></view>
+      </view>
+    </view>
+    <view class="bottom"><view class="xp-label"><text>灵气</text><text>{{xp}} / {{xpNeed}}</text></view><view class="xp-track"><view class="xp-fill" style="width:{{xpPct}}%"></view></view><view class="bottom-row"><text>击破 {{kills}}</text><text>{{stage === 5 ? '天道终战' : '四象 ' + stage + ' / 4'}}</text></view></view>
+  </view>
+
+  <view wx:if="{{showChoice}}" class="upgrade-shade" catchtouchmove="stopTap">
+    <view class="choice-panel"><text class="choice-title">境界 {{level + 1}} · 选择提升</text><text class="choice-help">已暂停 · 选择一项，觉醒后继续战斗</text>
+      <button wx:for="{{choices}}" wx:key="id" class="choice choice-{{item.kind}}" data-upgrade-id="{{item.id}}" data-choice-token="{{choiceToken}}" bindtap="chooseUpgrade" bindtouchstart="onUpgradeTouchStart" bindtouchmove="onUpgradeTouchMove" bindtouchend="onUpgradeTouchEnd" bindtouchcancel="onUpgradeTouchCancel">
+        <text class="choice-tag">{{item.tag}}</text><view class="choice-heading"><image class="choice-icon-art" src="../../images/upgrade-{{item.kind}}.png" mode="aspectFit"/><text class="choice-name">{{item.name}}</text></view>
+        <text class="choice-change">{{item.change}}</text><text class="choice-desc">{{item.desc}}</text><text wx:if="{{item.combo}}" class="choice-combo">{{item.combo}}</text>
+      </button>
+    </view>
+  </view>
+
+  <view wx:if="{{showMemory}}" class="story-shade" catchtouchmove="stopTap">
+    <view class="memory-panel"><view class="memory-art"><image src="../../images/arena-{{memory.id}}.jpg" mode="aspectFill"/><text>山河旧忆</text></view>
+      <view class="memory-content"><text class="story-kicker">{{memory.scene}} · 记忆已收录</text><text class="story-title">{{memory.title}}</text><scroll-view scroll-y="true" class="memory-scroll"><text class="story-copy">{{memory.copy}}</text></scroll-view>
+        <view wx:if="{{rewardChoices.length}}" class="memory-rewards"><text class="reward-title">{{rewardTitle}}</text><view class="reward-options"><button wx:for="{{rewardChoices}}" wx:key="id" class="reward-option {{rewardSelectedId === item.id ? 'reward-selected' : ''}}" disabled="{{item.disabled || !!rewardSelectedId}}" data-reward="{{item.id}}" bindtap="selectMemoryReward"><text class="reward-name">{{item.name}}</text><text class="reward-desc">{{item.desc}}</text><text class="reward-change">{{item.change}}</text></button></view></view>
+        <text class="story-note">{{rewardChoices.length &amp;&amp; !rewardSelectedId ? '选择一项，再前往下一境' : '记忆可回看 · 下一境恢复 15 元气'}}</text><button class="story-primary" disabled="{{rewardChoices.length &amp;&amp; !rewardSelectedId}}" bindtap="continueStage">{{nextStageLabel}}</button></view>
+    </view>
+  </view>
+  <view wx:if="{{showEnding}}" class="story-shade" catchtouchmove="stopTap">
+    <view class="ending-panel"><view class="ending-picture"><image src="{{won ? '../../images/ending-dawn.jpg' : '../../images/arena-5.jpg'}}" mode="aspectFill"/><text>{{won ? '天地初开' : '神念不灭'}}</text></view>
+      <view class="ending-content"><text class="story-kicker">{{won ? '万象初生 · 新纪元' : '混沌再起 · 待重生'}}</text><text class="story-title">{{endingTitle}}</text><text class="story-copy ending-text">{{endingCopy}}</text>
+        <view class="run-facts"><text>战斗 {{runSummary.timeLabel}}</text><text>击破 {{runSummary.kills}}</text><text>{{runSummary.result}}</text></view>
+        <text class="run-build">{{runSummary.weaponName}} · {{runSummary.build}}</text>
+        <view wx:if="{{runReport}}" class="run-insight"><text class="report-line">伤害构成：{{runReport.damage}}</text><text class="report-line">{{runReport.cause}}</text></view>
+        <view class="ending-actions"><button class="story-secondary" bindtap="exitToHome">返回山河</button><button class="story-primary" bindtap="restart">再入混沌</button></view>
+      </view>
+    </view>
+  </view>
+  <view wx:if="{{showArchive}}" class="story-shade" catchtouchmove="stopTap">
+    <view class="archive-panel"><view class="archive-heading"><view><text class="story-kicker">所见皆留痕</text><text class="story-title">山河手记</text></view><button class="archive-close" bindtap="closeArchive">返回</button></view>
+      <view class="archive-tabs"><button class="{{archiveTab === 'memories' ? 'tab-active' : ''}}" data-tab="memories" bindtap="selectArchiveTab">记忆 {{memoryCount}} / 4</button><button class="{{archiveTab === 'enemies' ? 'tab-active' : ''}}" data-tab="enemies" bindtap="selectArchiveTab">图鉴 {{enemyCount}} / 9</button><button class="{{archiveTab === 'runs' ? 'tab-active' : ''}}" data-tab="runs" bindtap="selectArchiveTab">最近征途</button></view>
+      <scroll-view scroll-y="true" class="archive-scroll">
+        <view wx:if="{{archiveTab === 'memories'}}"><view wx:for="{{archiveMemories}}" wx:key="id" class="archive-entry {{item.seen ? '' : 'archive-locked'}}"><text class="archive-entry-title">{{item.title}}</text><text class="archive-entry-caption">{{item.scene}}</text><text wx:if="{{item.seen}}" class="archive-entry-copy">{{item.copy}}</text></view></view>
+        <view wx:if="{{archiveTab === 'enemies'}}"><text wx:if="{{!enemyCount}}" class="archive-empty">遭遇敌人后，将在这里留下形貌与应对之法。</text><view wx:for="{{archiveEnemies}}" wx:key="id" class="archive-entry"><text class="archive-entry-title">{{item.name}}</text><text class="archive-entry-copy">{{item.hint}}</text></view></view>
+        <view wx:if="{{archiveTab === 'runs'}}"><text wx:if="{{!archiveRuns.length}}" class="archive-empty">完成一局后，在这里回顾至宝与构筑。保留最近八局。</text><view wx:for="{{archiveRuns}}" wx:key="id" class="archive-entry"><text class="archive-entry-title">{{item.result}} · {{item.timeLabel}} · 击破 {{item.kills}}</text><text class="archive-entry-copy">{{item.weaponName}} · {{item.build}}</text><text wx:if="{{item.detail}}" class="archive-entry-caption">{{item.detail}}</text></view></view>
+      </scroll-view>
+      <text class="archive-footnote">手记保存在本机 · 每局重新构筑，不增加永久数值</text>
+    </view>
+  </view>
+
+  <view wx:if="{{showSettings}}" class="settings-shade" catchtap="closeSettings"><view class="settings-card" catchtap="stopTap"><text class="settings-title">{{view === 'game' ? '暂停 · 游戏设置' : '游戏设置'}}</text>
+    <view wx:if="{{!confirmExit}}"><view class="settings-options"><view class="setting-row"><text>音效</text><switch checked="{{soundOn}}" color="#d6b66c" bindchange="toggleSound"/></view><view class="setting-row"><text>震动反馈</text><switch checked="{{vibrationOn}}" color="#d6b66c" bindchange="toggleVibration"/></view><view class="setting-row"><text>操作提示</text><switch checked="{{hintsOn}}" color="#d6b66c" bindchange="toggleHints"/></view></view>
+      <view class="volume-label"><text>音效音量 {{effectVolume}}%</text><button class="sound-preview" disabled="{{!soundOn}}" bindtap="previewSound">试听</button></view><slider class="volume-slider" min="0" max="100" step="5" value="{{effectVolume}}" activeColor="#d6b66c" backgroundColor="#45534d" block-size="20" bindchange="changeVolume"/>
+      <view class="settings-actions"><button class="settings-done" bindtap="closeSettings">{{view === 'game' ? '继续游戏' : '完成'}}</button><button wx:if="{{view === 'game'}}" class="exit-game" bindtap="requestExit">退出本局</button></view>
+    </view><view wx:if="{{confirmExit}}" class="exit-confirm"><text>退出会结束当前这局游戏，并返回主菜单。已收录的手记会保留。</text><view class="settings-actions"><button class="settings-done" bindtap="cancelExit">返回设置</button><button class="exit-game" bindtap="exitToHome">确认退出</button></view></view>
+  </view></view>
+</view>

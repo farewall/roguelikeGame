@@ -1,16 +1,67 @@
-name: WeChat playtest
+name: Cocos Creator WeChat playtest
 on:
   workflow_dispatch:
   push:
     branches:
+      - 'cocos-migration/**'
       - 'wechat-playtest/**'
 permissions:
   contents: read
 concurrency:
-  group: wechat-playtest
+  group: cocos-wechat-playtest
   cancel-in-progress: false
 jobs:
-  upload:
+  creator:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prepare Creator source and validate gameplay
+        run: |
+          npm run prepare:cocos
+          npm test
+      - name: Cache official Cocos Creator
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: ${{ runner.temp }}/CocosCreator-3.8.8
+          key: creator-macos-3.8.8-121518
+      - name: Locate official Creator 3.8.8
+        run: bash tools/cocos/setup.sh
+      - name: Export real Cocos Web build
+        run: npm run build:web
+      - name: Export real Cocos WeChat Mini Game
+        env:
+          WECHAT_APPID: ${{ vars.WECHAT_APPID }}
+        run: |
+          npm run build
+          npm run test:package
+          node tools/package-budget.cjs
+      - name: Save official Cocos builds
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cocos-builds
+          path: |
+            minigame/
+            cocos-project/build/web-mobile/
+          if-no-files-found: error
+          retention-days: 3
+      - name: Save Creator build logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: creator-build-logs
+          path: cocos-project/logs/
+          if-no-files-found: ignore
+          retention-days: 3
+  verify-and-upload:
+    needs: creator
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -19,24 +70,40 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: tools/wechat-ci/package-lock.json
-      - name: Check source syntax
+          cache-dependency-path: |
+            package-lock.json
+            tools/wechat-ci/package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Restore official Creator builds
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: cocos-builds
+          path: .
+      - name: Install browser check tools and Chinese fonts
         run: |
-          node --check miniprogram/app.js
-          node --check miniprogram/pages/index/index.js
-          node --check miniprogram/lib/pangu-animation.js
-          node --check miniprogram/lib/game-audio.js
-          node --test tools/game.test.cjs
-      - name: Install official WeChat CI
-        run: npm ci --prefix tools/wechat-ci --no-audit --no-fund
-      - name: Upload development version and generate preview QR
+          npm install --no-save --package-lock=false --ignore-scripts --no-audit --no-fund playwright@1.58.2
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Verify actual Creator rendering and input
+        env:
+          CHROMIUM_EXECUTABLE: /usr/bin/google-chrome
+        run: npm run test:visual
+      - name: Save Cocos verification screenshots
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cocos-checks
+          path: /tmp/pangu-cocos/*.png
+          if-no-files-found: ignore
+          retention-days: 3
+      - run: npm ci --prefix tools/wechat-ci --no-audit --no-fund
+      - name: Upload Cocos Mini Game and generate preview QR
         env:
           WECHAT_APPID: ${{ vars.WECHAT_APPID }}
           WECHAT_PRIVATE_KEY: ${{ secrets.WECHAT_PRIVATE_KEY }}
-          WECHAT_VERSION: 0.1.${{ github.run_number }}
+          WECHAT_VERSION: 0.4.${{ github.run_number }}
         run: node tools/wechat-ci/upload.cjs
-      - name: Save preview QR code
-        if: success()
+      - name: Save WeChat preview QR
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: wechat-preview
