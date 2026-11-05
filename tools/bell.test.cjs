@@ -32,14 +32,14 @@ test('effective normal waves count once each and empty casts cannot earn charge 
   c.updateBellWaves(0.1); near(c.energy, 12); c.updateBellWaves(0.15); near(c.energy, 12); assert.equal(c.strikeCount, 1);
   near(a.hp, 97); near(b.hp, 96.1);
 });
-test('third effective bell leaves its echo at the release position after the player retreats', () => {
+test('third effective bell releases its echo from the current player center after retreating', () => {
   const c = fresh(), e = enemy(c, 45);
   for (let i = 0; i < 3; i++) { strike(c); c.updateBellWaves(0.26); }
   const f = c.followups.find(f => f.kind === 'bell-echo'); assert.ok(f); assert.equal(c.snapshot().bellMarks, 0);
   const origin = { ...f.center }, hp = e.hp; c.player.x = 90;
   c.updateFollowups(BELL.echoDelay); c.updateBellWaves(0.26);
-  assert.ok(e.hp < hp); assert.equal(c.strikeCount, 3); assert.equal(c.followups.length, 0);
-  const echo = c.bellWaves.find(w => w.kind === 'echo'); assert.ok(echo); assert.deepEqual(echo.origin, origin);
+  near(e.hp, hp); assert.equal(c.strikeCount, 3); assert.equal(c.followups.length, 0);
+  const echo = c.bellWaves.find(w => w.kind === 'echo'); assert.ok(echo); assert.deepEqual(echo.origin, c.player); assert.notDeepEqual(echo.origin, origin);
 });
 test('echo path uses two hit marks and a wider stronger echo; ward reduces one hit and repels nearby ordinary enemies', () => {
   const c = fresh(); c.path = 'echo'; enemy(c, 50);
@@ -72,4 +72,18 @@ test('pause freezes wave travel and delayed dominion; restart and stage transiti
   c.useSkill(); const delay = c.followups.find(f => f.kind === 'dominion').remaining; h.game.openSettings(); h.simulate(2); near(c.followups.find(f => f.kind === 'dominion').remaining, delay);
   h.game.restart(); assert.equal(h.game.combat.bellWaves.length, 0); assert.equal(h.game.combat.followups.length, 0);
   const next = h.game.combat; strike(next); next.startStage(); assert.equal(next.bellWaves.length, 0); assert.equal(next.followups.length, 0);
+});
+
+test('renamed Chaos Bell centers delayed dominion on the player when it actually releases', () => {
+  const c = fresh(); assert.equal(c.snapshot().weaponName, '混沌钟');
+  const cast = { ...c.player }; c.useSkill(); c.player.x += 10; c.player.y += 5;
+  c.updateFollowups(0.13); const wave = c.bellWaves.find(w => w.kind === 'skill');
+  assert.deepEqual(wave.origin, c.player); assert.notDeepEqual(wave.origin, cast);
+  const released = { ...wave.origin }; c.player.x += 5; c.updateBellWaves(0.05);
+  assert.deepEqual(wave.origin, released);
+});
+
+test('Chaos Bell reserves enough top clearance to keep its overhead body inside the arena', () => {
+  const { game } = setup({ nativeLayout: true });
+  const bounds = game.playerBounds(); assert.ok(bounds.yMin / 100 * game.arenaRect.height / game.rpxScale >= 165.9);
 });

@@ -79,24 +79,29 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
       for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
         await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);
         await click('start'); await click('weapon-bell'); await click('intro-enter');
-        for (const mode of ['plain', 'fire', 'water', 'earth', 'echo', 'dominion']) {
+        for (const mode of ['idle-a', 'idle-b', 'plain', 'fire', 'water', 'earth', 'echo', 'dominion']) {
           await page.evaluate(mode => {
             const c = kaitian.controller; c.resetGame(); c.pauseGame(); const core = c.combat;
-            core.phase = 3; core.remaining = 0; core.enemies = []; core.hazards = []; core.effects = []; core.player.x = 50; core.player.y = 55;
+            core.phase = 3; core.remaining = 0; core.enemies = []; core.hazards = []; core.effects = []; core.player.x = 50; core.player.y = 55; core.time = mode === 'idle-b' ? 1 : 0;
             if (['fire', 'water', 'earth'].includes(mode)) core.elements[mode] = 2;
             for (const dx of [60, 140, -130]) { const e = core.spawn('wraith'); Object.assign(e, { x: core.player.x + dx / core.width * 100, y: core.player.y, hp: 1000, maxHp: 1000, speed: 0, cooldown: 100 }); }
             if (mode === 'echo') {
               for (let i = 0; i < 3; i++) { core.strike({ direction: { x: 1, y: 0 } }); core.updateBellWaves(0.26); }
               core.player.x += 180 / core.width * 100; core.updateFollowups(0.32); core.updateBellWaves(0.12);
             } else if (mode === 'dominion') { core.useSkill(); core.updateFollowups(0.12); core.updateBellWaves(0.18); }
-            else { core.strike({ direction: { x: 1, y: 0 } }); core.updateBellWaves(0.225); }
+            else if (!mode.startsWith('idle')) { core.strike({ direction: { x: 1, y: 0 } }); core.updateBellWaves(0.225); }
             c.setData({ message: '' }); c.syncCombat(); kaitian.presentation.render();
           }, mode);
           await page.waitForTimeout(80);
           assert.ok(await page.evaluate(mode => {
-            const c = kaitian.controller.combat;
-            if (mode === 'echo') { const wave = c.bellWaves.find(w => w.kind === 'echo'); return wave && Math.abs(wave.origin.x - c.player.x) > 1 && c.strikeCount === 3; }
-            return c.bellWaves.some(w => w.kind === (mode === 'dominion' ? 'skill' : 'normal') && w.radius > 0);
+            const controller = kaitian.controller, c = controller.combat, v = kaitian.presentation;
+            const clock = v.layers.world.nodes.get('chaos-bell'), arena = controller.layout.arena;
+            if (!clock || !clock.active || controller.data.weaponName !== '混沌钟') return false;
+            const x = arena.x + c.player.x / 100 * arena.width, y = arena.y + c.player.y / 100 * arena.height;
+            if (Math.abs(clock.position.x - x) > 0.01 || clock.position.y < -(y - 110)) return false;
+            if (mode.startsWith('idle')) return c.bellWaves.length === 0;
+            if (mode === 'echo') { const wave = c.bellWaves.find(w => w.kind === 'echo'); return wave && Math.abs(wave.origin.x - c.player.x) < 0.001 && c.strikeCount === 3; }
+            return c.bellWaves.some(w => w.kind === (mode === 'dominion' ? 'skill' : 'normal') && w.radius > 0 && Math.abs(w.origin.x - c.player.x) < 0.001 && Math.abs(w.origin.y - c.player.y) < 0.001);
           }, mode));
           await page.screenshot({ path: output + '/bell-redesign-' + viewport.width + '-' + mode + '.png' });
         }

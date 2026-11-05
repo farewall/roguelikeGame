@@ -170,7 +170,7 @@ test('weak enemies enter as a compact group, stay away from the player, and die 
   const c = new Combat('bell', () => 0.5);
   c.update(0.025, false);
   const pack = c.enemies.filter(e => e.fodder);
-  assert.equal(pack.length, 3);
+  assert.equal(pack.length, 5);
   for (const e of pack) {
     assert.ok(c.distance(e, c.player) >= 150);
     assert.ok(e.hp <= c.damage());
@@ -179,8 +179,8 @@ test('weak enemies enter as a compact group, stay away from the player, and die 
   simulate(c, 0.31, false);
   const anchor = { ...pack[1] }; c.player.x = anchor.x; c.player.y = anchor.y;
   strike(c, { direction: { x: 1, y: 0 } }); c.collectDeaths();
-  assert.equal(c.kills, 3); closeTo(c.xp, 1.5);
-  c.collectDeaths(); closeTo(c.xp, 1.5);
+  assert.equal(c.kills, 5); closeTo(c.xp, 2.5);
+  c.collectDeaths(); closeTo(c.xp, 2.5);
 });
 
 test('mixed waves still spawn ranged and charging threats between weak packs', () => {
@@ -195,10 +195,10 @@ test('mixed waves still spawn ranged and charging threats between weak packs', (
 
 test('a full swarm reserves a boss slot and does not consume queued enemies when full', () => {
   const c = fresh(); c.enemies = [];
-  assert.equal(c.spawnSwarm(99), 23);
+  assert.equal(c.spawnSwarm(99), 31);
   c.phase = 0; c.remaining = 5; c.spawnCd = 0; c.advanceWaves(0.025);
   assert.equal(c.remaining, 5);
-  const boss = c.spawn('boss'); assert.ok(boss); assert.equal(c.enemies.length, 24);
+  const boss = c.spawn('boss'); assert.ok(boss); assert.equal(c.enemies.length, 32);
   assert.equal(c.spawn('wraith'), null);
 });
 
@@ -299,4 +299,11 @@ test('the new boss and chaos mist atlas keeps all five silhouettes and six VFX w
   const png = require('node:fs').readFileSync(require('node:path').join(__dirname, '../cocos-project/assets/game-content/images/chaos-boss-actions.png'));
   assert.equal(png.readUInt32BE(16), 768); assert.equal(png.readUInt32BE(20), 768);
   assert.ok(png.includes(Buffer.from('tRNS'))); assert.ok(png.length < 250 * 1024);
+});
+
+test('denser fodder packs arrive sooner without increasing the wave quota or weak enemy HP', () => {
+  const c = new Combat('bell', () => 0.5); c.update(0.025, false);
+  assert.equal(c.enemies.filter(e => e.fodder).length, 5); assert.equal(c.remaining, 5);
+  simulate(c, 1.55, false); assert.equal(c.enemies.filter(e => e.fodder).length, 10); assert.equal(c.remaining, 0);
+  assert.ok(c.enemies.every(e => e.hp <= c.damage()));
 });

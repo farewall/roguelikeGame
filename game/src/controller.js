@@ -23,7 +23,7 @@ const definition = {
     uiScale: 0.5, soundOn: true, effectVolume: 60, vibrationOn: true, hintsOn: true,
     hp: 100, maxHp: 100, hpPct: 100, hurt: false, level: 1, xp: 0, xpNeed: 5, xpPct: 0,
     stage: 1, stageName: '', phaseName: '', objective: '', progress: 0, boss: null, kills: 0, combatStats: '', weaponId: 'bell', actorSheets: [], actorFrame: { left: 0, top: 0, action: 'idle' }, pathName: '', warded: false,
-    player: { x: 50, y: 55 }, enemies: [], hazards: [], effects: [], weaponName: '东皇钟', elementName: '未附魔', comboName: '', message: '',
+    player: { x: 50, y: 55 }, enemies: [], hazards: [], effects: [], weaponName: '混沌钟', elementName: '未附魔', comboName: '', message: '',
     showChoice: false, choices: [], choiceToken: 0, joystick: { x: 0, y: 0, active: false }, attackRange: 160,
     ended: false, showEnding: false, won: false, endingTitle: '', endingCopy: '', showMemory: false, memory: null,
     selectedWeapon: 'bell', weapons: Object.keys(WEAPONS).map(id => ({ id, ...WEAPONS[id] })),
@@ -124,7 +124,7 @@ const definition = {
     this.updateLayout(); this.actor = new PanguAnimation(); this.actorFrameKey = '';
     this.choiceApplying = false; this.upgradePending = false; this.stageClearRemaining = 0; this.upgradeTouch = null;
     this.viewCache = {}; this.renderStats = { ticks: 0, calls: 0, bytes: 0, fullBytes: 0, maxBytes: 0 };
-    this.setData({ ...this.combat.snapshot(), paused: false, hurt: false, player: { ...this.player }, message: this.combat.weapon === 'bell' ? '外缘共鸣增伤 · 三次有效钟鸣留下回响 · 镇界先护身后震退' : '盘古幡自动发射飞刃 · 拖动右下「裂天」瞄准，松手释放', showChoice: false, choices: [], showMemory: false, ended: false, showEnding: false, won: false, runSummary: null, actorSheets: ACTOR_SHEETS }, () => this.measureArena());
+    this.setData({ ...this.combat.snapshot(), paused: false, hurt: false, player: { ...this.player }, message: this.combat.weapon === 'bell' ? '外缘共鸣增伤 · 三次有效钟鸣释放居中回响 · 镇界先护身后震退' : '盘古幡自动发射飞刃 · 拖动右下「裂天」瞄准，松手释放', showChoice: false, choices: [], showMemory: false, ended: false, showEnding: false, won: false, runSummary: null, actorSheets: ACTOR_SHEETS }, () => this.measureArena());
     this.renderActor(0); this.startLoops();
     this.schedule('toastTimer', () => this.setData({ message: '' }), 2600);
   },
@@ -288,7 +288,8 @@ const definition = {
   playerBounds() {
     const size = ACTOR_FRAME_SIZE * this.rpxScale;
     const xMargin = Math.min(45, Math.max(5, size * 0.5 / this.arenaRect.width * 100));
-    const yMin = Math.min(45, Math.max(12, size * 0.54 / this.arenaRect.height * 100));
+    const headroom = this.combat && this.combat.weapon === 'bell' ? Math.max(size * 0.54, 166 * this.rpxScale) : size * 0.54;
+    const yMin = Math.min(45, Math.max(12, headroom / this.arenaRect.height * 100));
     const yMax = Math.max(55, Math.min(90, 100 - size * 0.46 / this.arenaRect.height * 100));
     return { xMin: xMargin, xMax: 100 - xMargin, yMin, yMax };
   },

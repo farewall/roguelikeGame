@@ -15,7 +15,6 @@ class BellCombat {
     const range = this.path === 'echo' ? 190 : BELL.range;
     this.followups.push({ kind: 'bell-echo', center: { ...wave.origin }, radius: range, remaining: BELL.echoDelay,
       damage: wave.damage * (this.path === 'echo' ? 0.65 : 0.45), elements: { ...wave.elements } });
-    this.effect('bell-shadow', wave.origin, range, { life: BELL.echoDelay + range / BELL.speed + 0.14 });
     if (this.path === 'ward') { this.wardTime = 5; this.effect('ward', this.player, 70); }
   }
   applyBellElements(e, damage, levels) {
@@ -52,7 +51,7 @@ class BellCombat {
     }
     this.bellWaves = this.bellWaves.filter(w => w.age < w.range / w.speed + 0.14);
   }
-  releaseDominion(f) { this.launchBellWave(f.center, { kind: 'skill', range: 330, speed: 1000, damage: f.damage }); }
+  releaseDominion(f) { this.launchBellWave(this.player, { kind: 'skill', range: 330, speed: 1000, damage: f.damage }); }
   breakBellWard() {
     for (const e of this.enemies) if (!e.boss && e.hp > 0 && !e.spawnTime && this.distance(this.player, e) <= 120) {
       this.move(e, this.vector(this.player, e), 28); e.freezeTime = Math.max(e.freezeTime, 0.12);

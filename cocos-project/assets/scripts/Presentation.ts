@@ -259,7 +259,7 @@ export class CocosPresentation {
   }
   drawEffect(layer, effect, point) {
     const g = layer.g, p = point(effect), t = clamp(effect.age / effect.life, 0, 1), life = 1 - t;
-    if (effect.type === 'bell-shadow' || effect.type === 'bell-summon') {
+    if (effect.type === 'bell-summon') {
       const summon = effect.type === 'bell-summon';
       this.bellBody(layer, p.x, p.y - (summon ? 75 : 18), summon ? 1.7 : 0.7, summon ? 1 - t : 0, 0, 3, life * (summon ? 0.9 : 0.38));
       g.lineStyle(1.5, summon ? GOLD : 0xbde1dd, life * 0.4); g.drawEllipse(p.x, p.y, summon ? 65 : 38, summon ? 22 : 12); return;
@@ -304,15 +304,24 @@ export class CocosPresentation {
     if (effect.type === 'bell' || effect.type === 'water-pulse') { g.lineStyle(1, color, life * 0.65); g.drawCircle(p.x, p.y, radius * 0.75); g.drawEllipse(p.x, p.y, radius, radius * 0.5); }
     if (effect.type === 'steam' || effect.type === 'impact') { g.beginFill(color, life * 0.16); g.drawCircle(p.x, p.y, radius * 0.7); g.endFill(); }
   }
-  bellBody(layer, x, y, scale, charge, marks, threshold, alpha) {
-    const g = layer.g, sx = n => x + n * scale, sy = n => y + n * scale;
+  bellBody(layer, x, y, scale, charge, marks, threshold, alpha, turn = 0) {
+    const width = 0.7 + Math.abs(Math.cos(turn)) * 0.3;
+    const g = layer.g, sx = n => x + n * scale * width, sy = n => y + n * scale;
     g.lineStyle(2 * scale, GOLD, alpha); g.drawCircle(sx(0), sy(-34), 7 * scale);
     g.beginFill(0x88652f, alpha); g.moveTo(sx(-14), sy(-27));
     g.bezierCurveTo(sx(-28), sy(-16), sx(-17), sy(10), sx(-30), sy(24)); g.lineTo(sx(30), sy(24));
     g.bezierCurveTo(sx(17), sy(10), sx(28), sy(-16), sx(14), sy(-27)); g.closePath(); g.endFill();
     g.lineStyle(2 * scale, 0xf8d991, alpha); g.drawEllipse(sx(0), sy(24), 30 * scale, 8 * scale);
     g.drawEllipse(sx(0), sy(-22), 15 * scale, 5 * scale);
-    for (const offset of [-13, 0, 13]) { g.moveTo(sx(offset * 0.7), sy(-16)); g.lineTo(sx(offset), sy(17)); }
+    // Vertical ribs sweep around the upright body, showing an axial rotation.
+    for (let i = 0; i < 6; i++) {
+      const angle = turn + i * Math.PI / 3;
+      if (Math.cos(angle) < 0) continue;
+      const offset = Math.sin(angle) * 20;
+      g.lineStyle((1.3 + Math.cos(angle) * 0.8) * scale, Math.cos(angle) > 0.7 ? 0xffe8a6 : 0xbd924c, alpha * 0.9);
+      g.moveTo(sx(offset * 0.65), sy(-18)); g.lineTo(sx(offset), sy(17));
+      g.drawCircle(sx(offset), sy(-3), 2 * scale);
+    }
     g.moveTo(sx(-22), sy(3)); g.lineTo(sx(22), sy(3));
     g.lineStyle(1, 0xffefb9, alpha * 0.6); g.drawCircle(sx(0), sy(-5), (6 + charge * 4) * scale);
     g.beginFill(0xf6d185, alpha); g.drawCircle(sx(0), sy(27), 4 * scale); g.endFill();
@@ -326,22 +335,44 @@ export class CocosPresentation {
     const g = layer.g, p = point(wave.origin), echo = wave.kind === 'echo', skill = wave.kind === 'skill';
     const end = wave.range / wave.speed, fade = wave.age <= end ? 1 : Math.max(0, 1 - (wave.age - end) / 0.14);
     const color = skill ? 0xffe9a6 : echo ? 0xbce6e0 : wave.elements.fire ? 0xf4b16a : wave.elements.water ? 0xa3e3ed : GOLD;
-    g.lineStyle(skill ? 9 : echo ? 3 : 5, color, fade * 0.9); g.drawCircle(p.x, p.y, Math.max(1, wave.radius));
-    g.lineStyle(skill ? 3 : 1.5, 0xfff4d2, fade * 0.65); g.drawCircle(p.x, p.y, Math.max(1, wave.radius - (skill ? 12 : 7)));
-    if (wave.radius >= wave.range * 0.75 && !echo && !skill) {
-      g.lineStyle(2, 0xfff3c2, fade); g.drawCircle(p.x, p.y, wave.radius + 3);
-      for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6; g.moveTo(p.x + Math.cos(a) * wave.radius, p.y + Math.sin(a) * wave.radius); g.lineTo(p.x + Math.cos(a) * (wave.radius + 8), p.y + Math.sin(a) * (wave.radius + 8)); }
+    const radius = Math.max(1, wave.radius), gap = skill ? 30 : 22;
+    // The leading crest matches the damage front; quieter trailing ripples
+    // make the sound visibly travel out of the character's center.
+    g.lineStyle(0); g.beginFill(color, fade * (skill ? 0.055 : 0.025)); g.drawCircle(p.x, p.y, radius); g.endFill();
+    for (let i = 2; i >= 0; i--) {
+      const r = radius - i * gap; if (r <= 0) continue;
+      const alpha = fade * (i === 0 ? 0.85 : i === 1 ? 0.32 : 0.12);
+      g.lineStyle(i === 0 ? (skill ? 8 : echo ? 3 : 4) : 1.5, color, alpha); g.drawCircle(p.x, p.y, r);
+      if (i === 0) { g.lineStyle(1.3, 0xfff4d2, alpha * 0.8); g.drawCircle(p.x, p.y, Math.max(1, r - 5)); }
     }
-    if (wave.elements.earth) { g.lineStyle(2, 0xc6a779, fade * 0.7); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; g.drawCircle(p.x + Math.cos(a) * wave.radius, p.y + Math.sin(a) * wave.radius, 3); } }
+    if (wave.age < 0.12) {
+      g.lineStyle(2, 0xfff0c6, (1 - wave.age / 0.12) * 0.8); g.drawCircle(p.x, p.y, 7 + wave.age * 90);
+    }
+    if (radius >= wave.range * 0.75 && !echo && !skill) {
+      g.lineStyle(2.5, 0xffefbe, fade * 0.8);
+      for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + wave.age * 1.6; g.arc(p.x, p.y, radius + 3, a, a + Math.PI / 3); }
+    }
+    if (wave.elements.earth) { g.lineStyle(2, 0xc6a779, fade * 0.6); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; g.drawCircle(p.x + Math.cos(a) * radius, p.y + Math.sin(a) * radius, 3); } }
   }
   artifact(layer, player, weapon, time, casting) {
-    const g = layer.g, x = player.x + 69, y = player.y - 38 + Math.sin(time * 2.5) * 5, glow = casting ? 0.34 : 0.1;
-    g.lineStyle(0); g.beginFill(weapon === 'bell' ? GOLD : 0x9be2d3, glow); g.drawCircle(x, y, casting ? 52 : 36); g.endFill();
+    const g = layer.g;
     if (weapon === 'bell') {
+      const node = this.use(layer, 'chaos-bell', () => { const n = this.makeNode('chaos-bell'); n.addComponent(Graphics); return n; });
+      const clock: DrawList = (node as any).bellDrawList || ((node as any).bellDrawList = new DrawList(node.getComponent(Graphics))); clock.clear();
+      const y = player.y - 118 + Math.sin(time * 2.2) * 3;
+      node.setPosition(player.x, -y);
       const pending = this.c.combat.pendingAttack;
       const charge = pending ? 1 - Math.min(1, pending.remaining / (2 / 12)) : 0;
-      this.bellBody(layer, x + Math.sin(time * 65) * charge * 2, y, 1, charge, this.c.data.bellMarks || 0, this.c.data.bellThreshold || 3, 1);
+      clock.lineStyle(1.5, GOLD, casting ? 0.5 : 0.22); clock.drawEllipse(0, 7, 43, 16);
+      for (let i = 0; i < 3; i++) {
+        const angle = time * 1.4 + i * Math.PI * 2 / 3;
+        clock.lineStyle(0); clock.beginFill(0xffdfa0, 0.7); clock.drawCircle(Math.cos(angle) * 43, 7 + Math.sin(angle) * 16, 2); clock.endFill();
+      }
+      this.bellBody({ g: clock }, Math.sin(time * 65) * charge * 2, 0, 1.15, charge, this.c.data.bellMarks || 0, this.c.data.bellThreshold || 3, 1, time * 1.4);
+      clock.flush();
     } else {
+      const x = player.x + 69, y = player.y - 38 + Math.sin(time * 2.5) * 5, glow = casting ? 0.34 : 0.1;
+      g.lineStyle(0); g.beginFill(0x9be2d3, glow); g.drawCircle(x, y, casting ? 52 : 36); g.endFill();
       const wave = Math.sin(time * 6) * 6;
       g.lineStyle(3, 0xb9d9b4, 0.95); g.moveTo(x - 23, y - 46); g.lineTo(x - 23, y + 48); g.moveTo(x - 30, y - 37); g.lineTo(x + 31, y - 37);
       g.beginFill(0x427b79, 0.9); g.drawPolygon([x - 21, y - 34, x + 30, y - 28 + wave, x + 24, y + 35 + wave, x + 2, y + 24, x - 19, y + 37]); g.endFill();

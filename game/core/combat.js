@@ -8,11 +8,11 @@ const STAGES = ['东方·初生之野', '西方·白骨战场', '南方·焚天�
 const BOSSES = ['青龙法相', '白虎法相', '朱雀法相', '玄武法相', '天道化身'];
 const PLAYER_SPEED = 300; // Short-edge UI units per second on every device.
 const WEAPONS = {
-  bell: { name: '东皇钟', range: BELL.range, interval: BELL.interval, damage: 3, desc: '扩散钟鸣 · 外缘共鸣增伤，留点回响追击' },
+  bell: { name: '混沌钟', range: BELL.range, interval: BELL.interval, damage: 3, desc: '扩散钟鸣 · 外缘共鸣增伤，居中回响追击' },
   banner: { name: '盘古幡', range: 360, interval: 1.8, damage: 3.6, desc: '贯穿飞刃 · 远距御敌，拖动裂天定向爆发' }
 };
 const PATHS = {
-  echo: { id: 'echo', weapon: 'bell', name: '万壑回声', desc: '每两次有效钟鸣留下钟影，释放更强更远的回响', change: '回响：三击 → 两击 · 范围 160 → 190' },
+  echo: { id: 'echo', weapon: 'bell', name: '万壑回声', desc: '每两次有效钟鸣，从自身中心释放更强更远的回响', change: '回响：三击 → 两击 · 范围 160 → 190' },
   ward: { id: 'ward', weapon: 'bell', name: '玄钟护念', desc: '每三次有效钟鸣获得护体，抵伤后震退身边普通敌人', change: '抵伤40% · 护体持续5秒 · 触发震退' },
   sweep: { id: 'sweep', weapon: 'banner', name: '横扫八荒', desc: '每轮发射五道飞刃，覆盖更宽的敌群', change: '三道飞刃 → 五道飞刃，展开至 80°' },
   rend: { id: 'rend', weapon: 'banner', name: '破劫裂空', desc: '飞刃汇聚为一道，对精英与首领额外造成伤害', change: '凝聚贯穿 · 精英/首领伤害 +30%' }
@@ -115,7 +115,7 @@ class Combat extends ArtifactCombat {
     event.resolved = true; this.eventsTaken.push(choice.name); return true;
   }
   spawn(kind, forming = false) {
-    if (this.enemies.length >= 24 || this.cleared || this.ended) return null;
+    if (this.enemies.length >= 32 || this.cleared || this.ended) return null;
     const edge = Math.floor(this.random() * 4);
     const p = { x: edge < 2 ? (edge ? 94 : 6) : 15 + this.random() * 70,
       y: edge >= 2 ? (edge === 2 ? 10 : 90) : 20 + this.random() * 60 };
@@ -133,12 +133,12 @@ class Combat extends ArtifactCombat {
   spawnSwarm(count) {
     // A shared edge and tight formation make the group readable and pierceable.
     // Reserve one entity slot for the next wave's elite or boss.
-    const size = Math.min(count, 23 - this.enemies.length);
+    const size = Math.min(count, 31 - this.enemies.length);
     let anchor = null, spawned = 0;
     for (let i = 0; i < size; i++) {
       const e = this.spawn('wraith', true); if (!e) break;
       if (!anchor) anchor = { x: e.x, y: e.y };
-      const offset = (i - (size - 1) / 2) * 32;
+      const offset = (i - (size - 1) / 2) * 24;
       const p = { x: anchor.x, y: anchor.y };
       if (anchor.x <= 10 || anchor.x >= 90) p.y = clamp(p.y + offset / this.height * 100, 10, 90);
       else p.x = clamp(p.x + offset / this.width * 100, 6, 94);
@@ -204,16 +204,16 @@ class Combat extends ArtifactCombat {
   advanceWaves(dt) {
     if (this.phase >= 3) return;
     this.spawnCd -= dt;
-    if (this.remaining > 0 && this.spawnCd <= 0 && this.enemies.length < 23) {
+    if (this.remaining > 0 && this.spawnCd <= 0 && this.enemies.length < 31) {
       const kind = this.phase === 2 && this.remaining === 3 ? 'elite'
         : this.phase === 0 ? (this.stage > 1 && this.waveSpawns % 3 === 2 ? 'charger' : 'wraith')
         : ['wraith', 'ranged', 'charger'][this.waveSpawns % 3];
       if (kind === 'wraith') {
-        this.remaining -= this.spawnSwarm(Math.min(this.remaining, this.stage < 3 ? 3 : 5));
-        this.spawnCd = 2.2;
+        this.remaining -= this.spawnSwarm(Math.min(this.remaining, this.stage < 3 ? 5 : 7));
+        this.spawnCd = 1.5;
       } else {
         if (this.spawn(kind, true)) this.remaining--;
-        this.spawnCd = 1.1;
+        this.spawnCd = 0.9;
       }
       this.waveSpawns++;
     }
@@ -393,7 +393,7 @@ class Combat extends ArtifactCombat {
     for (const f of this.followups) {
       f.remaining -= dt; if (f.remaining > 0) continue;
       if (f.kind === 'dominion') { this.releaseDominion(f); continue; }
-      if (f.kind === 'bell-echo') { this.launchBellWave(f.center, { kind: 'echo', range: f.radius, damage: f.damage, elements: f.elements }); continue; }
+      if (f.kind === 'bell-echo') { this.launchBellWave(this.player, { kind: 'echo', range: f.radius, damage: f.damage, elements: f.elements }); continue; }
       if (f.kind === 'rift') { this.resolveRift(f); continue; }
       for (const e of this.enemies) if (e.hp > 0 && !e.spawnTime && this.distance(f.center, e) <= f.radius) {
         this.deal(e, f.damage, f.kind);
@@ -490,7 +490,7 @@ class Combat extends ArtifactCombat {
       u.name = { fire: '焚音', water: '潮鸣', earth: '裂岳' }[u.kind] + (tier ? '精进' : '附魔');
       if (u.kind === 'earth') {
         u.change = `碎甲易伤 ${tier ? 8 + tier * 4 : 0}% → ${12 + tier * 4}%`;
-        u.desc = tier === 3 ? '四重：留点回响命中附带短暂震慑，首领减效' : '波面使敌人碎甲，强化后续回响；二重更持久，四重回响震慑';
+        u.desc = tier === 3 ? '四重：回响命中附带短暂震慑，首领减效' : '波面使敌人碎甲，强化后续回响；二重更持久，四重回响震慑';
       }
       return u;
     }).filter(u => !(ELEMENTS[u.kind] && this.elements[u.kind] >= 4) && !(u.kind === 'haste' && interval <= 0.520001));
