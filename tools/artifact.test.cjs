@@ -29,7 +29,8 @@ test('charge caps at full, announces readiness once and clears on skill use', ()
 test('bell dominion interrupts ordinary casters, knocks them away and preserves released boss threats', () => {
   const c = core(), caster = enemy(c, 100, 0, 'ranged'), boss = enemy(c, 200, 0, 'boss'), outside = enemy(c, -400);
   caster.castTime = boss.castTime = 1; c.circle(c.player, 50, 0.5, 1, '符', 'arcane', 5, caster.id); c.circle(c.player, 60, 0.5, 1, '藤', 'root', 5, boss.id);
-  const before = { ...caster }; assert.ok(c.useSkill()); near(caster.hp, 1000 - WEAPONS.bell.damage * 2.8); near(outside.hp, 1000);
+  const before = { ...caster }; assert.ok(c.useSkill()); near(caster.hp, 1000); assert.ok(c.invulnerable > 0);
+  c.updateFollowups(0.12); c.updateBellWaves(0.33); near(caster.hp, 1000 - WEAPONS.bell.damage * 2.8); near(outside.hp, 1000);
   assert.ok(c.distance(before, caster) > 80); assert.equal(caster.castTime, 0); assert.ok(caster.freezeTime >= 1.1);
   assert.equal(boss.castTime, 1); assert.ok(boss.freezeTime <= 0.2); assert.ok(c.hazards.some(h => h.owner === boss.id)); assert.ok(!c.hazards.some(h => h.owner === caster.id));
   assert.ok(c.invulnerable > 0); assert.ok(c.battleReport().damage.includes('镇界'));

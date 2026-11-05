@@ -8,7 +8,7 @@ const near = (a, b, epsilon = 1e-7) => assert.ok(Math.abs(a - b) < epsilon, `${a
 function fresh(weapon = 'bell') { const c = new Combat(weapon, () => 0.5); c.phase = 3; c.remaining = 0; c.enemies = []; c.drainEvents(); return c; }
 function enemy(c, x = 55, y = 55, kind = 'wraith') { const e = c.spawn(kind); Object.assign(e, { x, y, hp: 100, maxHp: 100, speed: 0, cooldown: 99 }); return e; }
 function advance(c, seconds) { for (let i = 0; i < Math.ceil(seconds / 0.025); i++) c.update(0.025, false); }
-const hit = (c, targetId) => c.strike({ direction: { x: 1, y: 0 }, targetId });
+const hit = (c, targetId) => { c.strike({ direction: { x: 1, y: 0 }, targetId }); if (c.weapon === 'bell') c.updateBellWaves(0.26); };
 function path(c, id) { c.stage = 1; c.cleared = true; assert.ok(c.choosePath(id)); c.cleared = false; }
 
 test('player travel and relative enemy speed are invariant across both viewport sizes', () => {
@@ -22,17 +22,17 @@ test('player travel and relative enemy speed are invariant across both viewport 
   }
   near(ratios[0], ratios[1]); near(ratios[0], PLAYER_SPEED / 52);
 });
-test('steam and quake centers follow the locked target and do not depend on spawn order', () => {
+test('bell reactions follow first physical wave contact, independently of target ID and spawn order', () => {
   for (const reversed of [false, true]) for (const lockFar of [false, true]) {
     const c = fresh(); c.elements = { fire: 1, water: 1, earth: 1 };
     const a = enemy(c, 54), b = enemy(c, 60), outside = enemy(c, 65); c.enemies = reversed ? [b, a, outside] : [a, b, outside];
-    hit(c, lockFar ? b.id : a.id); const center = c.effects.find(f => f.type === 'steam'); near(center.x, lockFar ? 60 : 54);
-    assert.equal(outside.hp < 100, lockFar); const quake = c.effects.find(f => f.type === 'earth'); near(quake.x, center.x);
+    hit(c, lockFar ? b.id : a.id); const center = c.effects.find(f => f.type === 'steam'); near(center.x, 54);
+    near(outside.hp, 100); assert.ok(a.fractureTime > 0 && b.fractureTime > 0);
   }
 });
 test('fallback targeting is deterministic if the original locked enemy dies before impact', () => {
   const c = fresh(); c.elements.fire = c.elements.water = 1; const a = enemy(c, 54), b = enemy(c, 60); a.hp = 0;
-  hit(c, a.id); near(c.effects.find(f => f.type === 'steam').x, b.x - 20 / c.width * 100);
+  hit(c, a.id); near(c.effects.find(f => f.type === 'steam').x, 60);
 });
 test('third element preserves both area damage and area slow, including enemies outside the basic attack', () => {
   const c = fresh(); c.elements.earth = c.elements.water = 1; const a = enemy(c, 57), outside = enemy(c, 63);
@@ -64,10 +64,12 @@ test('water tier two reaches enemies with a third-hit pulse and tier four briefl
     if (tier === 4) { assert.ok(outside.freezeTime > 0); outside.cooldown = 0; const hazards = c.hazards.length; c.updateEnemy(outside, 0.1); assert.equal(c.hazards.length, hazards); }
   }
 });
-test('earth tier two resolves a delayed second hit and tier four adds brief stagger', () => {
+test('bell earth fractures enemies for stronger echoes, with tier-four echo stagger', () => {
   for (const tier of [2, 4]) {
-    const c = fresh(); c.elements.earth = tier; const a = enemy(c); hit(c, a.id); const hp = a.hp;
-    advance(c, 0.4); near(a.hp, hp); advance(c, 0.1); assert.ok(a.hp < hp);
+    const c = fresh(); c.elements.earth = tier; const a = enemy(c); hit(c, a.id);
+    assert.ok(a.fractureTime > 2); const hp = a.hp;
+    c.launchBellWave({ ...c.player }, { kind: 'echo', damage: 1 }); c.updateBellWaves(0.26);
+    near(hp - a.hp, 1 + a.fractureStrength);
     if (tier === 4) assert.ok(a.freezeTime > 0);
   }
 });
@@ -77,14 +79,14 @@ test('milestone descriptions announce the new mechanism before selection', () =>
     c.elements = { fire: tier, water: tier, earth: tier };
     const pool = c.upgradePool(); assert.ok(pool.find(u => u.kind === 'fire').desc.includes(tier === 1 ? '传火' : '爆燃'));
     assert.ok(pool.find(u => u.kind === 'water').desc.includes(tier === 1 ? '水环' : '冰封'));
-    assert.ok(pool.find(u => u.kind === 'earth').desc.includes(tier === 1 ? '余震' : '震慑'));
+    assert.ok(pool.find(u => u.kind === 'earth').desc.includes(tier === 1 ? '碎甲' : '震慑'));
   }
 });
 test('bell echo and ward paths have distinct behavior and cannot be switched or stacked', () => {
   for (const id of ['echo', 'ward']) {
     const c = fresh(); path(c, id); assert.equal(c.choosePath(id), false); const a = enemy(c, 54);
     hit(c, a.id); hit(c, a.id);
-    if (id === 'echo') { assert.equal(c.followups.length, 1); advance(c, 0.35); assert.ok(c.damageBySource.echo > 0); }
+    if (id === 'echo') { assert.equal(c.followups.length, 1); advance(c, 0.55); assert.ok(c.damageBySource.echo > 0); }
     else { assert.equal(c.wardTime, 0); hit(c, a.id); assert.equal(c.wardTime, 5); c.hurt(10, 'test'); near(c.hp, 94); assert.equal(c.wardTime, 0); c.invulnerable = 0; c.hurt(10, 'test'); near(c.hp, 84); }
   }
 });

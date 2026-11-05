@@ -1,4 +1,5 @@
 'use strict';
+const { BellCombat } = require('./bell');
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 function normalized(direction) {
   const length = direction && Math.hypot(direction.x, direction.y);
@@ -9,8 +10,8 @@ function distanceToSegment(p, a, b) {
   const t = clamp(((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1), 0, 1);
   return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy);
 }
-class ArtifactCombat {
-  constructor() { this.projectiles = []; this.energy = 100; this.skillCooldown = 0; this.skillUses = 0; this.lastAimDirection = { x: 0, y: -1 }; }
+class ArtifactCombat extends BellCombat {
+  constructor() { super(); this.projectiles = []; this.energy = 100; this.skillCooldown = 0; this.skillUses = 0; this.lastAimDirection = { x: 0, y: -1 }; }
   gainEnergy(amount) {
     const before = this.energy; this.energy = clamp(this.energy + amount, 0, 100);
     if (before < 100 && this.energy >= 100) this.emit('skill-ready');
@@ -41,6 +42,7 @@ class ArtifactCombat {
       if (targets.length) this.applyStrike(volley, targets, volley.origin);
     }
     this.projectiles = this.projectiles.filter(v => v.traveled < v.range - 0.001);
+    this.updateBellWaves(dt);
   }
   skillDirection(direction) {
     const closest = this.nearest(this.enemies.filter(e => e.hp > 0));
@@ -53,14 +55,9 @@ class ArtifactCombat {
     this.lastAimDirection = direction;
     const origin = { ...this.player }, damage = this.damage();
     if (this.weapon === 'bell') {
-      this.effect('dominion', origin, 330, { life: 0.8 }); this.invulnerable = Math.max(this.invulnerable, 0.45);
-      const interrupted = new Set();
-      for (const e of this.enemies) if (e.hp > 0 && this.distance(origin, e) <= 330) {
-        this.deal(e, damage * 2.8, 'skill'); this.move(e, this.vector(origin, e), e.boss ? 10 : 85);
-        e.freezeTime = Math.max(e.freezeTime, e.boss ? 0.2 : 1.1);
-        if (!e.boss) { interrupted.add(e.id); e.castTime = 0; e.recoverTime = Math.max(e.recoverTime, 1.1); e.dashing = false; }
-      }
-      this.hazards = this.hazards.filter(h => !interrupted.has(h.owner));
+      this.invulnerable = Math.max(this.invulnerable, 0.55);
+      this.effect('bell-summon', origin, 110, { life: 0.75 });
+      this.followups.push({ kind: 'dominion', center: origin, remaining: 0.12, damage: damage * 2.8 });
     } else {
       const start = this.point(origin), end = this.percent({ x: start.x + direction.x * 650, y: start.y + direction.y * 650 });
       this.followups.push({ kind: 'rift', center: origin, end, width: 100, remaining: 0.22, damage: damage * 5 });

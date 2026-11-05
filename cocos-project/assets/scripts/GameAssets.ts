@@ -10,7 +10,7 @@ export function frame(texture: Texture2D, rect?: Rect) {
 export async function loadAssets(progress: (value: number) => void = () => {}) {
   const bundle = await new Promise<AssetManager.Bundle>((resolve, reject) => assetManager.loadBundle('game-content', (error, value) => error ? reject(error) : resolve(value)));
   const textures: Record<string, SpriteFrame> = {}, frames: any = { artifact: {}, enemies: [], bosses: [], spells: [] }, audio: Record<string, AudioClip> = {};
-  const sounds = ['attack', 'bell', 'banner', 'dominion', 'rift', 'ready', 'warning', 'hurt', 'upgrade', 'victory', 'death'];
+  const sounds = ['attack', 'bell', 'echo', 'banner', 'dominion', 'rift', 'ready', 'warning', 'hurt', 'upgrade', 'victory', 'death'];
   let done = 0; const total = Object.keys(paths).length + sounds.length;
   await Promise.all(Object.entries(paths).map(async ([key, file]) => {
     const image = await new Promise<ImageAsset>((resolve, reject) => bundle.load('images/' + file, ImageAsset, (error, value) => error ? reject(error) : resolve(value)));

@@ -76,6 +76,32 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         await click('ending-home'); await click('archive'); await click('archive-runs'); assert.ok(await page.evaluate(() => kaitian.controller.data.archiveRuns.length > 0)); await click('archive-close');
         assert.deepEqual(errors, [], prefix); console.log('PASS Cocos Creator ' + prefix + ': native nodes, joystick, skill, pause/background, upgrades, route, trial, ending, archive');
       }
+      for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
+        await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);
+        await click('start'); await click('weapon-bell'); await click('intro-enter');
+        for (const mode of ['plain', 'fire', 'water', 'earth', 'echo', 'dominion']) {
+          await page.evaluate(mode => {
+            const c = kaitian.controller; c.resetGame(); c.pauseGame(); const core = c.combat;
+            core.phase = 3; core.remaining = 0; core.enemies = []; core.hazards = []; core.effects = []; core.player.x = 50; core.player.y = 55;
+            if (['fire', 'water', 'earth'].includes(mode)) core.elements[mode] = 2;
+            for (const dx of [60, 140, -130]) { const e = core.spawn('wraith'); Object.assign(e, { x: core.player.x + dx / core.width * 100, y: core.player.y, hp: 1000, maxHp: 1000, speed: 0, cooldown: 100 }); }
+            if (mode === 'echo') {
+              for (let i = 0; i < 3; i++) { core.strike({ direction: { x: 1, y: 0 } }); core.updateBellWaves(0.26); }
+              core.player.x += 180 / core.width * 100; core.updateFollowups(0.32); core.updateBellWaves(0.12);
+            } else if (mode === 'dominion') { core.useSkill(); core.updateFollowups(0.12); core.updateBellWaves(0.18); }
+            else { core.strike({ direction: { x: 1, y: 0 } }); core.updateBellWaves(0.225); }
+            c.setData({ message: '' }); c.syncCombat(); kaitian.presentation.render();
+          }, mode);
+          await page.waitForTimeout(80);
+          assert.ok(await page.evaluate(mode => {
+            const c = kaitian.controller.combat;
+            if (mode === 'echo') { const wave = c.bellWaves.find(w => w.kind === 'echo'); return wave && Math.abs(wave.origin.x - c.player.x) > 1 && c.strikeCount === 3; }
+            return c.bellWaves.some(w => w.kind === (mode === 'dominion' ? 'skill' : 'normal') && w.radius > 0);
+          }, mode));
+          await page.screenshot({ path: output + '/bell-redesign-' + viewport.width + '-' + mode + '.png' });
+        }
+        await page.evaluate(() => kaitian.controller.exitToHome());
+      }
       // Real exported sprites for every boss and every hazard family. These are
       // visual fixtures only; combat timing/collision is covered by core tests.
       for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {

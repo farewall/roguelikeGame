@@ -124,7 +124,7 @@ const definition = {
     this.updateLayout(); this.actor = new PanguAnimation(); this.actorFrameKey = '';
     this.choiceApplying = false; this.upgradePending = false; this.upgradeTouch = null;
     this.viewCache = {}; this.renderStats = { ticks: 0, calls: 0, bytes: 0, fullBytes: 0, maxBytes: 0 };
-    this.setData({ ...this.combat.snapshot(), paused: false, hurt: false, player: { ...this.player }, message: this.combat.weapon === 'bell' ? '东皇钟自动震荡 · 右下「镇界」满能可释放解围' : '盘古幡自动发射飞刃 · 拖动右下「裂天」瞄准，松手释放', showChoice: false, choices: [], showMemory: false, ended: false, showEnding: false, won: false, runSummary: null, actorSheets: ACTOR_SHEETS }, () => this.measureArena());
+    this.setData({ ...this.combat.snapshot(), paused: false, hurt: false, player: { ...this.player }, message: this.combat.weapon === 'bell' ? '外缘共鸣增伤 · 三次有效钟鸣留下回响 · 镇界先护身后震退' : '盘古幡自动发射飞刃 · 拖动右下「裂天」瞄准，松手释放', showChoice: false, choices: [], showMemory: false, ended: false, showEnding: false, won: false, runSummary: null, actorSheets: ACTOR_SHEETS }, () => this.measureArena());
     this.renderActor(0); this.startLoops();
     this.schedule('toastTimer', () => this.setData({ message: '' }), 2600);
   },
@@ -151,14 +151,15 @@ const definition = {
     let warned = false;
     for (const event of this.combat.drainEvents()) {
       if (event.type === 'attack') { this.actor.attack(event.direction.x, event.direction.y); this.renderActor(0); }
-      if ((event.type === 'launch' || event.type === 'hit' && event.weapon === 'bell') && this.audio) this.audio.play(event.weapon === 'banner' ? 'banner' : 'bell');
+      if (event.type === 'launch' && this.audio) this.audio.play('banner');
+      if (event.type === 'bell-release' && this.audio) this.audio.play(event.kind === 'skill' ? 'dominion' : event.kind === 'echo' ? 'echo' : 'bell');
       if (event.type === 'impact' && this.audio && now >= (this.impactSoundUntil || 0)) {
         this.audio.play('attack'); this.impactSoundUntil = now + 110;
       }
       if (event.type === 'skill') {
         this.actor.direction = Math.abs(event.direction.x) > Math.abs(event.direction.y) ? (event.direction.x > 0 ? 'right' : 'left') : (event.direction.y > 0 ? 'down' : 'up');
         this.actor.play('attack'); this.renderActor(0);
-        if (this.audio) this.audio.play(event.weapon === 'bell' ? 'dominion' : 'rift');
+        if (this.audio && event.weapon === 'banner') this.audio.play('rift');
         if (this.data.vibrationOn && wx.vibrateShort) wx.vibrateShort({ type: 'medium' });
         this.notify(event.weapon === 'bell' ? '镇界 · 震退群敌，短暂护身' : '裂天 · 贯穿爆发，留下裂隙');
       }

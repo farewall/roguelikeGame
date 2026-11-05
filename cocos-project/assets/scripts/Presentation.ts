@@ -160,7 +160,12 @@ export class CocosPresentation {
     const point = p => ({ x: a.x + p.x * a.width / 100, y: a.y + p.y * a.height / 100 });
     for (const hazard of c.combat.hazards) drawHazard(this, world, hazard, point);
     const player = point(d.player);
-    if (!d.ended && d.weaponId === 'bell') { g.lineStyle(1.5, GOLD, 0.2); g.drawCircle(player.x, player.y, d.attackRange); }
+    if (!d.ended && d.weaponId === 'bell') {
+      g.lineStyle(d.attackRange * 0.25, GOLD, 0.055); g.drawCircle(player.x, player.y, d.attackRange * 0.875);
+      g.lineStyle(1.5, GOLD, 0.25); g.drawCircle(player.x, player.y, d.attackRange);
+      g.lineStyle(1, GOLD, 0.15); g.drawCircle(player.x, player.y, d.attackRange * 0.75);
+    }
+    for (const wave of c.combat.bellWaves) this.bellWave(world, wave, point);
     for (const effect of c.combat.effects) this.drawEffect(world, effect, point);
     for (const volley of c.combat.projectiles) for (const bolt of volley.bolts) {
       const p = point(bolt), dx = bolt.direction.x, dy = bolt.direction.y, trail = Math.min(64, volley.traveled);
@@ -194,6 +199,10 @@ export class CocosPresentation {
         if (enemy.hp < enemy.maxHp) { this.rect(world, p.x - 26, p.y + size / 2 - 1, 52, 5, 0x24322f); this.rect(world, p.x - 26, p.y + size / 2 - 1, 52 * Math.max(0, enemy.hp / enemy.maxHp), 5, 0xd18b60); }
       }
       if (enemy.castTime > 0 || enemy.freezeTime > 0) { g.lineStyle(2, enemy.freezeTime > 0 ? 0xade0ef : GOLD, 0.8); g.drawCircle(p.x, p.y, size * 0.45); }
+      if (enemy.fractureTime > 0) {
+        g.lineStyle(2.5, 0xe7bf7e, 0.9);
+        for (const side of [-1, 1]) { g.moveTo(p.x + side * 16, p.y + size * 0.3); g.lineTo(p.x + side * 25, p.y + size * 0.22); g.lineTo(p.x + side * 33, p.y + size * 0.33); }
+      }
       if (enemy.burnTime > 0) { g.lineStyle(3, 0xf29358, 0.8); g.drawCircle(p.x, p.y + size * 0.2, size * 0.25); }
       if (enemy.slowTime > 0) { g.lineStyle(2, 0xa3d5e4, 0.8); g.drawEllipse(p.x, p.y + size * 0.3, size * 0.4, size * 0.15); }
     }
@@ -233,7 +242,7 @@ export class CocosPresentation {
     if (d.message) {
       const tw = Math.min(900, a.width * 0.66), tx = a.x + (a.width - tw) / 2;
       this.rect(hud, tx, a.y + 104, tw, 62, 0x0b1d26, 0.9, 0x6a735c); this.text(hud, 'toast', d.message, tx + tw / 2, a.y + 135, 22, GOLD, { center: true });
-    } else if (d.hintsOn) this.text(hud, 'hint', d.boss ? d.boss.hint : '左手走位 · 至宝自动攻击 · 右下蓄能技', a.x + a.width / 2, a.y + a.height - 20, 19, MUTE, { center: true });
+    } else if (d.hintsOn) this.text(hud, 'hint', d.boss ? d.boss.hint : d.weaponId === 'bell' ? '让外缘扫过敌群 · 留点回响追击 · 镇界解围' : '左手走位 · 至宝自动攻击 · 右下蓄能技', a.x + a.width / 2, a.y + a.height - 20, 19, MUTE, { center: true });
     this.text(hud, 'xp', '灵气 ' + d.xp + ' / ' + d.xpNeed, a.x, h - 39, 21, MUTE);
     this.rect(hud, a.x + 160, h - 28, a.width - 465, 5, 0x2b3e42); this.rect(hud, a.x + 160, h - 28, (a.width - 465) * d.xpPct / 100, 5, 0xafbf8b);
     this.text(hud, 'kills', '击破 ' + d.kills + '       ' + (d.stage === 5 ? '天道终战' : '四象 ' + d.stage + ' / 4'), a.x + a.width - 280, h - 39, 20, MUTE);
@@ -246,6 +255,15 @@ export class CocosPresentation {
   }
   drawEffect(layer, effect, point) {
     const g = layer.g, p = point(effect), t = clamp(effect.age / effect.life, 0, 1), life = 1 - t;
+    if (effect.type === 'bell-shadow' || effect.type === 'bell-summon') {
+      const summon = effect.type === 'bell-summon';
+      this.bellBody(layer, p.x, p.y - (summon ? 75 : 18), summon ? 1.7 : 0.7, summon ? 1 - t : 0, 0, 3, life * (summon ? 0.9 : 0.38));
+      g.lineStyle(1.5, summon ? GOLD : 0xbde1dd, life * 0.4); g.drawEllipse(p.x, p.y, summon ? 65 : 38, summon ? 22 : 12); return;
+    }
+    if (effect.type === 'resonance' || effect.type === 'ward-break') {
+      g.lineStyle(effect.type === 'resonance' ? 3 : 4, 0xffefc3, life); g.drawCircle(p.x, p.y, effect.radius * (0.2 + t));
+      for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, r = effect.radius * t; g.moveTo(p.x + Math.cos(a) * r, p.y + Math.sin(a) * r); g.lineTo(p.x + Math.cos(a) * (r + 9 * life), p.y + Math.sin(a) * (r + 9 * life)); } return;
+    }
     if (effect.type === 'damage') {
       this.text(layer, 'damage-' + effect.id, effect.amount, p.x, p.y - 38 - t * 48, effect.heavy ? 32 : 23, effect.heavy ? 0xffe6a0 : 0xfff4d4, { center: true, bold: true, alpha: life });
       return;
@@ -282,13 +300,43 @@ export class CocosPresentation {
     if (effect.type === 'bell' || effect.type === 'water-pulse') { g.lineStyle(1, color, life * 0.65); g.drawCircle(p.x, p.y, radius * 0.75); g.drawEllipse(p.x, p.y, radius, radius * 0.5); }
     if (effect.type === 'steam' || effect.type === 'impact') { g.beginFill(color, life * 0.16); g.drawCircle(p.x, p.y, radius * 0.7); g.endFill(); }
   }
+  bellBody(layer, x, y, scale, charge, marks, threshold, alpha) {
+    const g = layer.g, sx = n => x + n * scale, sy = n => y + n * scale;
+    g.lineStyle(2 * scale, GOLD, alpha); g.drawCircle(sx(0), sy(-34), 7 * scale);
+    g.beginFill(0x88652f, alpha); g.moveTo(sx(-14), sy(-27));
+    g.bezierCurveTo(sx(-28), sy(-16), sx(-17), sy(10), sx(-30), sy(24)); g.lineTo(sx(30), sy(24));
+    g.bezierCurveTo(sx(17), sy(10), sx(28), sy(-16), sx(14), sy(-27)); g.closePath(); g.endFill();
+    g.lineStyle(2 * scale, 0xf8d991, alpha); g.drawEllipse(sx(0), sy(24), 30 * scale, 8 * scale);
+    g.drawEllipse(sx(0), sy(-22), 15 * scale, 5 * scale);
+    for (const offset of [-13, 0, 13]) { g.moveTo(sx(offset * 0.7), sy(-16)); g.lineTo(sx(offset), sy(17)); }
+    g.moveTo(sx(-22), sy(3)); g.lineTo(sx(22), sy(3));
+    g.lineStyle(1, 0xffefb9, alpha * 0.6); g.drawCircle(sx(0), sy(-5), (6 + charge * 4) * scale);
+    g.beginFill(0xf6d185, alpha); g.drawCircle(sx(0), sy(27), 4 * scale); g.endFill();
+    for (let i = 0; i < threshold; i++) {
+      const px = sx((i - (threshold - 1) / 2) * 14);
+      g.lineStyle(1.5, GOLD, alpha * 0.8); g.beginFill(i < marks ? 0xffe5a4 : 0x3a392a, alpha); g.drawCircle(px, sy(43), 4 * scale); g.endFill();
+    }
+    if (charge > 0) { g.lineStyle(2, GOLD, charge * alpha); g.drawCircle(x, y, (45 - charge * 10) * scale); }
+  }
+  bellWave(layer, wave, point) {
+    const g = layer.g, p = point(wave.origin), echo = wave.kind === 'echo', skill = wave.kind === 'skill';
+    const end = wave.range / wave.speed, fade = wave.age <= end ? 1 : Math.max(0, 1 - (wave.age - end) / 0.14);
+    const color = skill ? 0xffe9a6 : echo ? 0xbce6e0 : wave.elements.fire ? 0xf4b16a : wave.elements.water ? 0xa3e3ed : GOLD;
+    g.lineStyle(skill ? 9 : echo ? 3 : 5, color, fade * 0.9); g.drawCircle(p.x, p.y, Math.max(1, wave.radius));
+    g.lineStyle(skill ? 3 : 1.5, 0xfff4d2, fade * 0.65); g.drawCircle(p.x, p.y, Math.max(1, wave.radius - (skill ? 12 : 7)));
+    if (wave.radius >= wave.range * 0.75 && !echo && !skill) {
+      g.lineStyle(2, 0xfff3c2, fade); g.drawCircle(p.x, p.y, wave.radius + 3);
+      for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6; g.moveTo(p.x + Math.cos(a) * wave.radius, p.y + Math.sin(a) * wave.radius); g.lineTo(p.x + Math.cos(a) * (wave.radius + 8), p.y + Math.sin(a) * (wave.radius + 8)); }
+    }
+    if (wave.elements.earth) { g.lineStyle(2, 0xc6a779, fade * 0.7); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; g.drawCircle(p.x + Math.cos(a) * wave.radius, p.y + Math.sin(a) * wave.radius, 3); } }
+  }
   artifact(layer, player, weapon, time, casting) {
     const g = layer.g, x = player.x + 69, y = player.y - 38 + Math.sin(time * 2.5) * 5, glow = casting ? 0.34 : 0.1;
     g.lineStyle(0); g.beginFill(weapon === 'bell' ? GOLD : 0x9be2d3, glow); g.drawCircle(x, y, casting ? 52 : 36); g.endFill();
     if (weapon === 'bell') {
-      g.lineStyle(2.5, GOLD, 0.95); g.drawCircle(x, y - 36, 8); g.beginFill(0x806633, 0.95);
-      g.moveTo(x - 15, y - 28); g.bezierCurveTo(x - 28, y - 14, x - 18, y + 14, x - 31, y + 23); g.lineTo(x + 31, y + 23); g.bezierCurveTo(x + 18, y + 14, x + 28, y - 14, x + 15, y - 28); g.closePath(); g.endFill();
-      g.drawEllipse(x, y + 23, 31, 8); g.moveTo(x - 18, y - 7); g.lineTo(x + 18, y - 7); g.moveTo(x, y - 22); g.lineTo(x, y + 13); g.drawCircle(x, y + 5, 6);
+      const pending = this.c.combat.pendingAttack;
+      const charge = pending ? 1 - Math.min(1, pending.remaining / (2 / 12)) : 0;
+      this.bellBody(layer, x + Math.sin(time * 65) * charge * 2, y, 1, charge, this.c.data.bellMarks || 0, this.c.data.bellThreshold || 3, 1);
     } else {
       const wave = Math.sin(time * 6) * 6;
       g.lineStyle(3, 0xb9d9b4, 0.95); g.moveTo(x - 23, y - 46); g.lineTo(x - 23, y + 48); g.moveTo(x - 30, y - 37); g.lineTo(x + 31, y - 37);

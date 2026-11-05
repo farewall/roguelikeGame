@@ -10,66 +10,70 @@ function target(c, x = 55, y = 55, kind = 'wraith') {
 function simulate(c, seconds, attack = true) { for (let i = 0; i < Math.ceil(seconds / 0.025); i++) c.update(0.025, attack); }
 function closeTo(a, b, tolerance = 1e-7) { assert.ok(Math.abs(a - b) < tolerance, `${a} != ${b}`); }
 
+function strike(c, attack) { c.strike(attack); if (c.weapon === 'bell') c.updateBellWaves(0.26); }
+
 test('enemy movement uses equal physical speed horizontally and vertically in a wide arena', () => {
   const c = fresh(); c.configureArena(844, 280, 0.52);
   const horizontal = target(c, 80, 55), vertical = target(c, 50, 85); horizontal.speed = vertical.speed = 52;
   const startH = { ...horizontal }, startV = { ...vertical }; simulate(c, 0.5, false);
   closeTo(c.distance(startH, horizontal), 26); closeTo(c.distance(startV, vertical), 26);
 });
-test('damage waits for frame 2 and bell hits every enemy in its ring, including boundary', () => {
+test('bell waits for windup, then its traveling front reaches near targets before the outer boundary', () => {
   const c = fresh(); const a = target(c, 55), b = target(c, 45), edge = target(c, 50 + WEAPONS.bell.range / c.width * 100), outside = target(c, edge.x + 0.001);
   c.update(0.025); assert.ok(c.pendingAttack); closeTo(a.hp, 100); simulate(c, 0.125); closeTo(a.hp, 100);
-  simulate(c, 0.05); closeTo(a.hp, 97); closeTo(b.hp, 97); closeTo(edge.hp, 97); closeTo(outside.hp, 100);
+  simulate(c, 0.05); closeTo(a.hp, 100); assert.equal(c.bellWaves.length, 1);
+  simulate(c, 0.125, false); closeTo(a.hp, 97); closeTo(b.hp, 97); closeTo(edge.hp, 100);
+  simulate(c, 0.125, false); closeTo(edge.hp, 96.1); closeTo(outside.hp, 100);
 });
 test('distant enemies never start attacks or consume cooldown', () => {
   const c = fresh(); const e = target(c, 95); simulate(c, 1); assert.equal(c.pendingAttack, null); closeTo(e.hp, 100); closeTo(c.attackCd, 0);
 });
 test('a moving target can escape the windup; the hit does not home beyond range', () => {
   const c = fresh(); const e = target(c, 55); c.update(0.025); e.x = 95; simulate(c, 0.2);
-  closeTo(e.hp, 100); assert.ok(c.effects.some(f => f.type === 'bell'));
+  closeTo(e.hp, 100); assert.ok(c.bellWaves.some(w => w.kind === 'normal'));
 });
 test('banner blades travel before impact, pierce a line once each and leave the rear and distant targets safe', () => {
   const c = fresh('banner'); const forward = target(c, 57), second = target(c, 65), behind = target(c, 44), far = target(c, 90);
-  c.strike({ direction: { x: 1, y: 0 } }); closeTo(forward.hp, 100); assert.equal(c.projectiles.length, 1);
+  strike(c, { direction: { x: 1, y: 0 } }); closeTo(forward.hp, 100); assert.equal(c.projectiles.length, 1);
   for (let i = 0; i < 24; i++) c.updateArtifacts(0.025);
   closeTo(forward.hp, 96.4); closeTo(second.hp, 96.4); closeTo(behind.hp, 100); closeTo(far.hp, 100); assert.equal(c.strikeCount, 1);
-  const overlap = target(c, c.player.x, c.player.y); c.strike({ direction: { x: 1, y: 0 } }); c.updateArtifacts(0.025); closeTo(overlap.hp, 96.4);
+  const overlap = target(c, c.player.x, c.player.y); strike(c, { direction: { x: 1, y: 0 } }); c.updateArtifacts(0.025); closeTo(overlap.hp, 96.4);
 });
 test('stacked haste always changes continuous intervals until the explicit cap', () => {
   const c = fresh(); c.attackCd = 1;
-  for (let i = 0; i < 6; i++) { const old = c.interval(); assert.ok(c.upgrade('haste')); assert.ok(c.interval() < old); }
+  for (let i = 0; i < 5; i++) { const old = c.interval(); assert.ok(c.upgrade('haste')); assert.ok(c.interval() < old); }
   closeTo(c.interval(), 0.52); assert.equal(c.upgrade('haste'), false); assert.ok(!c.upgradePool().some(u => u.kind === 'haste'));
 });
 test('repeated fire upgrades strengthen burn rather than unrelated base damage', () => {
-  const c = fresh(); c.upgrade('fire'); const e = target(c); c.strike({ direction: { x: 1, y: 0 } }); const dps = e.burnDps;
+  const c = fresh(); c.upgrade('fire'); const e = target(c); strike(c, { direction: { x: 1, y: 0 } }); const dps = e.burnDps;
   const initialHp = e.hp; simulate(c, 1, false); closeTo(e.hp, initialHp - dps);
-  c.upgrade('fire'); c.strike({ direction: { x: 1, y: 0 } }); assert.ok(e.burnDps > dps); closeTo(c.power, 1);
+  c.upgrade('fire'); strike(c, { direction: { x: 1, y: 0 } }); assert.ok(e.burnDps > dps); closeTo(c.power, 1);
   assert.equal(c.upgradePool().find(u => u.kind === 'fire').change, '灼烧 26% → 33% / 秒');
 });
 test('water controls enemy speed, strengthens with tiers, and expires without changing base speed', () => {
-  const c = fresh(); c.upgrade('water'); const e = target(c, 59); e.speed = 52; c.strike({ direction: { x: 1, y: 0 } });
+  const c = fresh(); c.upgrade('water'); const e = target(c, 59); e.speed = 52; strike(c, { direction: { x: 1, y: 0 } });
   const before = { ...e }; simulate(c, 0.25, false); closeTo(c.distance(e, before), 52 * 0.58 * 0.25);
   e.slowTime = 0; const after = { ...e }; simulate(c, 0.25, false); closeTo(c.distance(e, after), 13); closeTo(e.speed, 52);
-  c.upgrade('water'); c.strike({ direction: { x: 1, y: 0 } }); const third = { ...e }; simulate(c, 0.25, false); closeTo(c.distance(e, third), 52 * 0.51 * 0.25);
+  c.upgrade('water'); strike(c, { direction: { x: 1, y: 0 } }); const third = { ...e }; simulate(c, 0.25, false); closeTo(c.distance(e, third), 52 * 0.51 * 0.25);
 });
 test('earth expands real splash radius and knockback across repeated upgrades', () => {
   const c = fresh('banner'); c.upgrade('earth'); const main = target(c, 57), splash = target(c, 57, 67), distant = target(c, 95);
-  c.strike({ direction: { x: 1, y: 0 } }); for (let i = 0; i < 12; i++) c.updateArtifacts(0.025); assert.ok(main.hp < 96); assert.ok(splash.hp < 100); closeTo(distant.hp, 100);
-  const firstRadius = c.effects.find(f => f.type === 'earth').radius; c.upgrade('earth'); c.strike({ direction: { x: 1, y: 0 } }); for (let i = 0; i < 12; i++) c.updateArtifacts(0.025);
+  strike(c, { direction: { x: 1, y: 0 } }); for (let i = 0; i < 12; i++) c.updateArtifacts(0.025); assert.ok(main.hp < 96); assert.ok(splash.hp < 100); closeTo(distant.hp, 100);
+  const firstRadius = c.effects.find(f => f.type === 'earth').radius; c.upgrade('earth'); strike(c, { direction: { x: 1, y: 0 } }); for (let i = 0; i < 12; i++) c.updateArtifacts(0.025);
   assert.ok(c.effects.filter(f => f.type === 'earth').at(-1).radius > firstRadius);
 });
 test('steam damages an area once per attack even when many struck enemies overlap', () => {
   const c = fresh(); c.upgrade('fire'); c.upgrade('water'); const a = target(c, 55), b = target(c, 56);
-  c.strike({ direction: { x: 1, y: 0 } }); closeTo(a.hp, 95.5); closeTo(b.hp, 95.5);
+  strike(c, { direction: { x: 1, y: 0 } }); closeTo(a.hp, 95.5); closeTo(b.hp, 95.5);
   assert.equal(c.effects.filter(f => f.type === 'steam').length, 1);
 });
 test('earth/fire and earth/water form distinct persistent fields with bounded accumulation', () => {
   for (const element of ['fire', 'water']) {
     const c = fresh(); c.upgrade('earth'); c.upgrade(element); const e = target(c);
-    c.strike({ direction: { x: 1, y: 0 } }); const hp = e.hp; simulate(c, 0.1, false);
+    strike(c, { direction: { x: 1, y: 0 } }); const hp = e.hp; simulate(c, 0.1, false);
     const field = c.hazards.find(h => h.friendly); assert.equal(field.kind, element === 'fire' ? 'lava' : 'mud');
     if (element === 'fire') assert.ok(e.hp < hp); else assert.ok(e.slowTime > 0);
-    for (let i = 0; i < 20; i++) c.strike({ direction: { x: 1, y: 0 } }); assert.ok(c.hazards.filter(h => h.friendly).length <= 1); assert.ok(c.effects.length <= 40);
+    for (let i = 0; i < 20; i++) strike(c, { direction: { x: 1, y: 0 } }); assert.ok(c.hazards.filter(h => h.friendly).length <= 1); assert.ok(c.effects.length <= 40);
   }
 });
 test('element cap removes exhausted choices; each offer contains unique, usable upgrades', () => {
@@ -173,7 +177,7 @@ test('weak enemies enter as a compact group, stay away from the player, and die 
     assert.ok(c.distance(pack[0], e) < 100);
   }
   const anchor = { ...pack[1] }; c.player.x = anchor.x; c.player.y = anchor.y;
-  c.strike({ direction: { x: 1, y: 0 } }); c.collectDeaths();
+  strike(c, { direction: { x: 1, y: 0 } }); c.collectDeaths();
   assert.equal(c.kills, 3); closeTo(c.xp, 1.5);
   c.collectDeaths(); closeTo(c.xp, 1.5);
 });
