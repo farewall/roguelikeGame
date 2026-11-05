@@ -2,7 +2,7 @@
 const clamp = (v: number, a = 0, b = 1) => Math.max(a, Math.min(b, v));
 const rows = { wraith: 0, ranged: 1, charger: 2, elite: 3 };
 export function creatureSize(e) {
-  return e.boss ? (e.bossType === 5 ? 205 : 200) : e.kind === 'elite' ? 142 : e.kind === 'ranged' ? 106 : e.kind === 'charger' ? 112 : e.fodder ? 65 : 82;
+  return e.boss ? (e.bossType === 5 ? 232 : 228) : e.kind === 'elite' ? 166 : e.kind === 'ranged' ? 122 : e.kind === 'charger' ? 128 : e.fodder ? 80 : 96;
 }
 function smoke(v, layer, id, tile, x, y, w, h, alpha) {
   return v.image(layer, id, v.assets.frames.chaosMist[tile], x - w / 2, y - h / 2, w, h, clamp(alpha));
@@ -29,10 +29,10 @@ export function drawRemnant(v, layer, body, p) {
     for (let i = 0; i < count; i++) {
       const angle = i * Math.PI * 2 / count + body.id * 0.71 + t * 1.3;
       const spread = size * (0.08 + t * 0.23), w = size * (0.48 + t * 0.4);
-      smoke(v, layer, 'remnant-fog-' + body.id + '-' + i, i % 4, p.x + Math.cos(angle) * spread, p.y + Math.sin(angle) * spread * 0.35 - size * t * 0.13, w, w * 0.8, fog * 0.7);
+      smoke(v, layer, 'remnant-fog-' + body.id + '-' + i, i % 4, p.x + Math.cos(angle) * spread, p.y + Math.sin(angle) * spread * 0.35 - size * t * 0.13, w, w * 0.8, fog * 0.55);
     }
     const eddy = smoke(v, layer, 'remnant-eddy-' + body.id, 4, p.x, p.y + size * 0.24, size * (0.8 + t * 0.25), size * 0.38, fog * clamp(t * 2) * 0.7);
-    eddy.tint = 0xb6bdc0;
+    eddy.tint = 0x939b9f;
     // Essence belongs to the reward; the creature's body leaves no solid debris.
     smoke(v, layer, 'remnant-essence-' + body.id, 5, p.x, p.y - size * t * 0.3, size * 0.75, size * 0.75, fog * 0.65);
   }

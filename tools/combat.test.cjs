@@ -249,9 +249,9 @@ test('enemy animation freezes with controller pauses and with enemy ice control'
 test('enemy animation atlas contains four roles, six frames and actual PNG transparency within content budget', () => {
   const fs = require('node:fs'), path = require('node:path');
   const png = fs.readFileSync(path.join(__dirname, '../cocos-project/assets/game-content/images/enemy-actions.png'));
-  assert.equal(png.readUInt32BE(16), 768); assert.equal(png.readUInt32BE(20), 512);
+  assert.equal(png.readUInt32BE(16), 1152); assert.equal(png.readUInt32BE(20), 768);
   assert.ok(png.includes(Buffer.from('tRNS')), 'Enemy sprites need transparency');
-  assert.ok(png.length < 200 * 1024, 'Avoid enlarging the content bundle for common enemies');
+  assert.ok(png.length < 300 * 1024, 'Avoid enlarging the content bundle for common enemies');
 });
 
 test('all five bosses anticipate, release with their actual hazard, and freeze their animation under ice control', () => {
@@ -297,8 +297,8 @@ test('dead bodies are visual only, grant rewards once, expire, and remain bounde
 
 test('the new boss and chaos mist atlas keeps all five silhouettes and six VFX within the art budget', () => {
   const png = require('node:fs').readFileSync(require('node:path').join(__dirname, '../cocos-project/assets/game-content/images/chaos-boss-actions.png'));
-  assert.equal(png.readUInt32BE(16), 768); assert.equal(png.readUInt32BE(20), 768);
-  assert.ok(png.includes(Buffer.from('tRNS'))); assert.ok(png.length < 250 * 1024);
+  assert.equal(png.readUInt32BE(16), 1152); assert.equal(png.readUInt32BE(20), 1152);
+  assert.ok(png.includes(Buffer.from('tRNS'))); assert.ok(png.length < 550 * 1024);
 });
 
 test('denser fodder packs arrive sooner without increasing the wave quota or weak enemy HP', () => {

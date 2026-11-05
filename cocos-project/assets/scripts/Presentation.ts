@@ -260,9 +260,7 @@ export class CocosPresentation {
   drawEffect(layer, effect, point) {
     const g = layer.g, p = point(effect), t = clamp(effect.age / effect.life, 0, 1), life = 1 - t;
     if (effect.type === 'bell-summon') {
-      const summon = effect.type === 'bell-summon';
-      this.bellBody(layer, p.x, p.y - (summon ? 75 : 18), summon ? 1.7 : 0.7, summon ? 1 - t : 0, 0, 3, life * (summon ? 0.9 : 0.38));
-      g.lineStyle(1.5, summon ? GOLD : 0xbde1dd, life * 0.4); g.drawEllipse(p.x, p.y, summon ? 65 : 38, summon ? 22 : 12); return;
+      g.lineStyle(2, GOLD, life * 0.45); g.drawEllipse(p.x, p.y, 58 + t * 22, 20 + t * 8); return;
     }
     if (effect.type === 'resonance' || effect.type === 'ward-break') {
       g.lineStyle(effect.type === 'resonance' ? 3 : 4, 0xffefc3, life); g.drawCircle(p.x, p.y, effect.radius * (0.2 + t));
@@ -304,32 +302,20 @@ export class CocosPresentation {
     if (effect.type === 'bell' || effect.type === 'water-pulse') { g.lineStyle(1, color, life * 0.65); g.drawCircle(p.x, p.y, radius * 0.75); g.drawEllipse(p.x, p.y, radius, radius * 0.5); }
     if (effect.type === 'steam' || effect.type === 'impact') { g.beginFill(color, life * 0.16); g.drawCircle(p.x, p.y, radius * 0.7); g.endFill(); }
   }
-  bellBody(layer, x, y, scale, charge, marks, threshold, alpha, turn = 0) {
-    const width = 0.7 + Math.abs(Math.cos(turn)) * 0.3;
-    const g = layer.g, sx = n => x + n * scale * width, sy = n => y + n * scale;
-    g.lineStyle(2 * scale, GOLD, alpha); g.drawCircle(sx(0), sy(-34), 7 * scale);
-    g.beginFill(0x88652f, alpha); g.moveTo(sx(-14), sy(-27));
-    g.bezierCurveTo(sx(-28), sy(-16), sx(-17), sy(10), sx(-30), sy(24)); g.lineTo(sx(30), sy(24));
-    g.bezierCurveTo(sx(17), sy(10), sx(28), sy(-16), sx(14), sy(-27)); g.closePath(); g.endFill();
-    g.lineStyle(2 * scale, 0xf8d991, alpha); g.drawEllipse(sx(0), sy(24), 30 * scale, 8 * scale);
-    g.drawEllipse(sx(0), sy(-22), 15 * scale, 5 * scale);
-    // Vertical ribs sweep around the upright body, showing an axial rotation.
-    for (let i = 0; i < 6; i++) {
-      const angle = turn + i * Math.PI / 3;
-      if (Math.cos(angle) < 0) continue;
-      const offset = Math.sin(angle) * 20;
-      g.lineStyle((1.3 + Math.cos(angle) * 0.8) * scale, Math.cos(angle) > 0.7 ? 0xffe8a6 : 0xbd924c, alpha * 0.9);
-      g.moveTo(sx(offset * 0.65), sy(-18)); g.lineTo(sx(offset), sy(17));
-      g.drawCircle(sx(offset), sy(-3), 2 * scale);
-    }
-    g.moveTo(sx(-22), sy(3)); g.lineTo(sx(22), sy(3));
-    g.lineStyle(1, 0xffefb9, alpha * 0.6); g.drawCircle(sx(0), sy(-5), (6 + charge * 4) * scale);
-    g.beginFill(0xf6d185, alpha); g.drawCircle(sx(0), sy(27), 4 * scale); g.endFill();
+  bellBody(layer, x, y, scale, charge, marks, threshold, alpha, turn = 0, id = 'chaos-bell') {
+    const cycle = ((turn / (Math.PI * 2)) % 1 + 1) % 1;
+    const texture = this.assets.frames.bell[Math.floor(cycle * 16) % 16];
+    const w = 110 * scale, h = 116 * scale;
+    const sprite = this.image(layer, id, texture, x - w / 2, y - h / 2, w, h, alpha);
+    sprite.node.getComponent(UITransform).setAnchorPoint(0.5, 0.5);
+    sprite.node.setPosition(x, -y);
+    // The bronze body stays opaque. Qi and charge are separate, faint accents.
+    const g = layer.g;
+    g.lineStyle(1, GOLD, alpha * (0.1 + charge * 0.25)); g.drawEllipse(x, y + 12 * scale, 52 * scale, 13 * scale);
     for (let i = 0; i < threshold; i++) {
-      const px = sx((i - (threshold - 1) / 2) * 14);
-      g.lineStyle(1.5, GOLD, alpha * 0.8); g.beginFill(i < marks ? 0xffe5a4 : 0x3a392a, alpha); g.drawCircle(px, sy(43), 4 * scale); g.endFill();
+      g.lineStyle(1, GOLD, alpha * 0.65); g.beginFill(i < marks ? 0xffe5a4 : 0x3a392a, alpha);
+      g.drawCircle(x + (i - (threshold - 1) / 2) * 13 * scale, y + 55 * scale, 2.8 * scale); g.endFill();
     }
-    if (charge > 0) { g.lineStyle(2, GOLD, charge * alpha); g.drawCircle(x, y, (45 - charge * 10) * scale); }
   }
   bellWave(layer, wave, point) {
     const g = layer.g, p = point(wave.origin), echo = wave.kind === 'echo', skill = wave.kind === 'skill';
@@ -357,19 +343,11 @@ export class CocosPresentation {
   artifact(layer, player, weapon, time, casting) {
     const g = layer.g;
     if (weapon === 'bell') {
-      const node = this.use(layer, 'chaos-bell', () => { const n = this.makeNode('chaos-bell'); n.addComponent(Graphics); return n; });
-      const clock: DrawList = (node as any).bellDrawList || ((node as any).bellDrawList = new DrawList(node.getComponent(Graphics))); clock.clear();
-      const y = player.y - 118 + Math.sin(time * 2.2) * 3;
-      node.setPosition(player.x, -y);
       const pending = this.c.combat.pendingAttack;
       const charge = pending ? 1 - Math.min(1, pending.remaining / (2 / 12)) : 0;
-      clock.lineStyle(1.5, GOLD, casting ? 0.5 : 0.22); clock.drawEllipse(0, 7, 43, 16);
-      for (let i = 0; i < 3; i++) {
-        const angle = time * 1.4 + i * Math.PI * 2 / 3;
-        clock.lineStyle(0); clock.beginFill(0xffdfa0, 0.7); clock.drawCircle(Math.cos(angle) * 43, 7 + Math.sin(angle) * 16, 2); clock.endFill();
-      }
-      this.bellBody({ g: clock }, Math.sin(time * 65) * charge * 2, 0, 1.15, charge, this.c.data.bellMarks || 0, this.c.data.bellThreshold || 3, 1, time * 1.4);
-      clock.flush();
+      const summon = this.c.combat.effects.find(effect => effect.type === 'bell-summon');
+      const pulse = summon ? Math.sin(Math.PI * summon.age / summon.life) * 0.1 : 0;
+      this.bellBody(layer, player.x + Math.sin(time * 65) * charge * 1.5, player.y - 130 + Math.sin(time * 2.2) * 3, 1 + pulse, charge, this.c.data.bellMarks || 0, this.c.data.bellThreshold || 3, 1, time * 1.4);
     } else {
       const x = player.x + 69, y = player.y - 38 + Math.sin(time * 2.5) * 5, glow = casting ? 0.34 : 0.1;
       g.lineStyle(0); g.beginFill(0x9be2d3, glow); g.drawCircle(x, y, casting ? 52 : 36); g.endFill();

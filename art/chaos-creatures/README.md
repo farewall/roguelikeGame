@@ -2,12 +2,12 @@
 
 本轮按已确认的全身设定重建四类小怪、四象法相和天道化身。它们是混沌重新凝形的血肉，不是天地毁灭后幸存的旧生灵。弱怪无甲小体、吞灵囊兽宽腹、裂界奔兽长肢、镇劫重兽厚胸骨盾，大小与轮廓区分强弱和攻击方式。
 
-- `cocos-project/assets/game-content/images/enemy-actions.png`：768×512，4 行 × 6 帧。行顺序：初生浊兽、吞灵囊兽、裂界奔兽、镇劫重兽。
-- `cocos-project/assets/game-content/images/chaos-boss-actions.png`：768×768，6 行 × 6 帧。前五行：青龙法相、白虎法相、朱雀法相、玄武法相、天道化身；最后一行为混沌雾气纹理。
+- `cocos-project/assets/game-content/images/enemy-actions.png`：1152×768，4 行 × 6 帧。行顺序：初生浊兽、吞灵囊兽、裂界奔兽、镇劫重兽。
+- `cocos-project/assets/game-content/images/chaos-boss-actions.png`：1152×1152，6 行 × 6 帧。前五行：青龙法相、白虎法相、朱雀法相、玄武法相、天道化身；最后一行为混沌雾气纹理。
 - 生物六列：站立、移动、蓄势、攻击、受击、形体失稳。受击姿态优先，预警与攻击姿态由真实危险区时间驱动。
 - 原 `boss-actions.png` 继续提供技能纹理；不改既有藤蔓、扑杀、火羽、潮汐等危险区形状和命中时机。
 
-素材由 imagegen 依照已确认的设定图制作，再进行机械缩放和 PNG8 调色板压缩。普通怪图集约 97 KiB，新首领与雾气图集约 142 KiB；使用真实 alpha 透明背景。高分辨率生成源保留在本次工作区的 `generated_images`，不作为微信运行资源加载。
+素材由 imagegen 依照已确认的设定图制作，再进行机械缩放和 保留渐变透明度的调色板压缩。普通怪图集约 230 KiB，新首领与雾气图集约 442 KiB；使用真实 alpha 透明背景。高分辨率生成源保留在本次工作区的 `generated_images`，不作为微信运行资源加载。
 
 ## 生命周期
 

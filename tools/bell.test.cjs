@@ -85,5 +85,20 @@ test('renamed Chaos Bell centers delayed dominion on the player when it actually
 
 test('Chaos Bell reserves enough top clearance to keep its overhead body inside the arena', () => {
   const { game } = setup({ nativeLayout: true });
-  const bounds = game.playerBounds(); assert.ok(bounds.yMin / 100 * game.arenaRect.height / game.rpxScale >= 165.9);
+  const bounds = game.playerBounds(); assert.ok(bounds.yMin / 100 * game.arenaRect.height / game.rpxScale >= 195.9);
+});
+
+test('Chaos Bell has sixteen textured rotation frames with solid bronze and translucent edge alpha', () => {
+  const fs = require('node:fs'), path = require('node:path');
+  const png = fs.readFileSync(path.join(__dirname, '../cocos-project/assets/game-content/images/chaos-bell.png'));
+  assert.equal(png.readUInt32BE(16), 768); assert.equal(png.readUInt32BE(20), 768);
+  assert.ok(png.length < 280 * 1024);
+  let alpha;
+  for (let offset = 8; offset < png.length;) {
+    const size = png.readUInt32BE(offset), type = png.toString('ascii', offset + 4, offset + 8);
+    if (type === 'tRNS') alpha = png.subarray(offset + 8, offset + 8 + size);
+    offset += 12 + size;
+  }
+  assert.ok(alpha); assert.ok(alpha.some(value => value === 0)); assert.ok(alpha.some(value => value > 240));
+  assert.ok(alpha.some(value => value > 5 && value < 235), 'Smooth sprite edges must survive compression');
 });

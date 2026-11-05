@@ -52,7 +52,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
           return Object.entries(rows).every(([kind, row]) => {
             const enemy = kaitian.controller.combat.enemies.find(e => e.kind === kind);
             const sprite = kaitian.presentation.layers.world.nodes.get('enemy-' + enemy.id).getComponent('cc.Sprite');
-            return sprite.spriteFrame.rect.y === row * 128 && sprite.spriteFrame.rect.width === 128;
+            return sprite.spriteFrame.rect.y === row * 192 && sprite.spriteFrame.rect.width === 192;
           });
         }), 'All four enemy roles must render their own atlas row in the real Creator output');
         const prefix = weapon + '-' + viewport.width; await page.screenshot({ path: output + '/' + prefix + '-normal.png' });
@@ -97,6 +97,10 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
             const controller = kaitian.controller, c = controller.combat, v = kaitian.presentation;
             const clock = v.layers.world.nodes.get('chaos-bell'), arena = controller.layout.arena;
             if (!clock || !clock.active || controller.data.weaponName !== '混沌钟') return false;
+            const body = clock.getComponent('cc.Sprite');
+            if (!body || body.color.a !== 255 || body.spriteFrame.rect.width !== 192) return false;
+            const index = Math.floor(((c.time * 1.4 / (Math.PI * 2)) % 1) * 16) % 16;
+            if (body.spriteFrame.rect.x !== (index % 4) * 192 || body.spriteFrame.rect.y !== Math.floor(index / 4) * 192) return false;
             const x = arena.x + c.player.x / 100 * arena.width, y = arena.y + c.player.y / 100 * arena.height;
             if (Math.abs(clock.position.x - x) > 0.01 || clock.position.y < -(y - 110)) return false;
             if (mode.startsWith('idle')) return c.bellWaves.length === 0;
@@ -133,7 +137,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
             const v = kaitian.presentation, boss = kaitian.controller.combat.enemies.find(e => e.boss);
             const sprite = v.layers.world.nodes.get('enemy-' + boss.id).getComponent('cc.Sprite');
             const spells = [...v.layers.world.nodes.keys()].filter(id => id.startsWith('spell-'));
-            return sprite.spriteFrame.rect.y === (stage - 1) * 128 && sprite.spriteFrame.rect.x === (state === 'warning' ? 2 : 3) * 128 && spells.length > 0 && ![...v.layers.world.nodes.keys()].some(id => id.startsWith('hazard-'));
+            return sprite.spriteFrame.rect.y === (stage - 1) * 192 && sprite.spriteFrame.rect.x === (state === 'warning' ? 2 : 3) * 192 && spells.length > 0 && ![...v.layers.world.nodes.keys()].some(id => id.startsWith('hazard-'));
           }, { stage, state }), 'Boss poses and real spell sprites must replace ground labels');
           await page.screenshot({ path: output + '/boss-' + stage + '-' + viewport.width + '-' + state + '.png' });
         }

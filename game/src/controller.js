@@ -288,7 +288,7 @@ const definition = {
   playerBounds() {
     const size = ACTOR_FRAME_SIZE * this.rpxScale;
     const xMargin = Math.min(45, Math.max(5, size * 0.5 / this.arenaRect.width * 100));
-    const headroom = this.combat && this.combat.weapon === 'bell' ? Math.max(size * 0.54, 166 * this.rpxScale) : size * 0.54;
+    const headroom = this.combat && this.combat.weapon === 'bell' ? Math.max(size * 0.54, 196 * this.rpxScale) : size * 0.54;
     const yMin = Math.min(45, Math.max(12, headroom / this.arenaRect.height * 100));
     const yMax = Math.max(55, Math.min(90, 100 - size * 0.46 / this.arenaRect.height * 100));
     return { xMin: xMargin, xMax: 100 - xMargin, yMin, yMax };

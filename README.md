@@ -51,3 +51,5 @@ CI 使用官方 Creator 3.8.8 编辑器导出，检查生成包、两种横屏�
 [迁移说明](docs/MINIGAME-MIGRATION.md) · [试玩上传](docs/WECHAT-PLAYTEST.md) · [资源预算](docs/RESOURCES.md) · [御宝战斗](docs/ARTIFACT-COMBAT.md) · [美术说明](docs/ART.md)
 
 混沌众生试玩重构：四类血肉小怪、五位法相首领，以及「凝形 → 受击 → 形体失稳 → 化雾 → 回归混沌」生命周期。首领化雾完成后再结算，暂停与后台会冻结演出。素材布局、时长及验证见 [混沌众生](art/chaos-creatures/README.md)。
+
+洪荒实体美术：九种怪物升级为192像素动作帧，混沌钟换用16帧青铜实体旋转素材，保留钟口内腔、浮雕明暗和连续透明边缘。见 [素材与验证](docs/HONGHUANG-ART.md)。
