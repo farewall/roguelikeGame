@@ -9,21 +9,14 @@ function advanceEnemyAnimation(enemy, dt, releasing = false) {
   else enemy.visualAge = (enemy.visualAge || 0) + dt;
 }
 function enemyFrame(enemy) {
-  const age = enemy.visualAge || 0, row = ENEMY_ROWS[enemy.kind] || 0;
-  let column;
-  if (enemy.kind === 'wraith') column = (Math.floor(age * 6) + enemy.id % 6) % 6;
-  else if (enemy.visualState === 'dash') column = 3;
-  else if (enemy.visualState === 'cast') {
-    column = enemy.kind === 'charger' ? 2 : age < 0.45 ? 2 : age < 0.85 ? 3 : 4;
-  } else if (enemy.visualState === 'recover') column = age < 0.22 ? 4 : 5;
-  else column = Math.floor(age * 3 + enemy.id % 2) % 2;
-  return row * 6 + column;
+  const row = ENEMY_ROWS[enemy.kind] || 0;
+  return row * 6 + pose(enemy);
 }
-function bossFrame(enemy) {
-  const age = enemy.visualAge || 0;
-  if (enemy.visualState === 'dash' || enemy.visualState === 'release') return 4;
-  if (enemy.visualState === 'cast') return age < 0.45 ? 2 : 3;
-  if (enemy.visualState === 'recover') return 5;
-  return Math.floor(age * 2) % 2;
+function pose(enemy) {
+  if (enemy.hitTime > 0) return 4;
+  if (enemy.visualState === 'dash' || enemy.visualState === 'release') return 3;
+  if (enemy.visualState === 'cast') return 2;
+  return Math.floor((enemy.visualAge || 0) * (enemy.boss ? 2 : 6) + (enemy.id || 0) % 2) % 2;
 }
+function bossFrame(enemy) { return pose(enemy); }
 module.exports = { ENEMY_ROWS, advanceEnemyAnimation, enemyFrame, bossFrame };

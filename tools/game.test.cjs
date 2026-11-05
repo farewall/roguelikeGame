@@ -90,6 +90,8 @@ test('boss kill with level-up pauses for memory before offering upgrades and cle
   const { game } = setup(); const c = game.combat; c.enemies = []; c.phase = 3; c.xp = 4;
   const boss = c.spawn('boss'); boss.hp = 0; c.spawn('ranged'); c.circle(game.player, 80, 1, 1, '羽', 'flame');
   c.collectDeaths(); game.tick(0.025);
+  assert.equal(game.data.showMemory, false); assert.ok(game.stageClearRemaining > 0);
+  for (let i = 0; i < 38; i++) game.tick(0.05);
   assert.equal(game.data.showMemory, true); assert.equal(game.data.showChoice, false); assert.equal(c.enemies.length, 0); assert.equal(c.hazards.length, 0);
   assert.deepEqual(game.archive.memories, [1]); game.selectMemoryReward({ currentTarget: { dataset: { reward: 'echo' } } }); game.continueStage(); assert.equal(c.stage, 2); assert.equal(game.data.showChoice, true);
   game.continueStage(); assert.equal(c.stage, 2); assert.deepEqual(game.archive.memories, [1]);
@@ -155,4 +157,15 @@ test('runtime assets fit the 4 MiB Mini Game budget, preserve animation transpar
   for (const name of ['attack', 'bell', 'echo', 'banner', 'dominion', 'rift', 'ready', 'warning', 'hurt', 'upgrade', 'victory', 'death']) {
     const wav = fs.readFileSync(path.join(root, 'audio', name + '.wav')); assert.equal(wav.toString('ascii', 0, 4), 'RIFF'); assert.equal(wav.readUInt16LE(22), 1); assert.equal(wav.readUInt16LE(34), 16); assert.equal(wav.readUInt32LE(40), wav.length - 44);
   }
+});
+
+test('boss return to chaos freezes in settings and background, blocks skills, then resolves exactly once', () => {
+  const { game, simulate } = setup(); const c = game.combat; c.phase = 3; c.enemies = [];
+  const boss = c.spawn('boss'); boss.hp = 0; c.collectDeaths(); game.tick(0.025);
+  assert.equal(game.isBlocked(), true); assert.equal(game.castSkill(), false); assert.equal(game.data.showMemory, false);
+  game.tick(0.05); const age = c.remnants.find(e => e.boss).age, remaining = game.stageClearRemaining;
+  game.openSettings(); simulate(2); assert.equal(c.remnants.find(e => e.boss).age, age); assert.equal(game.stageClearRemaining, remaining);
+  game.closeSettings(); game.onHide(); simulate(2); assert.equal(game.stageClearRemaining, remaining); game.onShow();
+  simulate(2); assert.equal(c.remnants.length, 0); assert.equal(game.data.showMemory, true); assert.deepEqual(game.archive.memories, [1]);
+  game.restart(); assert.equal(game.stageClearRemaining, 0); assert.equal(game.combat.remnants.length, 0);
 });

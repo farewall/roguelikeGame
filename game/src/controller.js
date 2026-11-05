@@ -122,7 +122,7 @@ const definition = {
     this.stopLoops(); if (this.audio) this.audio.stopAll();
     this.combat = new Combat(this.data.selectedWeapon); this.player = this.combat.player;
     this.updateLayout(); this.actor = new PanguAnimation(); this.actorFrameKey = '';
-    this.choiceApplying = false; this.upgradePending = false; this.upgradeTouch = null;
+    this.choiceApplying = false; this.upgradePending = false; this.stageClearRemaining = 0; this.upgradeTouch = null;
     this.viewCache = {}; this.renderStats = { ticks: 0, calls: 0, bytes: 0, fullBytes: 0, maxBytes: 0 };
     this.setData({ ...this.combat.snapshot(), paused: false, hurt: false, player: { ...this.player }, message: this.combat.weapon === 'bell' ? '外缘共鸣增伤 · 三次有效钟鸣留下回响 · 镇界先护身后震退' : '盘古幡自动发射飞刃 · 拖动右下「裂天」瞄准，松手释放', showChoice: false, choices: [], showMemory: false, ended: false, showEnding: false, won: false, runSummary: null, actorSheets: ACTOR_SHEETS }, () => this.measureArena());
     this.renderActor(0); this.startLoops();
@@ -133,7 +133,7 @@ const definition = {
     this.pendingTimers = {}; this.stopMovement();
   },
   notify(message) { this.setData({ message }); this.schedule('toastTimer', () => this.setData({ message: '' }), 2300); },
-  isBlocked() { return this.data.view !== 'game' || this.data.paused || this.data.ended || this.data.showChoice || this.data.showMemory || this.upgradePending; },
+  isBlocked() { return this.data.view !== 'game' || this.data.paused || this.data.ended || this.data.showChoice || this.data.showMemory || this.upgradePending || this.stageClearRemaining > 0; },
   aimSkill(direction) {
     if (this.isBlocked() || !this.combat || !this.combat.snapshot().skillReady || this.combat.weapon !== 'banner') return false;
     this.setData({ skillAim: this.combat.skillDirection(direction) }); return true;
@@ -146,6 +146,10 @@ const definition = {
   tick(delta) {
     const now = Date.now(), dt = Math.min(0.05, typeof delta === 'number' ? Math.max(0, delta) : Math.max(0, (now - this.lastTickTime) / 1000));
     this.lastTickTime = now;
+    if (this.stageClearRemaining > 0 && this.data.view === 'game' && !this.data.paused && !this.data.ended) {
+      this.combat.advanceRemnants(dt); this.stageClearRemaining = Math.max(0, this.stageClearRemaining - dt);
+      this.syncCombat(); if (!this.stageClearRemaining) this.completeStage(); return;
+    }
     if (this.isBlocked()) return;
     this.combat.update(dt, this.actor.state === 'idle' || this.actor.state === 'move');
     let warned = false;
@@ -174,7 +178,10 @@ const definition = {
       if (event.type === 'trial-clear') this.notify('试炼完成 · 额外获得 6 灵气，恢复 10 元气');
       if (event.type === 'discover' && !this.archive.enemies.includes(event.id)) { this.archive.enemies.push(event.id); saveArchive(wx, this.archive); }
       if (event.type === 'death') { this.finish(false); break; }
-      if (event.type === 'stage-clear') this.completeStage();
+      if (event.type === 'stage-clear') {
+        this.stopMovement(); this.cancelSkillAim();
+        this.stageClearRemaining = Math.max(0.01, ...this.combat.remnants.filter(body => body.boss).map(body => body.life - body.age));
+      }
     }
     this.syncCombat(); this.renderActor(0);
     if (!this.isBlocked() && this.combat.xp >= this.combat.xpNeed) this.levelUp();
@@ -287,7 +294,7 @@ const definition = {
   },
   moveFrame(delta) {
     const now = Date.now(), dt = typeof delta === 'number' ? Math.min(0.05, Math.max(0, delta)) : Math.min(0.05, Math.max(0, (now - this.lastMoveTime) / 1000)); this.lastMoveTime = now;
-    if (this.data.view !== 'game' || this.data.paused || this.data.showChoice || this.data.showMemory) return;
+    if (this.data.view !== 'game' || this.data.paused || this.data.showChoice || this.data.showMemory || this.stageClearRemaining > 0) return;
     if (!this.data.ended && !this.upgradePending && this.arenaRect) {
       const direction = this.moveVector || { x: 0, y: 0 }, step = PLAYER_SPEED * this.rpxScale * dt, bounds = this.playerBounds();
       const x = clamp(this.player.x + direction.x * step / this.arenaRect.width * 100, bounds.xMin, bounds.xMax);

@@ -49,3 +49,5 @@ npm run test:package
 CI 使用官方 Creator 3.8.8 编辑器导出，检查生成包、两种横屏尺寸的实际渲染与交互，再通过现有 AppID/上传密钥上传微信开发版及二维码。构建和上传结果见对应 Actions；浏览器检查不替代微信手机性能验收。
 
 [迁移说明](docs/MINIGAME-MIGRATION.md) · [试玩上传](docs/WECHAT-PLAYTEST.md) · [资源预算](docs/RESOURCES.md) · [御宝战斗](docs/ARTIFACT-COMBAT.md) · [美术说明](docs/ART.md)
+
+混沌众生试玩重构：四类血肉小怪、五位法相首领，以及「凝形 → 受击 → 形体失稳 → 化雾 → 回归混沌」生命周期。首领化雾完成后再结算，暂停与后台会冻结演出。素材布局、时长及验证见 [混沌众生](art/chaos-creatures/README.md)。

@@ -1,7 +1,7 @@
 'use strict';
 const { WEAPONS, PLAYER_SPEED } = require('../game/core/combat');
 function movement(c, bounds = { xMin: 6, xMax: 94, yMin: 20, yMax: 82 }) {
-  const target = c.nearest(c.enemies); if (!target) return { x: 0, y: 0 };
+  const target = c.nearest(c.enemies.filter(e => !e.spawnTime)); if (!target) return { x: 0, y: 0 };
   let best = { score: Infinity, x: 0, y: 0 };
   for (let i = 0; i < 17; i++) {
     const angle = i * Math.PI / 8, dir = i === 16 ? { x: 0, y: 0 } : { x: Math.cos(angle), y: Math.sin(angle) };

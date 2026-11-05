@@ -29,7 +29,7 @@ class BellCombat {
       if (before >= wave.range) continue;
       const targets = [];
       for (const e of this.enemies) {
-        if (e.hp <= 0 || wave.hitIds.has(e.id)) continue;
+        if (e.hp <= 0 || e.spawnTime > 0 || wave.hitIds.has(e.id)) continue;
         const d = this.distance(wave.origin, e), previous = wave.distances.has(e.id) ? wave.distances.get(e.id) : d;
         wave.distances.set(e.id, d);
         // Relative swept crossing: moving targets can enter/escape the wavefront.
@@ -54,7 +54,7 @@ class BellCombat {
   }
   releaseDominion(f) { this.launchBellWave(f.center, { kind: 'skill', range: 330, speed: 1000, damage: f.damage }); }
   breakBellWard() {
-    for (const e of this.enemies) if (!e.boss && e.hp > 0 && this.distance(this.player, e) <= 120) {
+    for (const e of this.enemies) if (!e.boss && e.hp > 0 && !e.spawnTime && this.distance(this.player, e) <= 120) {
       this.move(e, this.vector(this.player, e), 28); e.freezeTime = Math.max(e.freezeTime, 0.12);
     }
     this.effect('ward-break', this.player, 120, { life: 0.35 });

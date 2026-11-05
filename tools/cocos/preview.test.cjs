@@ -128,9 +128,42 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
             const v = kaitian.presentation, boss = kaitian.controller.combat.enemies.find(e => e.boss);
             const sprite = v.layers.world.nodes.get('enemy-' + boss.id).getComponent('cc.Sprite');
             const spells = [...v.layers.world.nodes.keys()].filter(id => id.startsWith('spell-'));
-            return sprite.spriteFrame.rect.y === (stage - 1) * 128 && sprite.spriteFrame.rect.x === (state === 'warning' ? 3 : 4) * 128 && spells.length > 0 && ![...v.layers.world.nodes.keys()].some(id => id.startsWith('hazard-'));
+            return sprite.spriteFrame.rect.y === (stage - 1) * 128 && sprite.spriteFrame.rect.x === (state === 'warning' ? 2 : 3) * 128 && spells.length > 0 && ![...v.layers.world.nodes.keys()].some(id => id.startsWith('hazard-'));
           }, { stage, state }), 'Boss poses and real spell sprites must replace ground labels');
           await page.screenshot({ path: output + '/boss-' + stage + '-' + viewport.width + '-' + state + '.png' });
+        }
+        await page.evaluate(() => kaitian.controller.exitToHome());
+      }
+      // Each approved silhouette at every lifecycle phase, from the actual export.
+      for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
+        await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);
+        await page.evaluate(() => kaitian.controller.beginGame());
+        for (const state of ['forming', 'solid', 'hit', 'unstable', 'mist', 'return']) {
+          await page.evaluate(state => {
+            const c = kaitian.controller; c.resetGame(); c.pauseGame();
+            const core = c.combat; core.phase = 3; core.enemies = []; core.hazards = []; core.effects = []; core.remnants = [];
+            const list = ['wraith', 'ranged', 'charger', 'elite', 'boss', 'boss', 'boss', 'boss', 'boss'];
+            list.forEach((kind, i) => {
+              if (i >= 4) core.stage = i - 3;
+              const e = core.spawn(kind); Object.assign(e, { x: 10 + (i < 4 ? i * 25 : (i - 4) * 19.5), y: i < 4 ? 24 : 66, fodder: i === 0, cooldown: 100, visualAge: 0 });
+              if (state === 'forming') e.spawnTime = e.spawnDuration * 0.55;
+              if (state === 'hit') e.hitTime = 0.12;
+              if (['unstable', 'mist', 'return'].includes(state)) {
+                core.leaveRemnant(e); core.remnants[core.remnants.length - 1].age = core.remnants[core.remnants.length - 1].life * ({ unstable: 0.3, mist: 0.68, return: 0.9 }[state]);
+              }
+            });
+            if (core.remnants.length) core.enemies = [];
+            c.setData({ message: '' }); c.syncCombat(); kaitian.presentation.render();
+          }, state);
+          await page.waitForTimeout(80);
+          assert.ok(await page.evaluate(state => {
+            const world = kaitian.presentation.layers.world, ids = [...world.used];
+            if (state === 'forming') return ids.filter(id => id.startsWith('condense-rise-')).length === 9;
+            if (state === 'solid' || state === 'hit') return ids.filter(id => id.startsWith('enemy-')).length === 9;
+            if (state === 'unstable') return ids.filter(id => id.startsWith('remnant-body-')).length === 9;
+            return !ids.some(id => id.startsWith('remnant-body-')) && ids.filter(id => id.startsWith('remnant-eddy-')).length === 9;
+          }, state), 'All nine creatures must render lifecycle ' + state);
+          await page.screenshot({ path: output + '/chaos-' + viewport.width + '-' + state + '.png' });
         }
         await page.evaluate(() => kaitian.controller.exitToHome());
       }

@@ -176,6 +176,7 @@ test('weak enemies enter as a compact group, stay away from the player, and die 
     assert.ok(e.hp <= c.damage());
     assert.ok(c.distance(pack[0], e) < 100);
   }
+  simulate(c, 0.31, false);
   const anchor = { ...pack[1] }; c.player.x = anchor.x; c.player.y = anchor.y;
   strike(c, { direction: { x: 1, y: 0 } }); c.collectDeaths();
   assert.equal(c.kills, 3); closeTo(c.xp, 1.5);
@@ -226,11 +227,12 @@ test('enemy roles use separate atlas rows and charge, dash and recovery poses fo
       continue;
     }
     e.castTime = 1; advanceEnemyAnimation(e, 0.025); assert.equal(enemyFrame(e), row * 6 + 2);
-    advanceEnemyAnimation(e, 0.5); assert.equal(enemyFrame(e), row * 6 + (kind === 'charger' ? 2 : 3));
+    advanceEnemyAnimation(e, 0.5); assert.equal(enemyFrame(e), row * 6 + 2);
     if (kind === 'charger') { e.dashing = true; advanceEnemyAnimation(e, 0.025); assert.equal(enemyFrame(e), row * 6 + 3); }
     e.dashing = false; e.castTime = 0; e.recoverTime = 1;
-    advanceEnemyAnimation(e, 0.025); assert.equal(enemyFrame(e), row * 6 + 4);
-    advanceEnemyAnimation(e, 0.3); assert.equal(enemyFrame(e), row * 6 + 5);
+    advanceEnemyAnimation(e, 0.025); assert.ok(enemyFrame(e) % 6 < 2);
+    advanceEnemyAnimation(e, 0.3); assert.ok(enemyFrame(e) % 6 < 2);
+    e.hitTime = 0.16; assert.equal(enemyFrame(e), row * 6 + 4);
   }
 });
 
@@ -258,8 +260,8 @@ test('all five bosses anticipate, release with their actual hazard, and freeze t
     const c = fresh(); c.stage = stage;
     const boss = c.spawn('boss'); boss.cooldown = 0;
     c.update(0.025, false); assert.equal(bossFrame(boss), 2);
-    simulate(c, 0.5, false); assert.equal(bossFrame(boss), 3);
-    simulate(c, 0.75, false); assert.equal(bossFrame(boss), 4, 'release pose follows live hazard for boss ' + stage);
+    simulate(c, 0.5, false); assert.equal(bossFrame(boss), 2);
+    simulate(c, 0.75, false); assert.equal(bossFrame(boss), 3, 'release pose follows live hazard for boss ' + stage);
     const age = boss.visualAge, frame = bossFrame(boss);
     boss.freezeTime = 1; simulate(c, 0.2, false);
     assert.equal(boss.visualAge, age); assert.equal(bossFrame(boss), frame);
@@ -271,4 +273,30 @@ test('boss and spell atlas has five six-frame bosses plus six transparent spell 
   const png = fs.readFileSync(path.join(__dirname, '../cocos-project/assets/game-content/images/boss-actions.png'));
   assert.equal(png.readUInt32BE(16), 768); assert.equal(png.readUInt32BE(20), 768);
   assert.ok(png.includes(Buffer.from('tRNS'))); assert.ok(png.length < 300 * 1024);
+});
+
+test('condensation delays movement, contact and weapon targeting until the body becomes solid', () => {
+  const c = fresh(); const e = c.spawn('charger', true); Object.assign(e, { x: 50, y: 55, cooldown: 0 });
+  const hp = c.hp, position = { x: e.x, y: e.y };
+  c.deal(e, 999); assert.equal(e.hp, e.maxHp);
+  simulate(c, 0.2); assert.deepEqual({ x: e.x, y: e.y }, position); assert.equal(c.hp, hp);
+  assert.equal(c.hazards.length, 0); assert.equal(c.pendingAttack, null);
+  simulate(c, 0.2); assert.equal(e.spawnTime, 0); assert.ok(c.hazards.length > 0);
+});
+
+test('dead bodies are visual only, grant rewards once, expire, and remain bounded during mass kills', () => {
+  const c = fresh(); c.spawnSwarm(10); for (const e of c.enemies) { e.spawnTime = 0; c.deal(e, 999); }
+  c.collectDeaths(); assert.equal(c.enemies.length, 0); assert.equal(c.remnants.length, 10); assert.equal(c.kills, 10); assert.equal(c.xp, 5);
+  c.collectDeaths(); assert.equal(c.kills, 10); assert.equal(c.xp, 5);
+  c.advanceRemnants(0.7); assert.equal(c.remnants.length, 0);
+  c.leaveRemnant({ id: 100, x: 50, y: 50, kind: 'boss', boss: true, bossType: 1 });
+  for (let i = 0; i < 80; i++) c.leaveRemnant({ id: i, x: 10, y: 10, kind: 'wraith' });
+  assert.equal(c.remnants.length, 28); assert.ok(c.remnants.some(e => e.boss));
+  c.advanceRemnants(2); assert.equal(c.remnants.length, 0);
+});
+
+test('the new boss and chaos mist atlas keeps all five silhouettes and six VFX within the art budget', () => {
+  const png = require('node:fs').readFileSync(require('node:path').join(__dirname, '../cocos-project/assets/game-content/images/chaos-boss-actions.png'));
+  assert.equal(png.readUInt32BE(16), 768); assert.equal(png.readUInt32BE(20), 768);
+  assert.ok(png.includes(Buffer.from('tRNS'))); assert.ok(png.length < 250 * 1024);
 });

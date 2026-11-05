@@ -3,6 +3,7 @@ import { DrawList, rgba } from './DrawList';
 import { frame } from './GameAssets';
 import { enemyFrame, bossFrame } from './generated/game-core';
 import { drawHazard } from './HazardVfx';
+import { creatureSize, drawCondensation, drawRemnant } from './CreatureVfx';
 const GOLD = 0xe3c88b, INK = 0x14262d, LIGHT = 0xe4e2ce, MUTE = 0x9fb8ac;
 const ROWS = { down: 0, up: 1, left: 2, right: 3 };
 const clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
@@ -180,22 +181,25 @@ export class CocosPresentation {
       g.lineStyle(2, 0xc5f6df, 0.75); g.moveTo(player.x, player.y); g.lineTo(q.x, q.y); g.drawCircle(q.x, q.y, 17);
       this.text(hud, 'aim-help', '拖动调整方向 · 松手裂天', a.x + a.width / 2, a.y + 112, 24, 0xbcead8, { center: true });
     }
+    for (const body of c.combat.remnants) drawRemnant(this, world, body, point(body));
     for (const enemy of c.combat.enemies) {
-      const p = point(enemy), size = enemy.boss ? (enemy.bossType === 5 ? 205 : 190) : enemy.kind === 'elite' ? 116 : enemy.kind === 'ranged' ? 96 : enemy.kind === 'charger' ? 100 : enemy.fodder ? 62 : 78;
+      const p = point(enemy), size = creatureSize(enemy);
+      const forming = enemy.spawnTime > 0, solidity = forming ? clamp(1 - enemy.spawnTime / enemy.spawnDuration, 0, 1) : 1;
+      if (forming) drawCondensation(this, world, enemy, p, size);
       const hit = clamp(enemy.hitTime / 0.16, 0, 1), punch = Math.sin(hit * Math.PI), direction = enemy.hitDirection || { x: 0, y: 0 };
-      const sw = size * (1 + punch * 0.13), sh = size * (1 - punch * 0.1), recoil = punch * (enemy.boss ? 2 : 8);
+      const sw = size * (0.85 + solidity * 0.15) * (1 + punch * 0.13), sh = size * (0.8 + solidity * 0.2) * (1 - punch * 0.1), recoil = punch * (enemy.boss ? 2 : 8);
       const texture = enemy.boss ? this.assets.frames.bosses[enemy.bossType - 1][bossFrame(enemy)] : this.assets.frames.enemies[enemyFrame(enemy)];
       // Keep a charging creature facing its locked lane, even if the player
       // crosses behind it during the warning. Only the sprite is mirrored.
       const charging = enemy.kind === 'charger' || enemy.bossType === 2;
       const lane = charging && c.combat.hazards.find(h => h.dash && h.owner === enemy.id && h.age < h.delay + h.duration);
-      const flipped = charging && (lane ? lane.end.x - lane.x : c.player.x - enemy.x) < 0;
-      const sprite = this.image(world, 'enemy-' + enemy.id, texture, p.x + (flipped ? sw / 2 : -sw / 2) + direction.x * recoil, p.y - sh / 2 + direction.y * recoil, sw, sh);
+      const flipped = enemy.bossType !== 5 && (lane ? lane.end.x - lane.x : c.player.x - enemy.x) > 0;
+      const sprite = this.image(world, 'enemy-' + enemy.id, texture, p.x + (flipped ? sw / 2 : -sw / 2) + direction.x * recoil, p.y - sh / 2 + direction.y * recoil, sw, sh, solidity);
       sprite.node.setScale(flipped ? -1 : 1, 1, 1);
       sprite.tint = hit > 0.5 ? 0xffffff : hit > 0 ? 0xffd39a : enemy.freezeTime > 0 ? 0xb5e4f1 : 0xffffff;
       if (hit > 0.5) { g.lineStyle(2, 0xfff1ce, hit * 0.9); g.drawCircle(p.x, p.y, size * 0.36); }
       if (!enemy.boss) {
-        if (enemy.kind !== 'wraith') this.text(world, 'role-' + enemy.id, enemy.trial ? '试炼' : enemy.kind === 'ranged' ? '祭徒' : enemy.kind === 'charger' ? '冲锋' : '精英', p.x, p.y - size / 2 - 14, 20, LIGHT, { center: true });
+        if (enemy.kind !== 'wraith') this.text(world, 'role-' + enemy.id, enemy.trial ? '试炼' : enemy.kind === 'ranged' ? '吞灵' : enemy.kind === 'charger' ? '裂界' : '重兽', p.x, p.y - size / 2 - 14, 20, LIGHT, { center: true });
         if (enemy.hp < enemy.maxHp) { this.rect(world, p.x - 26, p.y + size / 2 - 1, 52, 5, 0x24322f); this.rect(world, p.x - 26, p.y + size / 2 - 1, 52 * Math.max(0, enemy.hp / enemy.maxHp), 5, 0xd18b60); }
       }
       if (enemy.castTime > 0 || enemy.freezeTime > 0) { g.lineStyle(2, enemy.freezeTime > 0 ? 0xade0ef : GOLD, 0.8); g.drawCircle(p.x, p.y, size * 0.45); }
@@ -268,8 +272,8 @@ export class CocosPresentation {
       this.text(layer, 'damage-' + effect.id, effect.amount, p.x, p.y - 38 - t * 48, effect.heavy ? 32 : 23, effect.heavy ? 0xffe6a0 : 0xfff4d4, { center: true, bold: true, alpha: life });
       return;
     }
-    if (effect.type === 'dissolve' || effect.type === 'impact') {
-      const death = effect.type === 'dissolve', rays = death ? 8 : 4;
+    if (effect.type === 'impact') {
+      const death = false, rays = 4;
       const radius = effect.radius * (0.25 + t * (death ? 1.4 : 1));
       g.lineStyle(death ? 3 * life + 0.5 : 2, death ? 0xe3c88b : 0xfff3da, life);
       for (let i = 0; i < rays; i++) {

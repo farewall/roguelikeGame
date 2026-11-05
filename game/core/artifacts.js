@@ -27,14 +27,14 @@ class ArtifactCombat extends BellCombat {
   }
   updateArtifacts(dt) {
     this.skillCooldown = Math.max(0, this.skillCooldown - dt);
-    if (this.enemies.some(e => e.hp > 0)) this.gainEnergy(2.5 * dt);
+    if (this.enemies.some(e => e.hp > 0 && !e.spawnTime)) this.gainEnergy(2.5 * dt);
     for (const volley of this.projectiles) {
       const travel = Math.min(720 * dt, volley.range - volley.traveled), targets = [];
       for (const bolt of volley.bolts) {
         bolt.previous = { x: bolt.x, y: bolt.y };
         const start = this.point(bolt), end = { x: start.x + bolt.direction.x * travel, y: start.y + bolt.direction.y * travel };
         Object.assign(bolt, this.percent(end));
-        for (const e of this.enemies) if (e.hp > 0 && !volley.hitIds.has(e.id) && distanceToSegment(this.point(e), start, end) <= (e.boss ? 30 : 18) + 10) {
+        for (const e of this.enemies) if (e.hp > 0 && !e.spawnTime && !volley.hitIds.has(e.id) && distanceToSegment(this.point(e), start, end) <= (e.boss ? 30 : 18) + 10) {
           volley.hitIds.add(e.id); targets.push(e);
         }
       }
@@ -45,7 +45,7 @@ class ArtifactCombat extends BellCombat {
     this.updateBellWaves(dt);
   }
   skillDirection(direction) {
-    const closest = this.nearest(this.enemies.filter(e => e.hp > 0));
+    const closest = this.nearest(this.enemies.filter(e => e.hp > 0 && !e.spawnTime));
     return normalized(direction) || (closest && normalized(this.vector(this.player, closest))) || this.lastAimDirection;
   }
   useSkill(direction) {
@@ -67,7 +67,7 @@ class ArtifactCombat extends BellCombat {
   }
   resolveRift(f) {
     const line = { shape: 'line', ...f.center, end: f.end, width: f.width };
-    for (const e of this.enemies) if (e.hp > 0 && this.contains(line, e)) this.deal(e, f.damage, 'skill');
+    for (const e of this.enemies) if (e.hp > 0 && !e.spawnTime && this.contains(line, e)) this.deal(e, f.damage, 'skill');
     this.effect('rift', f.center, 650, { end: f.end, width: f.width, life: 0.85 });
     this.hazard({ ...line, delay: 0, duration: 1.2, label: '裂', kind: 'rift', friendly: true, skill: true, dps: f.damage * 0.16 });
   }
