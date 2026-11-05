@@ -210,3 +210,40 @@ test('impact feedback reports effective damage while burns remain quiet and boss
   for (let i = 0; i < 100; i++) { boss.hitTime = 0; c.deal(boss, 0.01); }
   assert.ok(c.effects.length <= 40);
 });
+
+test('enemy roles use separate atlas rows and charge, dash and recovery poses follow combat state', () => {
+  const { advanceEnemyAnimation, enemyFrame } = require('../game/core/enemy-animation');
+  for (const [kind, row] of Object.entries({ wraith: 0, ranged: 1, charger: 2, elite: 3 })) {
+    const e = { id: 1, kind, castTime: 0, recoverTime: 0, freezeTime: 0 };
+    advanceEnemyAnimation(e, 0.025);
+    assert.equal(Math.floor(enemyFrame(e) / 6), row);
+    if (kind === 'wraith') {
+      const first = enemyFrame(e); advanceEnemyAnimation(e, 0.2); assert.notEqual(enemyFrame(e), first);
+      continue;
+    }
+    e.castTime = 1; advanceEnemyAnimation(e, 0.025); assert.equal(enemyFrame(e), row * 6 + 2);
+    advanceEnemyAnimation(e, 0.5); assert.equal(enemyFrame(e), row * 6 + (kind === 'charger' ? 2 : 3));
+    if (kind === 'charger') { e.dashing = true; advanceEnemyAnimation(e, 0.025); assert.equal(enemyFrame(e), row * 6 + 3); }
+    e.dashing = false; e.castTime = 0; e.recoverTime = 1;
+    advanceEnemyAnimation(e, 0.025); assert.equal(enemyFrame(e), row * 6 + 4);
+    advanceEnemyAnimation(e, 0.3); assert.equal(enemyFrame(e), row * 6 + 5);
+  }
+});
+
+test('enemy animation freezes with controller pauses and with enemy ice control', () => {
+  const { setup } = require('./game-harness.cjs');
+  const { game, simulate } = setup();
+  simulate(0.2); const e = game.combat.enemies.find(e => e.fodder); assert.ok(e);
+  const age = e.visualAge;
+  game.openSettings(); simulate(2); assert.equal(e.visualAge, age);
+  game.closeSettings(); e.freezeTime = 2; simulate(0.3); assert.equal(e.visualAge, age);
+  e.freezeTime = 0; simulate(0.2); assert.ok(e.visualAge > age);
+});
+
+test('enemy animation atlas contains four roles, six frames and actual PNG transparency within content budget', () => {
+  const fs = require('node:fs'), path = require('node:path');
+  const png = fs.readFileSync(path.join(__dirname, '../cocos-project/assets/game-content/images/enemy-actions.png'));
+  assert.equal(png.readUInt32BE(16), 768); assert.equal(png.readUInt32BE(20), 512);
+  assert.ok(png.includes(Buffer.from('tRNS')), 'Enemy sprites need transparency');
+  assert.ok(png.length < 200 * 1024, 'Avoid enlarging the content bundle for common enemies');
+});

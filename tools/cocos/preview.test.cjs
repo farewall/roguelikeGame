@@ -40,10 +40,21 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         await page.evaluate(() => {
           const c = kaitian.controller, core = c.combat; c.stopLoops(); core.phase = 3; core.remaining = 0; core.enemies = []; core.invulnerable = 100; core.player.x = 50; core.player.y = 55;
           for (const dx of [100, 240, -220]) { const e = core.spawn('wraith'); Object.assign(e, { x: core.player.x + dx / core.width * 100, y: core.player.y, hp: 1000, maxHp: 1000, cooldown: 100, speed: 0 }); }
+          for (const [kind, dx, dy] of [['ranged', -260, -110], ['charger', 230, 110], ['elite', -60, -135]]) {
+            const e = core.spawn(kind); Object.assign(e, { x: core.player.x + Number(dx) / core.width * 100, y: core.player.y + Number(dy) / core.height * 100, hp: 1000, maxHp: 1000, cooldown: 100, speed: 0 });
+          }
           c.viewport.menuButton = { left: c.viewport.windowWidth - 88 }; c.setData({ message: '' }); c.syncCombat();
         });
         await page.waitForFunction(() => kaitian.controller.combat.strikeCount > 0);
         assert.ok(await page.evaluate(() => Boolean(kaitian.presentation.layers.world.nodes.get('hero').getComponent('cc.Sprite'))));
+        assert.ok(await page.evaluate(() => {
+          const rows = { wraith: 0, ranged: 1, charger: 2, elite: 3 };
+          return Object.entries(rows).every(([kind, row]) => {
+            const enemy = kaitian.controller.combat.enemies.find(e => e.kind === kind);
+            const sprite = kaitian.presentation.layers.world.nodes.get('enemy-' + enemy.id).getComponent('cc.Sprite');
+            return sprite.spriteFrame.rect.y === row * 128 && sprite.spriteFrame.rect.width === 128;
+          });
+        }), 'All four enemy roles must render their own atlas row in the real Creator output');
         const prefix = weapon + '-' + viewport.width; await page.screenshot({ path: output + '/' + prefix + '-normal.png' });
         const skill = await page.evaluate(() => { const r = kaitian.presentation.regions.find(r => r.id === 'skill'), s = kaitian.controller.rpxScale; return { x: (r.x + r.width / 2) * s, y: (r.y + r.height / 2) * s }; });
         if (weapon === 'banner') { await page.mouse.move(skill.x, skill.y); await page.mouse.down(); await page.mouse.move(skill.x - 70, skill.y, { steps: 4 }); await page.waitForFunction(() => kaitian.controller.data.skillAim && kaitian.controller.data.skillAim.x < -0.99); await page.screenshot({ path: output + '/' + prefix + '-aim.png' }); await page.mouse.up(); }

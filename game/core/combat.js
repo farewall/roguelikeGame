@@ -2,6 +2,7 @@
 // All combat geometry uses short-edge UI units, all clocks use seconds.
 // The page only supplies input, renders snapshots, and handles modal pauses.
 const { ArtifactCombat } = require('./artifacts');
+const { advanceEnemyAnimation } = require('./enemy-animation');
 const STAGES = ['东方·初生之野', '西方·白骨战场', '南方·焚天熔界', '北方·归墟寒海', '天道之庭'];
 const BOSSES = ['青龙', '白虎', '朱雀', '玄武', '天道'];
 const PLAYER_SPEED = 300; // Short-edge UI units per second on every device.
@@ -188,6 +189,7 @@ class Combat extends ArtifactCombat {
       this.climateCd -= dt;
       if (this.climateCd <= 0) { this.climateCd = 10; this.castPattern(this.stage, null, false); }
     }
+    for (const e of this.enemies) if (!e.boss) advanceEnemyAnimation(e, dt);
   }
   advanceWaves(dt) {
     if (this.phase >= 3) return;

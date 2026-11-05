@@ -1,6 +1,7 @@
 import { Color, Graphics, HorizontalTextAlignment, Label, Layers, Mask, Node, Rect, Sprite, SpriteFrame, UITransform, VerticalTextAlignment } from 'cc';
 import { DrawList, rgba } from './DrawList';
 import { frame } from './GameAssets';
+import { enemyFrame } from './generated/game-core';
 const GOLD = 0xe3c88b, INK = 0x14262d, LIGHT = 0xe4e2ce, MUTE = 0x9fb8ac;
 const ROWS = { down: 0, up: 1, left: 2, right: 3 };
 const clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
@@ -190,15 +191,19 @@ export class CocosPresentation {
       this.text(hud, 'aim-help', '拖动调整方向 · 松手裂天', a.x + a.width / 2, a.y + 112, 24, 0xbcead8, { center: true });
     }
     for (const enemy of c.combat.enemies) {
-      const p = point(enemy), size = enemy.boss ? (enemy.bossType === 5 ? 205 : 190) : enemy.kind === 'elite' ? 98 : enemy.fodder ? 58 : 78;
+      const p = point(enemy), size = enemy.boss ? (enemy.bossType === 5 ? 205 : 190) : enemy.kind === 'elite' ? 116 : enemy.kind === 'ranged' ? 96 : enemy.kind === 'charger' ? 100 : enemy.fodder ? 62 : 78;
       const hit = clamp(enemy.hitTime / 0.16, 0, 1), punch = Math.sin(hit * Math.PI), direction = enemy.hitDirection || { x: 0, y: 0 };
       const sw = size * (1 + punch * 0.13), sh = size * (1 - punch * 0.1), recoil = punch * (enemy.boss ? 2 : 8);
-      const sprite = this.image(world, 'enemy-' + enemy.id, this.assets.textures[enemy.boss ? 'boss' + enemy.bossType : 'wraith'], p.x - sw / 2 + direction.x * recoil, p.y - sh / 2 + direction.y * recoil, sw, sh);
-      sprite.tint = hit > 0.5 ? 0xffffff : hit > 0 ? 0xffd39a : enemy.freezeTime > 0 ? 0xb5e4f1 : enemy.kind === 'ranged' ? 0xa4cce4 : enemy.kind === 'charger' ? 0xe0b58f : 0xffffff;
+      const texture = enemy.boss ? this.assets.textures['boss' + enemy.bossType] : this.assets.frames.enemies[enemyFrame(enemy)];
+      // Keep a charging creature facing its locked lane, even if the player
+      // crosses behind it during the warning. Only the sprite is mirrored.
+      const lane = enemy.kind === 'charger' && c.combat.hazards.find(h => h.dash && h.owner === enemy.id && h.age < h.delay + h.duration);
+      const flipped = enemy.kind === 'charger' && (lane ? lane.end.x - lane.x : c.player.x - enemy.x) < 0;
+      const sprite = this.image(world, 'enemy-' + enemy.id, texture, p.x + (flipped ? sw / 2 : -sw / 2) + direction.x * recoil, p.y - sh / 2 + direction.y * recoil, sw, sh);
+      sprite.node.setScale(flipped ? -1 : 1, 1, 1);
+      sprite.tint = hit > 0.5 ? 0xffffff : hit > 0 ? 0xffd39a : enemy.freezeTime > 0 ? 0xb5e4f1 : 0xffffff;
       if (hit > 0.5) { g.lineStyle(2, 0xfff1ce, hit * 0.9); g.drawCircle(p.x, p.y, size * 0.36); }
       if (!enemy.boss) {
-        if (enemy.kind === 'ranged') { g.lineStyle(4, 0xa4cce4, 1); g.moveTo(p.x + 32, p.y - 25); g.lineTo(p.x + 40, p.y + 30); g.lineStyle(2); g.drawCircle(p.x + 32, p.y - 29, 7); }
-        if (enemy.kind === 'charger') { g.lineStyle(3, 0xe0b58f); g.moveTo(p.x + 27, p.y - 13); g.lineTo(p.x + 47, p.y - 21); g.lineTo(p.x + 35, p.y + 6); }
         if (enemy.kind !== 'wraith') this.text(world, 'role-' + enemy.id, enemy.trial ? '试炼' : enemy.kind === 'ranged' ? '祭徒' : enemy.kind === 'charger' ? '冲锋' : '精英', p.x, p.y - size / 2 - 14, 20, LIGHT, { center: true });
         if (enemy.hp < enemy.maxHp) { this.rect(world, p.x - 26, p.y + size / 2 - 1, 52, 5, 0x24322f); this.rect(world, p.x - 26, p.y + size / 2 - 1, 52 * Math.max(0, enemy.hp / enemy.maxHp), 5, 0xd18b60); }
       }
