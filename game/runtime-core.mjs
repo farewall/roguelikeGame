@@ -7,3 +7,4 @@ export const createController = controller.createController;
 export const NativeInput = nativeInput.NativeInput;
 export const ARTIFACT_COLUMNS = animation.ARTIFACT_COLUMNS;
 export const enemyFrame = enemyAnimation.enemyFrame;
+export const bossFrame = enemyAnimation.bossFrame;

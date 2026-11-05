@@ -2,9 +2,9 @@
 // Six columns per role. All clocks advance with combat, so overlays/backgrounding
 // freeze both the telegraph and the sprite that communicates it.
 const ENEMY_ROWS = { wraith: 0, ranged: 1, charger: 2, elite: 3 };
-function advanceEnemyAnimation(enemy, dt) {
+function advanceEnemyAnimation(enemy, dt, releasing = false) {
   if (enemy.freezeTime > 0) return;
-  const state = enemy.dashing ? 'dash' : enemy.castTime > 0 ? 'cast' : enemy.recoverTime > 0 ? 'recover' : 'idle';
+  const state = enemy.dashing ? 'dash' : releasing ? 'release' : enemy.castTime > 0 ? 'cast' : enemy.recoverTime > 0 ? 'recover' : 'idle';
   if (state !== enemy.visualState) { enemy.visualState = state; enemy.visualAge = 0; }
   else enemy.visualAge = (enemy.visualAge || 0) + dt;
 }
@@ -19,4 +19,11 @@ function enemyFrame(enemy) {
   else column = Math.floor(age * 3 + enemy.id % 2) % 2;
   return row * 6 + column;
 }
-module.exports = { ENEMY_ROWS, advanceEnemyAnimation, enemyFrame };
+function bossFrame(enemy) {
+  const age = enemy.visualAge || 0;
+  if (enemy.visualState === 'dash' || enemy.visualState === 'release') return 4;
+  if (enemy.visualState === 'cast') return age < 0.45 ? 2 : 3;
+  if (enemy.visualState === 'recover') return 5;
+  return Math.floor(age * 2) % 2;
+}
+module.exports = { ENEMY_ROWS, advanceEnemyAnimation, enemyFrame, bossFrame };

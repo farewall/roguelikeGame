@@ -247,3 +247,24 @@ test('enemy animation atlas contains four roles, six frames and actual PNG trans
   assert.ok(png.includes(Buffer.from('tRNS')), 'Enemy sprites need transparency');
   assert.ok(png.length < 200 * 1024, 'Avoid enlarging the content bundle for common enemies');
 });
+
+test('all five bosses anticipate, release with their actual hazard, and freeze their animation under ice control', () => {
+  const { bossFrame } = require('../game/core/enemy-animation');
+  for (let stage = 1; stage <= 5; stage++) {
+    const c = fresh(); c.stage = stage;
+    const boss = c.spawn('boss'); boss.cooldown = 0;
+    c.update(0.025, false); assert.equal(bossFrame(boss), 2);
+    simulate(c, 0.5, false); assert.equal(bossFrame(boss), 3);
+    simulate(c, 0.75, false); assert.equal(bossFrame(boss), 4, 'release pose follows live hazard for boss ' + stage);
+    const age = boss.visualAge, frame = bossFrame(boss);
+    boss.freezeTime = 1; simulate(c, 0.2, false);
+    assert.equal(boss.visualAge, age); assert.equal(bossFrame(boss), frame);
+  }
+});
+
+test('boss and spell atlas has five six-frame bosses plus six transparent spell sprites', () => {
+  const fs = require('node:fs'), path = require('node:path');
+  const png = fs.readFileSync(path.join(__dirname, '../cocos-project/assets/game-content/images/boss-actions.png'));
+  assert.equal(png.readUInt32BE(16), 768); assert.equal(png.readUInt32BE(20), 768);
+  assert.ok(png.includes(Buffer.from('tRNS'))); assert.ok(png.length < 300 * 1024);
+});

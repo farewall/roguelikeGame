@@ -1,7 +1,8 @@
 import { Color, Graphics, HorizontalTextAlignment, Label, Layers, Mask, Node, Rect, Sprite, SpriteFrame, UITransform, VerticalTextAlignment } from 'cc';
 import { DrawList, rgba } from './DrawList';
 import { frame } from './GameAssets';
-import { enemyFrame } from './generated/game-core';
+import { enemyFrame, bossFrame } from './generated/game-core';
+import { drawHazard } from './HazardVfx';
 const GOLD = 0xe3c88b, INK = 0x14262d, LIGHT = 0xe4e2ce, MUTE = 0x9fb8ac;
 const ROWS = { down: 0, up: 1, left: 2, right: 3 };
 const clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
@@ -157,23 +158,7 @@ export class CocosPresentation {
     this.image(bg, 'arena', this.assets.textures['arena' + d.stage], a.x, a.y, a.width, a.height, 0.68, true);
     this.rect(bg, a.x, a.y, a.width, a.height, 0x09171c, 0.15, 0x756f51, 7);
     const point = p => ({ x: a.x + p.x * a.width / 100, y: a.y + p.y * a.height / 100 });
-    for (const hazard of c.combat.hazards) {
-      const p = point(hazard), color = ({ root: 0xb5d17c, flame: 0xf5aa6a, tide: 0xa4d9ea, slash: 0xebbc82, order: 0xd4afe4, arcane: 0xc2ace0, rift: 0xb9efdc, lava: 0xd2a169, mud: 0x95c6b1, confluence: 0xb8c49d })[hazard.kind] || GOLD;
-      const alpha = hazard.friendly ? 0.13 : hazard.active ? 0.34 : 0.1;
-      if (hazard.shape === 'line') {
-        const q = point(hazard.end), dx = q.x - p.x, dy = q.y - p.y, length = Math.hypot(dx, dy) || 1, nx = -dy / length * hazard.width / 2, ny = dx / length * hazard.width / 2;
-        g.lineStyle(1.5, color, 0.8); g.beginFill(color, alpha); g.drawPolygon([p.x + nx, p.y + ny, q.x + nx, q.y + ny, q.x - nx, q.y - ny, p.x - nx, p.y - ny]); g.endFill();
-        g.lineStyle(0); g.beginFill(color, alpha); g.drawCircle(p.x, p.y, hazard.width / 2); g.drawCircle(q.x, q.y, hazard.width / 2); g.endFill();
-      } else if (hazard.shape === 'ring') {
-        g.lineStyle(hazard.radius - hazard.inner, color, hazard.active ? 0.4 : 0.18); g.drawCircle(p.x, p.y, (hazard.radius + hazard.inner) / 2);
-        g.lineStyle(2, color, 0.9); g.drawCircle(p.x, p.y, hazard.radius); g.drawCircle(p.x, p.y, hazard.inner);
-      } else {
-        g.lineStyle(hazard.active ? 3 : 1.5, color, 0.8); g.beginFill(color, alpha); g.drawCircle(p.x, p.y, hazard.radius); g.endFill();
-        if (!hazard.active) for (let i = 0; i < 8; i++) { const angle = i * Math.PI / 4; g.moveTo(p.x + Math.cos(angle) * hazard.radius * 0.8, p.y + Math.sin(angle) * hazard.radius * 0.8); g.lineTo(p.x + Math.cos(angle) * hazard.radius, p.y + Math.sin(angle) * hazard.radius); }
-      }
-      const label = hazard.shape === 'line' ? { x: (p.x + point(hazard.end).x) / 2, y: (p.y + point(hazard.end).y) / 2 } : p;
-      this.text(world, 'hazard-' + hazard.id, (hazard.friendly ? '+' : '') + hazard.label, label.x, label.y - (hazard.shape === 'ring' ? hazard.radius : 0), 23, color, { center: true });
-    }
+    for (const hazard of c.combat.hazards) drawHazard(this, world, hazard, point);
     const player = point(d.player);
     if (!d.ended && d.weaponId === 'bell') { g.lineStyle(1.5, GOLD, 0.2); g.drawCircle(player.x, player.y, d.attackRange); }
     for (const effect of c.combat.effects) this.drawEffect(world, effect, point);
@@ -194,11 +179,12 @@ export class CocosPresentation {
       const p = point(enemy), size = enemy.boss ? (enemy.bossType === 5 ? 205 : 190) : enemy.kind === 'elite' ? 116 : enemy.kind === 'ranged' ? 96 : enemy.kind === 'charger' ? 100 : enemy.fodder ? 62 : 78;
       const hit = clamp(enemy.hitTime / 0.16, 0, 1), punch = Math.sin(hit * Math.PI), direction = enemy.hitDirection || { x: 0, y: 0 };
       const sw = size * (1 + punch * 0.13), sh = size * (1 - punch * 0.1), recoil = punch * (enemy.boss ? 2 : 8);
-      const texture = enemy.boss ? this.assets.textures['boss' + enemy.bossType] : this.assets.frames.enemies[enemyFrame(enemy)];
+      const texture = enemy.boss ? this.assets.frames.bosses[enemy.bossType - 1][bossFrame(enemy)] : this.assets.frames.enemies[enemyFrame(enemy)];
       // Keep a charging creature facing its locked lane, even if the player
       // crosses behind it during the warning. Only the sprite is mirrored.
-      const lane = enemy.kind === 'charger' && c.combat.hazards.find(h => h.dash && h.owner === enemy.id && h.age < h.delay + h.duration);
-      const flipped = enemy.kind === 'charger' && (lane ? lane.end.x - lane.x : c.player.x - enemy.x) < 0;
+      const charging = enemy.kind === 'charger' || enemy.bossType === 2;
+      const lane = charging && c.combat.hazards.find(h => h.dash && h.owner === enemy.id && h.age < h.delay + h.duration);
+      const flipped = charging && (lane ? lane.end.x - lane.x : c.player.x - enemy.x) < 0;
       const sprite = this.image(world, 'enemy-' + enemy.id, texture, p.x + (flipped ? sw / 2 : -sw / 2) + direction.x * recoil, p.y - sh / 2 + direction.y * recoil, sw, sh);
       sprite.node.setScale(flipped ? -1 : 1, 1, 1);
       sprite.tint = hit > 0.5 ? 0xffffff : hit > 0 ? 0xffd39a : enemy.freezeTime > 0 ? 0xb5e4f1 : 0xffffff;

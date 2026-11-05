@@ -76,6 +76,38 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         await click('ending-home'); await click('archive'); await click('archive-runs'); assert.ok(await page.evaluate(() => kaitian.controller.data.archiveRuns.length > 0)); await click('archive-close');
         assert.deepEqual(errors, [], prefix); console.log('PASS Cocos Creator ' + prefix + ': native nodes, joystick, skill, pause/background, upgrades, route, trial, ending, archive');
       }
+      // Real exported sprites for every boss and every hazard family. These are
+      // visual fixtures only; combat timing/collision is covered by core tests.
+      for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
+        await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);
+        await click('start'); await click('intro-enter');
+        for (let stage = 1; stage <= 5; stage++) for (const state of ['warning', 'active']) {
+          await page.evaluate(({ stage, state }) => {
+            const c = kaitian.controller; c.resetGame(); c.pauseGame();
+            const core = c.combat; core.enemies = []; core.hazards = []; core.effects = []; core.projectiles = []; core.phase = 3; core.stage = stage; core.player.x = 50; core.player.y = 60;
+            const boss = core.spawn('boss'); Object.assign(boss, { x: 73, y: 30, cooldown: 100, castTime: 1.3, recoverTime: 2, phase2: true, visualState: state === 'warning' ? 'cast' : 'release', visualAge: 0.6 });
+            core.castPattern(stage, boss, true);
+            const caster = core.spawn('ranged'); Object.assign(caster, { x: 20, y: 30, visualState: state === 'warning' ? 'cast' : 'recover', visualAge: 0.6 });
+            core.lineAtPlayer(caster, 34, 0.85, 0.18, '符', 'arcane', 7);
+            const charger = core.spawn('charger'); Object.assign(charger, { x: 18, y: 79, visualState: state === 'warning' ? 'cast' : 'dash', visualAge: 0.3, dashing: state === 'active' }); core.charge(charger, false);
+            core.circle({ x: 35, y: 65 }, 78, 1, 1.3, '劫', 'arcane', 9);
+            for (const h of core.hazards) {
+              h.age = state === 'warning' ? h.delay * 0.7 : h.delay + h.duration * 0.3; h.active = state === 'active';
+              if (h.dash && h.owner === charger.id && state === 'active') { charger.x = h.x + (h.end.x - h.x) * 0.3; charger.y = h.y + (h.end.y - h.y) * 0.3; }
+            }
+            c.setData({ message: '' }); c.syncCombat(); kaitian.presentation.render();
+          }, { stage, state });
+          await page.waitForTimeout(80);
+          assert.ok(await page.evaluate(({ stage, state }) => {
+            const v = kaitian.presentation, boss = kaitian.controller.combat.enemies.find(e => e.boss);
+            const sprite = v.layers.world.nodes.get('enemy-' + boss.id).getComponent('cc.Sprite');
+            const spells = [...v.layers.world.nodes.keys()].filter(id => id.startsWith('spell-'));
+            return sprite.spriteFrame.rect.y === (stage - 1) * 128 && sprite.spriteFrame.rect.x === (state === 'warning' ? 3 : 4) * 128 && spells.length > 0 && ![...v.layers.world.nodes.keys()].some(id => id.startsWith('hazard-'));
+          }, { stage, state }), 'Boss poses and real spell sprites must replace ground labels');
+          await page.screenshot({ path: output + '/boss-' + stage + '-' + viewport.width + '-' + state + '.png' });
+        }
+        await page.evaluate(() => kaitian.controller.exitToHome());
+      }
       const saved = await page.evaluate(() => kaitian.api.getStorageSync('pangu.archive.v1'));
       await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForFunction(() => window.kaitian && kaitian.presentation.ready, null, { timeout: 60000 });
       assert.deepEqual(await page.evaluate(() => kaitian.controller.archive.memories), saved.memories);

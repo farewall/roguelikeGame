@@ -189,7 +189,10 @@ class Combat extends ArtifactCombat {
       this.climateCd -= dt;
       if (this.climateCd <= 0) { this.climateCd = 10; this.castPattern(this.stage, null, false); }
     }
-    for (const e of this.enemies) if (!e.boss) advanceEnemyAnimation(e, dt);
+    for (const e of this.enemies) {
+      const releasing = e.boss && this.hazards.some(h => h.owner === e.id && h.age >= h.delay && h.age < h.delay + 0.25);
+      advanceEnemyAnimation(e, dt, releasing);
+    }
   }
   advanceWaves(dt) {
     if (this.phase >= 3) return;
