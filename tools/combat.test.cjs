@@ -166,40 +166,28 @@ test('both weapons can complete all five stages with ordinary HP and actual offe
 });
 
 
-test('weak enemies enter as a compact group, stay away from the player, and die to a basic bell hit', () => {
-  const c = new Combat('bell', () => 0.5);
-  c.update(0.025, false);
-  const pack = c.enemies.filter(e => e.fodder);
-  assert.equal(pack.length, 5);
-  for (const e of pack) {
-    assert.ok(c.distance(e, c.player) >= 150);
-    assert.ok(e.hp <= c.damage());
-    assert.ok(c.distance(pack[0], e) < 100);
-  }
-  simulate(c, 0.31, false);
-  const anchor = { ...pack[1] }; c.player.x = anchor.x; c.player.y = anchor.y;
-  strike(c, { direction: { x: 1, y: 0 } }); c.collectDeaths();
-  assert.equal(c.kills, 5); closeTo(c.xp, 2.5);
-  c.collectDeaths(); closeTo(c.xp, 2.5);
+test('weak enemies condense individually away from the player and still die to one basic bell hit', () => {
+  const c = new Combat('bell', () => 0.5); c.update(0.025, false);
+  assert.equal(c.enemies.length, 1); const e = c.enemies[0]; c.spawnCd = 100;
+  assert.ok(e.fodder); assert.ok(c.distance(e, c.player) >= 150); assert.ok(e.hp <= c.damage()); assert.ok(e.spawnTime > 0);
+  simulate(c, e.spawnDuration + 0.1, false);
+  c.player.x = e.x; c.player.y = e.y; strike(c, { direction: { x: 1, y: 0 } }); c.collectDeaths();
+  assert.equal(c.kills, 1); closeTo(c.xp, 0.5); c.collectDeaths(); closeTo(c.xp, 0.5);
 });
 
-test('mixed waves still spawn ranged and charging threats between weak packs', () => {
-  const c = fresh(); c.phase = 0; c.nextWave();
-  const kinds = new Set();
-  for (let i = 0; i < 3; i++) {
-    c.spawnCd = 0; c.advanceWaves(0.025);
-    c.enemies.forEach(e => kinds.add(e.kind));
+test('mixed waves interleave single ranged and charging threats among individual weak enemies', () => {
+  const c = fresh(); c.phase = 0; c.nextWave(); const kinds = new Set();
+  for (let i = 0; i < 10; i++) {
+    const before = c.enemies.length; c.spawnCd = 0; c.advanceWaves(0.025);
+    assert.equal(c.enemies.length, before + 1); c.enemies.forEach(e => kinds.add(e.kind));
   }
   assert.deepEqual([...kinds].sort(), ['charger', 'ranged', 'wraith']);
 });
 
-test('a full swarm reserves a boss slot and does not consume queued enemies when full', () => {
-  const c = fresh(); c.enemies = [];
-  assert.equal(c.spawnSwarm(99), 31);
-  c.phase = 0; c.remaining = 5; c.spawnCd = 0; c.advanceWaves(0.025);
-  assert.equal(c.remaining, 5);
-  const boss = c.spawn('boss'); assert.ok(boss); assert.equal(c.enemies.length, 32);
-  assert.equal(c.spawn('wraith'), null);
+test('individual spawns reserve a boss slot and leave the queue intact at the cap', () => {
+  const c = fresh(); for (let i = 0; i < 31; i++) assert.ok(c.spawnFodder());
+  assert.equal(c.spawnFodder(), null); c.phase = 0; c.remaining = 5; c.spawnCd = 0; c.advanceWaves(0.025);
+  assert.equal(c.remaining, 5); assert.ok(c.spawn('boss')); assert.equal(c.enemies.length, 32); assert.equal(c.spawn('wraith'), null);
 });
 
 test('impact feedback reports effective damage while burns remain quiet and boss timing stays intact', () => {
@@ -281,11 +269,11 @@ test('condensation delays movement, contact and weapon targeting until the body 
   c.deal(e, 999); assert.equal(e.hp, e.maxHp);
   simulate(c, 0.2); assert.deepEqual({ x: e.x, y: e.y }, position); assert.equal(c.hp, hp);
   assert.equal(c.hazards.length, 0); assert.equal(c.pendingAttack, null);
-  simulate(c, 0.2); assert.equal(e.spawnTime, 0); assert.ok(c.hazards.length > 0);
+  simulate(c, e.spawnDuration); assert.equal(e.spawnTime, 0); assert.ok(c.hazards.length > 0);
 });
 
 test('dead bodies are visual only, grant rewards once, expire, and remain bounded during mass kills', () => {
-  const c = fresh(); c.spawnSwarm(10); for (const e of c.enemies) { e.spawnTime = 0; c.deal(e, 999); }
+  const c = fresh(); for (let i = 0; i < 10; i++) c.spawnFodder(); for (const e of c.enemies) { e.spawnTime = 0; c.deal(e, 999); }
   c.collectDeaths(); assert.equal(c.enemies.length, 0); assert.equal(c.remnants.length, 10); assert.equal(c.kills, 10); assert.equal(c.xp, 5);
   c.collectDeaths(); assert.equal(c.kills, 10); assert.equal(c.xp, 5);
   c.advanceRemnants(0.7); assert.equal(c.remnants.length, 0);
@@ -301,11 +289,23 @@ test('the new boss and chaos mist atlas keeps all five silhouettes and six VFX w
   assert.ok(png.includes(Buffer.from('tRNS'))); assert.ok(png.length < 550 * 1024);
 });
 
-test('denser fodder packs arrive sooner without increasing the wave quota or weak enemy HP', () => {
+test('single-spawn cadence consumes one queued enemy and never backfills a group on delayed frames', () => {
   const c = new Combat('bell', () => 0.5); c.update(0.025, false);
-  assert.equal(c.enemies.filter(e => e.fodder).length, 5); assert.equal(c.remaining, 5);
-  simulate(c, 1.55, false); assert.equal(c.enemies.filter(e => e.fodder).length, 10); assert.equal(c.remaining, 0);
+  assert.equal(c.enemies.length, 1); assert.equal(c.remaining, 9);
+  simulate(c, 0.2, false); assert.equal(c.enemies.length, 1);
+  c.spawnCd = 0; c.update(0.1, false); assert.equal(c.enemies.length, 2); assert.equal(c.remaining, 8);
   assert.ok(c.enemies.every(e => e.hp <= c.damage()));
+});
+
+test('map spawns occupy distinct interior positions while keeping a player exclusion radius', () => {
+  const { random } = require('./journey-policy.cjs'); const c = new Combat('bell', random(42));
+  for (let i = 0; i < 12; i++) { c.spawnCd = 0; c.remaining = 20; c.advanceWaves(0.025); }
+  assert.equal(c.enemies.length, 12);
+  for (const e of c.enemies) {
+    assert.ok(c.distance(e, c.player) >= 150); assert.ok(e.x > 4 && e.x < 96 && e.y > 8 && e.y < 92);
+  }
+  assert.ok(c.enemies.some(e => e.x > 25 && e.x < 75 && e.y > 25 && e.y < 75), 'Spawns must not be confined to map edges');
+  for (let i = 0; i < c.enemies.length; i++) for (let j = i + 1; j < c.enemies.length; j++) assert.ok(c.distance(c.enemies[i], c.enemies[j]) >= 60);
 });
 
 test('vines spread outwards before damage and bind, block movement briefly, and cannot repeatedly bind', () => {

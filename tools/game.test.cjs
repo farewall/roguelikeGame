@@ -186,3 +186,11 @@ test('meteor fall and burning phase clocks freeze in settings and resume on retu
   const ages = c.hazards.map(h => h.age); game.openSettings(); simulate(2); assert.deepEqual(c.hazards.map(h => h.age), ages);
   game.closeSettings(); simulate(0.2); assert.ok(c.hazards[0].age > 0);
 });
+
+test('individual fog condensation pauses with settings and background, then resumes from its saved progress', () => {
+  const { game, simulate } = setup(); simulate(0.1); const e = game.combat.enemies[0]; assert.ok(e.spawnTime > 0);
+  const remaining = e.spawnTime, x = e.x, y = e.y;
+  game.openSettings(); simulate(2); assert.equal(e.spawnTime, remaining); assert.equal(e.x, x); assert.equal(e.y, y);
+  game.closeSettings(); game.onHide(); simulate(1); assert.equal(e.spawnTime, remaining); game.onShow();
+  simulate(0.1); assert.ok(e.spawnTime < remaining); assert.equal(e.x, x); assert.equal(e.y, y);
+});

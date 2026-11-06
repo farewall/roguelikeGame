@@ -4,7 +4,7 @@ import { frame } from './GameAssets';
 import { enemyFrame, bossFrame } from './generated/game-core';
 import { drawHazard } from './HazardVfx';
 import { drawPlayerBind } from './VineVfx';
-import { creatureSize, drawCondensation, drawRemnant } from './CreatureVfx';
+import { creatureSize, drawCondensation, drawRemnant, condensationOpacity } from './CreatureVfx';
 const GOLD = 0xe3c88b, INK = 0x14262d, LIGHT = 0xe4e2ce, MUTE = 0x9fb8ac;
 const ROWS = { down: 0, up: 1, left: 2, right: 3 };
 const clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
@@ -185,7 +185,7 @@ export class CocosPresentation {
     for (const body of c.combat.remnants) drawRemnant(this, world, body, point(body));
     for (const enemy of c.combat.enemies) {
       const p = point(enemy), size = creatureSize(enemy);
-      const forming = enemy.spawnTime > 0, solidity = forming ? clamp(1 - enemy.spawnTime / enemy.spawnDuration, 0, 1) : 1;
+      const forming = enemy.spawnTime > 0, solidity = condensationOpacity(enemy);
       if (forming) drawCondensation(this, world, enemy, p, size);
       const hit = clamp(enemy.hitTime / 0.16, 0, 1), punch = Math.sin(hit * Math.PI), direction = enemy.hitDirection || { x: 0, y: 0 };
       const sw = size * (0.85 + solidity * 0.15) * (1 + punch * 0.13), sh = size * (0.8 + solidity * 0.2) * (1 - punch * 0.1), recoil = punch * (enemy.boss ? 2 : 8);

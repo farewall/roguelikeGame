@@ -7,10 +7,18 @@ export function creatureSize(e) {
 function smoke(v, layer, id, tile, x, y, w, h, alpha) {
   return v.image(layer, id, v.assets.frames.chaosMist[tile], x - w / 2, y - h / 2, w, h, clamp(alpha));
 }
+export function condensationOpacity(e) {
+  return e.spawnTime > 0 ? clamp((1 - e.spawnTime / e.spawnDuration - 0.28) / 0.72) : 1;
+}
 export function drawCondensation(v, layer, e, p, size) {
-  const t = clamp(1 - e.spawnTime / e.spawnDuration);
-  smoke(v, layer, 'condense-' + e.id, 4, p.x, p.y + size * 0.2, size * (1.3 - t * 0.35), size * 0.55, (1 - t) * 0.8);
-  smoke(v, layer, 'condense-rise-' + e.id, 1, p.x, p.y, size, size, (1 - t) * 0.75);
+  const t = clamp(1 - e.spawnTime / e.spawnDuration), fog = 1 - t;
+  // Fog appears first, gathers towards the root, then yields a solid body.
+  smoke(v, layer, 'condense-' + e.id, 4, p.x, p.y + size * 0.2, size * (1.65 - t * 0.65), size * 0.65, fog * 0.9);
+  smoke(v, layer, 'condense-rise-' + e.id, 3, p.x, p.y - size * 0.05, size * (1.3 - t * 0.25), size * 1.1, fog * 0.85);
+  for (let i = 0; i < 2; i++) {
+    const angle = e.id * 0.7 + i * Math.PI + t * 1.8, r = size * (0.36 * fog + 0.05);
+    smoke(v, layer, 'condense-wisp-' + e.id + '-' + i, i, p.x + Math.cos(angle) * r, p.y + Math.sin(angle) * r * 0.35, size * 0.8, size * 0.8, fog * 0.7);
+  }
 }
 export function drawRemnant(v, layer, body, p) {
   const t = clamp(body.age / body.life), size = creatureSize(body), direction = body.hitDirection;

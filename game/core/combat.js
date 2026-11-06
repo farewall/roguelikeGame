@@ -118,40 +118,44 @@ class Combat extends ArtifactCombat {
     if (id === 'trial') this.trialPending = true;
     event.resolved = true; this.eventsTaken.push(choice.name); return true;
   }
+  spawnPoint(kind) {
+    const margin = kind === 'boss' ? 118 : kind === 'elite' ? 86 : 64;
+    const mx = Math.min(38, Math.max(6, margin / this.width * 100));
+    const my = Math.min(38, Math.max(12, margin / this.height * 100));
+    const gap = kind === 'boss' ? 110 : 60;
+    const playerSafe = p => this.distance(p, this.player) >= 150;
+    const separation = p => this.enemies.reduce((d, e) => Math.min(d, this.distance(p, e)), Infinity);
+    for (let i = 0; i < 18; i++) {
+      const p = { x: mx + this.random() * (100 - mx * 2), y: my + this.random() * (100 - my * 2) };
+      if (playerSafe(p) && separation(p) >= gap) return p;
+    }
+    // Bounded fallback also handles a deterministic RNG or a crowded arena.
+    // Keep the player exclusion radius even when entity spacing must relax.
+    let best = null, score = -1;
+    for (let row = 0; row < 7; row++) for (let column = 0; column < 9; column++) {
+      const p = { x: mx + column / 8 * (100 - mx * 2), y: my + row / 6 * (100 - my * 2) };
+      const d = separation(p);
+      if (playerSafe(p) && d > score) { best = p; score = d; }
+    }
+    return best;
+  }
   spawn(kind, forming = false) {
     if (this.enemies.length >= 32 || this.cleared || this.ended) return null;
-    const edge = Math.floor(this.random() * 4);
-    const p = { x: edge < 2 ? (edge ? 94 : 6) : 15 + this.random() * 70,
-      y: edge >= 2 ? (edge === 2 ? 10 : 90) : 20 + this.random() * 60 };
-    // Keep newly appearing enemies away from the player's contact radius.
-    if (this.distance(p, this.player) < 150) p.x = this.player.x > 50 ? 8 : 92;
+    const p = this.spawnPoint(kind); if (!p) return null;
     const boss = kind === 'boss';
     const hp = boss ? 65 + this.stage * 18 : (3 + this.stage) * (kind === 'elite' ? 3 : 1);
     const e = { id: ++this.nextId, ...p, kind, boss, bossType: boss ? this.stage : 0, name: boss ? BOSSES[this.stage - 1] : ENEMIES.find(x => x.id === kind).name,
       hp, maxHp: hp, hpPct: 100, speed: boss ? 42 : kind === 'charger' ? 66 : 52,
       cooldown: boss ? 2 : kind === 'ranged' ? 1.3 : 2.5, castTime: 0, recoverTime: 0,
       burnTime: 0, slowTime: 0, freezeTime: 0, hitTime: 0, sequence: 0, phase2: false, chargeHit: false };
-    e.spawnDuration = boss ? 0.8 : kind === 'elite' ? 0.5 : 0.3; e.spawnTime = forming ? e.spawnDuration : 0;
+    e.spawnDuration = boss ? 1.2 : kind === 'elite' ? 0.95 : 0.75; e.spawnTime = forming ? e.spawnDuration : 0;
     this.enemies.push(e); this.emit('discover', { id: boss ? 'boss-' + this.stage : kind }); return e;
   }
-  spawnSwarm(count) {
-    // A shared edge and tight formation make the group readable and pierceable.
-    // Reserve one entity slot for the next wave's elite or boss.
-    const size = Math.min(count, 31 - this.enemies.length);
-    let anchor = null, spawned = 0;
-    for (let i = 0; i < size; i++) {
-      const e = this.spawn('wraith', true); if (!e) break;
-      if (!anchor) anchor = { x: e.x, y: e.y };
-      const offset = (i - (size - 1) / 2) * 24;
-      const p = { x: anchor.x, y: anchor.y };
-      if (anchor.x <= 10 || anchor.x >= 90) p.y = clamp(p.y + offset / this.height * 100, 10, 90);
-      else p.x = clamp(p.x + offset / this.width * 100, 6, 94);
-      if (this.distance(p, this.player) >= 150) Object.assign(e, p);
-      e.fodder = true; e.hp = e.maxHp = 1.8 + this.stage * 0.3;
-      e.speed = 58 + this.random() * 10;
-      spawned++;
-    }
-    return spawned;
+  spawnFodder() {
+    if (this.enemies.length >= 31) return null;
+    const e = this.spawn('wraith', true); if (!e) return null;
+    e.fodder = true; e.hp = e.maxHp = 1.8 + this.stage * 0.3;
+    e.speed = 58 + this.random() * 10; return e;
   }
   update(dt, canAttack = true) {
     if (this.ended || this.cleared) return;
@@ -212,17 +216,15 @@ class Combat extends ArtifactCombat {
     if (this.phase >= 3) return;
     this.spawnCd -= dt;
     if (this.remaining > 0 && this.spawnCd <= 0 && this.enemies.length < 31) {
-      const kind = this.phase === 2 && this.remaining === 3 ? 'elite'
-        : this.phase === 0 ? (this.stage > 1 && this.waveSpawns % 3 === 2 ? 'charger' : 'wraith')
-        : ['wraith', 'ranged', 'charger'][this.waveSpawns % 3];
-      if (kind === 'wraith') {
-        this.remaining -= this.spawnSwarm(Math.min(this.remaining, this.stage < 3 ? 5 : 7));
-        this.spawnCd = 1.5;
-      } else {
-        if (this.spawn(kind, true)) this.remaining--;
-        this.spawnCd = 0.9;
-      }
-      this.waveSpawns++;
+      const kind = this.phase === 2 ? (this.waveSpawns === 0 ? 'elite' : 'wraith')
+        : this.phase === 0 ? (this.stage > 1 && this.waveSpawns % 10 === 9 ? 'charger' : 'wraith')
+        : ['wraith', 'wraith', 'wraith', 'wraith', 'ranged', 'wraith', 'wraith', 'wraith', 'wraith', 'charger'][this.waveSpawns % 10];
+      const enemy = kind === 'wraith' ? this.spawnFodder() : this.spawn(kind, true);
+      if (enemy) {
+        this.remaining--; this.waveSpawns++;
+        this.spawnCd = this.phase === 2 ? 0.95 : 0.4 + this.random() * 0.25;
+      } else this.spawnCd = 0.15;
+
     }
     if (!this.remaining && (!this.enemies.length || this.phaseTime >= [18, 22, 22][this.phase])) this.nextWave();
   }

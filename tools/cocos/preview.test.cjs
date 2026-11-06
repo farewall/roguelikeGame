@@ -147,7 +147,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
       for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
         await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);
         await page.evaluate(() => kaitian.controller.beginGame());
-        for (const state of ['forming', 'solid', 'hit', 'unstable', 'mist', 'return']) {
+        for (const state of ['mist-only', 'forming', 'solid', 'hit', 'unstable', 'mist', 'return']) {
           await page.evaluate(state => {
             const c = kaitian.controller; c.resetGame(); c.pauseGame();
             const core = c.combat; core.phase = 3; core.enemies = []; core.hazards = []; core.effects = []; core.remnants = [];
@@ -155,7 +155,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
             list.forEach((kind, i) => {
               if (i >= 4) core.stage = i - 3;
               const e = core.spawn(kind); Object.assign(e, { x: 10 + (i < 4 ? i * 25 : (i - 4) * 19.5), y: i < 4 ? 24 : 66, fodder: i === 0, cooldown: 100, visualAge: 0 });
-              if (state === 'forming') e.spawnTime = e.spawnDuration * 0.55;
+              if (state === 'forming' || state === 'mist-only') e.spawnTime = e.spawnDuration * (state === 'mist-only' ? 0.9 : 0.55);
               if (state === 'hit') e.hitTime = 0.12;
               if (['unstable', 'mist', 'return'].includes(state)) {
                 core.leaveRemnant(e); core.remnants[core.remnants.length - 1].age = core.remnants[core.remnants.length - 1].life * ({ unstable: 0.3, mist: 0.68, return: 0.9 }[state]);
@@ -167,6 +167,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
           await page.waitForTimeout(80);
           assert.ok(await page.evaluate(state => {
             const world = kaitian.presentation.layers.world, ids = [...world.used];
+            if (state === 'mist-only') return ids.filter(id => id.startsWith('condense-rise-')).length === 9 && kaitian.controller.combat.enemies.every(e => world.nodes.get('enemy-' + e.id).getComponent('cc.Sprite').color.a === 0);
             if (state === 'forming') return ids.filter(id => id.startsWith('condense-rise-')).length === 9;
             if (state === 'solid' || state === 'hit') return ids.filter(id => id.startsWith('enemy-')).length === 9;
             if (state === 'unstable') return ids.filter(id => id.startsWith('remnant-body-')).length === 9;
