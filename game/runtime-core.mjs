@@ -8,3 +8,8 @@ export const NativeInput = nativeInput.NativeInput;
 export const ARTIFACT_COLUMNS = animation.ARTIFACT_COLUMNS;
 export const enemyFrame = enemyAnimation.enemyFrame;
 export const bossFrame = enemyAnimation.bossFrame;
+
+import vines from './core/vines.js';
+export const vineGrowth = vines.vineGrowth;
+export const vineRadius = vines.vineRadius;
+export const vinePaths = vines.vinePaths;

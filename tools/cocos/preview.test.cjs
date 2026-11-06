@@ -176,6 +176,30 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         }
         await page.evaluate(() => kaitian.controller.exitToHome());
       }
+      for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
+        await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);
+        await page.evaluate(() => kaitian.controller.beginGame());
+        for (const phase of ['warning', 'sprouting', 'spreading', 'grown', 'bound']) {
+          await page.evaluate(phase => {
+            const c = kaitian.controller; c.resetGame(); c.pauseGame(); const core = c.combat;
+            core.enemies = []; core.hazards = []; core.effects = []; core.phase = 3; core.stage = 1; core.player.x = 50; core.player.y = 58;
+            const boss = core.spawn('boss'); Object.assign(boss, { x: 79, y: 27, cooldown: 100, castTime: 1, visualState: 'cast' });
+            core.circle({ x: phase === 'bound' ? 50 : 40, y: 58 }, 100, 1.05, 2.1, '藤', 'root', 9, boss.id);
+            const h = core.hazards[0], ages = { warning: 0.7, sprouting: 1.16, spreading: 1.4, grown: 1.85, bound: 1.85 }; h.age = ages[phase]; h.active = h.age >= h.delay;
+            core.hazard({ shape: 'ring', x: 23, y: 43, radius: 130, inner: 86, delay: 1.05, duration: 2.1, kind: 'root', owner: boss.id, age: h.age });
+            if (phase === 'bound') { core.rootTime = 0.6; core.rootSourceId = h.id; }
+            c.setData({ message: '' }); c.syncCombat(); kaitian.presentation.render();
+          }, phase);
+          await page.waitForTimeout(80);
+          assert.ok(await page.evaluate(phase => {
+            const v = kaitian.presentation, c = kaitian.controller;
+            const vines = [...v.layers.world.used].filter(id => id.startsWith('vines-'));
+            return vines.length === 2 && c.combat.contains(c.combat.hazards[1], c.combat.hazards[1]) === false && (phase !== 'bound' || v.layers.world.used.has('player-bind') && c.data.rooted);
+          }, phase), 'Growing vines and their safe inner hole must render correctly');
+          await page.screenshot({ path: output + '/vines-' + viewport.width + '-' + phase + '.png' });
+        }
+        await page.evaluate(() => kaitian.controller.exitToHome());
+      }
       const saved = await page.evaluate(() => kaitian.api.getStorageSync('pangu.archive.v1'));
       await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForFunction(() => window.kaitian && kaitian.presentation.ready, null, { timeout: 60000 });
       assert.deepEqual(await page.evaluate(() => kaitian.controller.archive.memories), saved.memories);

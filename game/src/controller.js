@@ -172,6 +172,7 @@ const definition = {
         this.actor.hurt(); if (this.audio) this.audio.play('hurt');
         if (this.data.vibrationOn && wx.vibrateShort) wx.vibrateShort({ type: 'light' });
       }
+      if (event.type === 'rooted') this.notify('藤蔓缠足 · 暂时无法移动，仍可使用至宝');
       if (event.type === 'boss') this.notify(event.name + '现身 · 观察预警后再接近');
       if (event.type === 'boss-phase') this.notify(event.name + ' · 二阶段，招式发生变化');
       if (event.type === 'cast' && this.audio && !warned && now >= (this.warningSoundUntil || 0)) { this.audio.play('warning'); this.warningSoundUntil = now + 650; warned = true; }
@@ -296,7 +297,8 @@ const definition = {
   moveFrame(delta) {
     const now = Date.now(), dt = typeof delta === 'number' ? Math.min(0.05, Math.max(0, delta)) : Math.min(0.05, Math.max(0, (now - this.lastMoveTime) / 1000)); this.lastMoveTime = now;
     if (this.data.view !== 'game' || this.data.paused || this.data.showChoice || this.data.showMemory || this.stageClearRemaining > 0) return;
-    if (!this.data.ended && !this.upgradePending && this.arenaRect) {
+    if (!this.data.ended && !this.upgradePending && this.arenaRect && this.combat.rootTime > 0) this.actor.move(0, 0);
+    if (!this.data.ended && !this.upgradePending && this.arenaRect && !(this.combat.rootTime > 0)) {
       const direction = this.moveVector || { x: 0, y: 0 }, step = PLAYER_SPEED * this.rpxScale * dt, bounds = this.playerBounds();
       const x = clamp(this.player.x + direction.x * step / this.arenaRect.width * 100, bounds.xMin, bounds.xMax);
       const y = clamp(this.player.y + direction.y * step / this.arenaRect.height * 100, bounds.yMin, bounds.yMax);

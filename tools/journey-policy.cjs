@@ -9,8 +9,10 @@ function movement(c, bounds = { xMin: 6, xMax: 94, yMin: 20, yMax: 82 }) {
     for (const p of [next, future]) { p.x = Math.min(bounds.xMax, Math.max(bounds.xMin, p.x)); p.y = Math.min(bounds.yMax, Math.max(bounds.yMin, p.y)); }
     let score = Math.abs(c.distance(future, target) - WEAPONS[c.weapon].range * 0.65) * 0.4;
     for (const h of c.hazards) if (!h.friendly) {
-      if (c.contains(h, next)) score += h.active ? 2000 : 300;
-      if (c.contains(h, future)) score += h.active ? 1500 : 500;
+      // Plan around the vine's visible final boundary, including future growth.
+      const danger = h.kind === 'root' ? { ...h, age: Math.max(h.age, h.delay + 0.65) } : h;
+      if (c.contains(danger, next)) score += h.active ? 2000 : 300;
+      if (c.contains(danger, future)) score += h.active ? 1500 : 500;
     }
     for (const e of c.enemies) if (c.distance(next, e) < 48) score += 200;
     if (score < best.score) best = { score, ...dir };

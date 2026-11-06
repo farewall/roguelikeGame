@@ -169,3 +169,13 @@ test('boss return to chaos freezes in settings and background, blocks skills, th
   simulate(2); assert.equal(c.remnants.length, 0); assert.equal(game.data.showMemory, true); assert.deepEqual(game.archive.memories, [1]);
   game.restart(); assert.equal(game.stageClearRemaining, 0); assert.equal(game.combat.remnants.length, 0);
 });
+
+test('vine bind stops joystick movement, freezes in settings/background, and expires without losing input', () => {
+  const { game, simulate } = setup({ nativeLayout: true }); const c = game.combat;
+  c.phase = 3; c.enemies = []; c.remaining = 0; c.circle(c.player, 66, 0.1, 2.1, '藤', 'root', 9); c.updateHazards(0.2);
+  game.moveVector = { x: 1, y: 0 }; const x = game.player.x; game.moveFrame(0.05); assert.equal(game.player.x, x);
+  const time = c.rootTime, age = c.hazards[0].age;
+  game.openSettings(); simulate(1); assert.equal(c.rootTime, time); assert.equal(c.hazards[0].age, age);
+  game.closeSettings(); game.onHide(); simulate(1); assert.equal(c.rootTime, time); game.onShow();
+  simulate(0.9); assert.equal(c.rootTime, 0); game.moveVector = { x: 1, y: 0 }; game.moveFrame(0.05); assert.ok(game.player.x > x);
+});

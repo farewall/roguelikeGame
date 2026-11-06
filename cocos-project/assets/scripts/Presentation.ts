@@ -3,6 +3,7 @@ import { DrawList, rgba } from './DrawList';
 import { frame } from './GameAssets';
 import { enemyFrame, bossFrame } from './generated/game-core';
 import { drawHazard } from './HazardVfx';
+import { drawPlayerBind } from './VineVfx';
 import { creatureSize, drawCondensation, drawRemnant } from './CreatureVfx';
 const GOLD = 0xe3c88b, INK = 0x14262d, LIGHT = 0xe4e2ce, MUTE = 0x9fb8ac;
 const ROWS = { down: 0, up: 1, left: 2, right: 3 };
@@ -213,6 +214,7 @@ export class CocosPresentation {
     const frame = d.actorFrame, atlas = d.ended && d.won ? this.assets.frames[frame.action || 'idle'] : this.assets.frames.artifact[frame.action || 'idle'], texture = atlas[(ROWS[frame.direction || 'down'] || 0) * 6 + (frame.index || 0)];
     const hero = this.image(world, 'hero', texture, player.x - 96, player.y - 104, 192, 192, d.ended && !d.won ? Math.max(0, 1 - (frame.index || 0) / 5) : d.hurt ? 0.65 : 1);
     if (!d.ended) this.artifact(world, player, d.weaponId, c.combat.time, frame.action === 'attack');
+    if (!d.ended) drawPlayerBind(this, world, player, c.combat.rootTime, c.combat.time);
     hero.tint = d.hurt ? 0xffd4a8 : 0xffffff;
     if (d.warded) { g.lineStyle(3, 0xbcdfc8, 0.9); g.drawCircle(player.x, player.y, 68); }
     this.text(hud, 'brand', '开天一念', a.x, 22, 31, GOLD, { bold: true });

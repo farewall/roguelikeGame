@@ -1,9 +1,11 @@
 import { UITransform } from 'cc';
+import { drawRootHazard } from './VineVfx';
 const clamp = (n: number, a = 0, b = 1) => Math.max(a, Math.min(b, n));
 const COLORS = { root: 0xa5d46d, flame: 0xff9446, tide: 0x8edbea, slash: 0xffd17e, order: 0xd3a6ff, arcane: 0xbba8fa, rift: 0xb9efdc, lava: 0xe1a05c, mud: 0x8db6a4, confluence: 0xc8c887 };
 // Pictures supply the spell identity. Exact circles/rings/capsules remain the
 // damage boundary; every animation reads hazard.age, never wall-clock time.
 export function drawHazard(v: any, layer: any, h: any, point: (p: any) => any) {
+  if (h.kind === 'root') { drawRootHazard(v, layer, h, point(h)); return; }
   const g = layer.g, p = point(h), color = COLORS[h.kind] || 0xe3c88b;
   const active = h.age >= h.delay, age = Math.max(0, h.age - h.delay), warning = clamp(h.age / Math.max(0.001, h.delay));
   const pulse = 0.65 + Math.sin(h.age * 8) * 0.2;
@@ -79,7 +81,7 @@ export function drawHazard(v: any, layer: any, h: any, point: (p: any) => any) {
       }
       for (let i = 0; i < 8; i++) {
         const angle = i * Math.PI / 4 + age * 0.2, r = (h.radius + h.inner) / 2;
-        spell('rim-' + i, h.kind === 'root' ? 3 : 4, p.x + Math.cos(angle) * r, p.y + Math.sin(angle) * r, 48, Math.min(42, h.radius - h.inner), 0.8, angle * 180 / Math.PI + 90);
+        spell('rim-' + i, 4, p.x + Math.cos(angle) * r, p.y + Math.sin(angle) * r, 48, Math.min(42, h.radius - h.inner), 0.8, angle * 180 / Math.PI + 90);
       }
     }
     return;
@@ -91,7 +93,6 @@ export function drawHazard(v: any, layer: any, h: any, point: (p: any) => any) {
       // The feather descends to its locked warning circle, then becomes fire.
       spell('fall', 0, p.x, p.y - (1 - warning) * 150 - 12, 44, 72, 0.4 + warning * 0.55, -12 + warning * 12);
     } else if (h.kind === 'arcane') spell('seal', 1, p.x, p.y, h.radius * 1.8, h.radius * 1.8, 0.2 + warning * 0.35, h.age * 35);
-    else if (h.kind === 'root') spell('sprout', 3, p.x, p.y, h.radius * 0.7, h.radius * 0.7, warning * 0.45);
     return;
   }
   if (h.kind === 'flame' || h.kind === 'lava' || h.kind === 'confluence') {
@@ -104,11 +105,6 @@ export function drawHazard(v: any, layer: any, h: any, point: (p: any) => any) {
   } else if (h.kind === 'arcane') {
     spell('seal', 1, p.x, p.y, h.radius * 1.9, h.radius * 1.9, 0.9, age * 45);
     g.lineStyle(3, 0xffe9bb, 0.55); g.drawCircle(p.x, p.y, h.radius * (0.45 + Math.sin(age * 8) * 0.08));
-  } else if (h.kind === 'root') {
-    for (let i = 0; i < 4; i++) {
-      const angle = i * Math.PI / 2, r = h.radius * 0.36;
-      spell('vine-' + i, 3, p.x + Math.cos(angle) * r, p.y + Math.sin(angle) * r, h.radius, h.radius, 0.9, i * 90 + Math.sin(age * 3) * 5);
-    }
   } else if (h.kind === 'mud') {
     for (let i = 0; i < 3; i++) { g.lineStyle(2, 0xb6d4c0, 0.25); g.drawEllipse(p.x, p.y, h.radius * ((age * 0.4 + i / 3) % 1), h.radius * 0.35); }
   }

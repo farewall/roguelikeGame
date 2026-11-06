@@ -307,3 +307,35 @@ test('denser fodder packs arrive sooner without increasing the wave quota or wea
   simulate(c, 1.55, false); assert.equal(c.enemies.filter(e => e.fodder).length, 10); assert.equal(c.remaining, 0);
   assert.ok(c.enemies.every(e => e.hp <= c.damage()));
 });
+
+test('vines spread outwards before damage and bind, block movement briefly, and cannot repeatedly bind', () => {
+  const c = fresh(), start = { ...c.player };
+  c.circle({ x: c.player.x - 60 / c.width * 100, y: c.player.y }, 80, 0.5, 2.1, '藤', 'root', 9);
+  const h = c.hazards[0]; h.age = 0.5 + 0.325;
+  c.updateHazards(0); assert.equal(c.hp, 100); assert.equal(c.rootTime, 0);
+  c.updateHazards(0.3); assert.equal(c.hp, 91); assert.ok(c.rootTime > 0); assert.equal(c.snapshot().rooted, true);
+  c.move(c.player, { x: 1, y: 0 }, 100); assert.deepEqual(c.player, start);
+  assert.equal(c.useSkill(), true, 'Movement-only control must not block active skills');
+  simulate(c, 0.9, false); assert.equal(c.rootTime, 0); c.updateHazards(0); assert.equal(c.rootTime, 0);
+  assert.equal(c.events.filter(e => e.type === 'rooted').length, 1);
+  c.move(c.player, { x: 1, y: 0 }, 10); assert.ok(c.player.x > start.x);
+});
+
+test('root growth matches the rendered radial front and never fills a ring safe hole', () => {
+  const { vineGrowth, vineRadius, vinePaths } = require('../game/core/vines'); const c = fresh();
+  const h = { id: 1, kind: 'root', shape: 'ring', x: 50, y: 55, radius: 200, inner: 145, delay: 1, age: 1.325 };
+  closeTo(vineGrowth(h), 0.5); closeTo(vineRadius(h), 172.5);
+  assert.equal(c.contains(h, h), false);
+  assert.equal(c.contains(h, { x: h.x + 160 / c.width * 100, y: h.y }), true);
+  assert.equal(c.contains(h, { x: h.x + 190 / c.width * 100, y: h.y }), false);
+  for (const path of vinePaths(h)) for (const p of path.points) assert.ok(Math.hypot(p.x, p.y) >= 145 - 1e-6 && Math.hypot(p.x, p.y) <= 200 + 1e-6);
+});
+
+test('invulnerability prevents vine binding and losing its source releases existing roots', () => {
+  const c = fresh(), caster = c.spawn('boss');
+  c.circle(c.player, 66, 0.1, 2, '藤', 'root', 9, caster.id);
+  c.invulnerable = 0.5; c.updateHazards(0.2); assert.equal(c.rootTime, 0); assert.equal(c.hp, 100);
+  c.invulnerable = 0; c.updateHazards(0.1); assert.ok(c.rootTime > 0);
+  caster.hp = 0; c.collectDeaths(); assert.equal(c.rootTime, 0);
+  c.startStage(); assert.equal(c.rootTime, 0); assert.equal(c.rootImmunity, 0);
+});

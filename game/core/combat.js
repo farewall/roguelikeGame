@@ -3,6 +3,7 @@
 // The page only supplies input, renders snapshots, and handles modal pauses.
 const { ArtifactCombat } = require('./artifacts');
 const { BELL } = require('./bell');
+const { VINES, vineRadius } = require('./vines');
 const { advanceEnemyAnimation } = require('./enemy-animation');
 const STAGES = ['东方·初生之野', '西方·白骨战场', '南方·焚天熔界', '北方·归墟寒海', '天道之庭'];
 const BOSSES = ['青龙法相', '白虎法相', '朱雀法相', '玄武法相', '天道化身'];
@@ -24,7 +25,7 @@ const ENEMIES = [
   { id: 'charger', name: '裂界奔兽', hint: '长肢收拢蓄势，再沿锁定路线扑杀。横移躲开，趁落地停顿反击。' },
   { id: 'elite', name: '镇劫重兽', hint: '厚胸巨爪与肩部骨盾，蓄力引发落点震击。远离预警后再近身，击败得更多灵气。' },
   ...BOSSES.map((name, i) => ({ id: 'boss-' + (i + 1), name,
-    hint: ['藤蔓锁定落点后生长。绕开根须；半血后追加环形封路。', '扑杀前出现宽线预警。横向让开，半血后注意二连扑。', '火羽分批落地，离开火圈。半血后落点更多并留下火线。', '潮汐以环形扩散，向内或向外脱离。蓄力护甲结束后集中输出。', '轮换四象招式并以秩序封锁两侧。每次观察形状再寻找空隙。'][i] }))
+    hint: ['藤蔓从落点中心向外生长，触及后短暂缠足。提前离开预警；半血后追加环形封路。', '扑杀前出现宽线预警。横向让开，半血后注意二连扑。', '火羽分批落地，离开火圈。半血后落点更多并留下火线。', '潮汐以环形扩散，向内或向外脱离。蓄力护甲结束后集中输出。', '轮换四象招式并以秩序封锁两侧。每次观察形状再寻找空隙。'][i] }))
 ];
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const round = value => Number(value.toFixed(2));
@@ -62,6 +63,7 @@ class Combat extends ArtifactCombat {
     return { x: (q.x - p.x) / d, y: (q.y - p.y) / d };
   }
   move(entity, direction, distance) {
+    if (entity === this.player && this.rootTime > 0) return;
     entity.x = clamp(entity.x + direction.x * distance / this.width * 100, 4, 96);
     entity.y = clamp(entity.y + direction.y * distance / this.height * 100, 8, 92);
   }
@@ -74,6 +76,7 @@ class Combat extends ArtifactCombat {
   damage() { return WEAPONS[this.weapon].damage * this.power; }
   interval() { return Math.max(0.52, WEAPONS[this.weapon].interval * this.haste); }
   startStage() {
+    this.rootTime = 0; this.rootImmunity = 0; this.rootSourceId = null;
     this.phase = -1; this.phaseTime = 0; this.stageTime = 0; this.climateCd = 9;
     this.enemies = []; this.hazards = []; this.effects = []; this.remnants = []; this.projectiles = []; this.bellWaves = []; this.pendingAttack = null; this.followups = [];
     this.cleared = false; this.attackCd = 0; this.nextWave();
@@ -161,6 +164,9 @@ class Combat extends ArtifactCombat {
   }
   step(dt, canAttack) {
     this.advanceRemnants(dt);
+    this.rootTime = Math.max(0, this.rootTime - dt); this.rootImmunity = Math.max(0, this.rootImmunity - dt);
+    if (this.rootSourceId && !this.hazards.some(h => h.id === this.rootSourceId && (h.owner === null || this.enemies.some(e => e.id === h.owner && e.hp > 0)))) this.rootTime = 0;
+    if (!this.rootTime) this.rootSourceId = null;
     this.time += dt; this.phaseTime += dt; this.stageTime += dt;
     this.invulnerable = Math.max(0, this.invulnerable - dt);
     this.attackLock = Math.max(0, this.attackLock - dt);
@@ -296,7 +302,7 @@ class Combat extends ArtifactCombat {
   contains(h, point) {
     if (h.shape === 'line') return segmentDistance(this.point(point), this.point(h), this.point(h.end)) <= h.width / 2;
     const d = this.distance(point, h);
-    return d <= h.radius && (h.shape !== 'ring' || d >= h.inner);
+    return d <= (h.kind === 'root' && h.age >= h.delay ? vineRadius(h) : h.radius) && (h.shape !== 'ring' || d >= h.inner);
   }
   updateHazards(dt) {
     for (const h of this.hazards) {
@@ -314,6 +320,9 @@ class Combat extends ArtifactCombat {
           if (e) { const t = clamp((h.age - h.delay) / h.duration, 0, 1); e.x = clamp(h.x + (h.end.x - h.x) * t, 4, 96); e.y = clamp(h.y + (h.end.y - h.y) * t, 8, 92); e.dashing = true; }
         }
         if (this.contains(h, this.player)) {
+          if (h.kind === 'root' && !h.boundPlayer && this.invulnerable <= 0 && this.rootImmunity <= 0) {
+            this.rootTime = VINES.bind; this.rootImmunity = VINES.immunity; this.rootSourceId = h.id; h.boundPlayer = true; this.emit('rooted');
+          }
           if (h.dash) { const owner = this.enemies.find(e => e.id === h.owner); if (owner) owner.chargeHit = true; }
           this.hurt(h.damage, h.label === '息' ? '吞灵吐息' : ({ root: '生息藤蔓', slash: '裂界扑杀', flame: '火羽焚地', tide: '归墟潮汐', order: '秩序封锁', arcane: '镇劫震击' }[h.kind] || '劫境法则'));
           if (h.push) this.move(this.player, this.vector(h, this.player), 85 * dt);
@@ -446,7 +455,7 @@ class Combat extends ArtifactCombat {
     }
     if (dead.some(e => e.boss)) {
       for (const e of this.enemies) this.leaveRemnant(e);
-      this.cleared = true; this.enemies = []; this.hazards = []; this.projectiles = []; this.bellWaves = []; this.pendingAttack = null; this.followups = [];
+      this.cleared = true; this.rootTime = 0; this.rootSourceId = null; this.enemies = []; this.hazards = []; this.projectiles = []; this.bellWaves = []; this.pendingAttack = null; this.followups = [];
       this.emit('stage-clear', { stage: this.stage });
     }
   }
@@ -515,9 +524,9 @@ class Combat extends ArtifactCombat {
   snapshot() {
     const boss = this.enemies.find(e => e.boss);
     const exposed = boss && boss.bossType === 2 && boss.castTime <= 0 && boss.recoverTime > 0 && !boss.chargeHit;
-    const hint = boss ? ['移出藤蔓落点，留意环形封路', '横向诱导扑空，抓住破绽反打', '火区会持续存在，规划下一次落脚', '躲进潮环内圈，仍须避开水带', '先避两侧封锁，再判断四象招式'][boss.bossType - 1] : '';
+    const hint = boss ? ['提前移出藤蔓落点，触及后会缠足', '横向诱导扑空，抓住破绽反打', '火区会持续存在，规划下一次落脚', '躲进潮环内圈，仍须避开水带', '先避两侧封锁，再判断四象招式'][boss.bossType - 1] : '';
     return {
-      hp: Math.ceil(this.hp), maxHp: this.maxHp, hpPct: this.hp / this.maxHp * 100,
+      rooted: this.rootTime > 0, rootTime: round(this.rootTime), hp: Math.ceil(this.hp), maxHp: this.maxHp, hpPct: this.hp / this.maxHp * 100,
       level: this.level, xp: this.xp, xpNeed: this.xpNeed, xpPct: Math.min(100, this.xp / this.xpNeed * 100),
       stage: this.stage, stageName: STAGES[this.stage - 1], phaseName: this.phaseLabel(),
       objective: this.phase === 3 ? '击败' + BOSSES[this.stage - 1] : `剩余 ${this.enemies.length + this.remaining} 敌 · ${Math.max(0, Math.ceil([18, 22, 22][this.phase] - this.phaseTime))}秒后增援`,
