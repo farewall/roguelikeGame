@@ -59,7 +59,7 @@ test('fire tier two spreads burning on death and tier four can chain without dup
 });
 test('water tier two reaches enemies with a third-hit pulse and tier four briefly freezes them', () => {
   for (const tier of [2, 4]) {
-    const c = fresh(); c.elements.water = tier; const a = enemy(c, 54), outside = enemy(c, 62.5, 55, 'ranged');
+    const c = fresh(); c.elements.water = tier; const a = enemy(c, 54), outside = enemy(c, 50 + (c.attackRange() + 10) / c.width * 100, 55, 'ranged');
     hit(c, a.id); hit(c, a.id); assert.equal(outside.slowTime, 0); hit(c, a.id); assert.ok(outside.slowTime > 0);
     if (tier === 4) { assert.ok(outside.freezeTime > 0); outside.cooldown = 0; const hazards = c.hazards.length; c.updateEnemy(outside, 0.1); assert.equal(c.hazards.length, hazards); }
   }
@@ -165,7 +165,7 @@ test('four weapon routes exercise actual page wins and losses across the same th
     let wins = 0;
     for (const seed of [1, 17, 42]) {
       const r = runPage(weapon, seed, id, build); assert.ok(r.ending, JSON.stringify(r)); assert.equal(r.path, id); assert.ok(r.wallSeconds > r.seconds);
-      if (r.won) { wins++; assert.deepEqual(r.stages, [1, 2, 3, 4]); assert.equal(r.rewards, 2); assert.ok(r.choices >= 5); }
+      if (r.won) { wins++; assert.deepEqual(r.stages, [1, 2, 3, 4]); assert.equal(r.rewards, 2); assert.ok(r.choices >= 12); assert.ok(r.skills >= 5); }
       else assert.ok(r.cause);
     }
     assert.ok(wins > 0, id + ' had no complete ordinary-HP runs');

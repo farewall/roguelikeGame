@@ -248,7 +248,7 @@ export class CocosPresentation {
     if (d.message) {
       const tw = Math.min(900, a.width * 0.66), tx = a.x + (a.width - tw) / 2;
       this.rect(hud, tx, a.y + 104, tw, 62, 0x0b1d26, 0.9, 0x6a735c); this.text(hud, 'toast', d.message, tx + tw / 2, a.y + 135, 22, GOLD, { center: true });
-    } else if (d.hintsOn) this.text(hud, 'hint', d.boss ? d.boss.hint : d.weaponId === 'bell' ? '让外缘扫过敌群 · 留点回响追击 · 镇界解围' : '左手走位 · 至宝自动攻击 · 右下蓄能技', a.x + a.width / 2, a.y + a.height - 20, 19, MUTE, { center: true });
+    } else if (d.hintsOn) this.text(hud, 'hint', d.boss ? d.boss.hint : d.weaponId === 'bell' ? '让外缘扫过敌群 · 居中回响追击 · 镇界解围' : '左手走位 · 至宝自动攻击 · 右下蓄能技', a.x + a.width / 2, a.y + a.height - 20, 19, MUTE, { center: true });
     this.text(hud, 'xp', '灵气 ' + d.xp + ' / ' + d.xpNeed, a.x, h - 39, 21, MUTE);
     this.rect(hud, a.x + 160, h - 28, a.width - 465, 5, 0x2b3e42); this.rect(hud, a.x + 160, h - 28, (a.width - 465) * d.xpPct / 100, 5, 0xafbf8b);
     this.text(hud, 'kills', '击破 ' + d.kills + '       ' + (d.stage === 5 ? '天道终战' : '四象 ' + d.stage + ' / 4'), a.x + a.width - 280, h - 39, 20, MUTE);
@@ -349,7 +349,7 @@ export class CocosPresentation {
       const charge = pending ? 1 - Math.min(1, pending.remaining / (2 / 12)) : 0;
       const summon = this.c.combat.effects.find(effect => effect.type === 'bell-summon');
       const pulse = summon ? Math.sin(Math.PI * summon.age / summon.life) * 0.1 : 0;
-      this.bellBody(layer, player.x + Math.sin(time * 65) * charge * 1.5, player.y - 130 + Math.sin(time * 2.2) * 3, 1 + pulse, charge, this.c.data.bellMarks || 0, this.c.data.bellThreshold || 3, 1, time * 1.4);
+      this.bellBody(layer, player.x + Math.sin(time * 65) * charge * 1.5, player.y - 114 + Math.sin(time * 2.2) * 3, 0.7 + pulse, charge, this.c.data.bellMarks || 0, this.c.data.bellThreshold || 3, 1, time * 1.4);
     } else {
       const x = player.x + 69, y = player.y - 38 + Math.sin(time * 2.5) * 5, glow = casting ? 0.34 : 0.1;
       g.lineStyle(0); g.beginFill(0x9be2d3, glow); g.drawCircle(x, y, casting ? 52 : 36); g.endFill();
@@ -377,7 +377,7 @@ export class CocosPresentation {
       const cx = x + 28 + i * (cardW + 24), cy = y + 152;
       this.rect(layer, cx, cy, cardW, 322, 0x20363b, 1, ({ fire: 0xd39a70, water: 0x9bceda, earth: 0xc7b987 })[choice.kind] || 0x8f9a78);
       this.text(layer, 'choice-tag-' + i, choice.tag || '', cx + 20, cy + 16, 20, MUTE);
-      this.image(layer, 'choice-icon-' + i, this.assets.textures['upgrade-' + choice.kind], cx + 20, cy + 57, 54, 54);
+      this.image(layer, 'choice-icon-' + i, this.assets.textures['upgrade-' + (choice.iconKind || choice.kind)], cx + 20, cy + 57, 54, 54);
       this.text(layer, 'choice-name-' + i, choice.name, cx + 86, cy + 67, 28, GOLD);
       this.text(layer, 'choice-change-' + i, choice.change, cx + 20, cy + 131, 23, GOLD, { wrap: cardW - 40 });
       this.text(layer, 'choice-desc-' + i, choice.desc, cx + 20, cy + 191, 21, LIGHT, { wrap: cardW - 40 });

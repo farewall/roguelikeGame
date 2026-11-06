@@ -7,7 +7,7 @@ function movement(c, bounds = { xMin: 6, xMax: 94, yMin: 20, yMax: 82 }) {
     const angle = i * Math.PI / 8, dir = i === 16 ? { x: 0, y: 0 } : { x: Math.cos(angle), y: Math.sin(angle) };
     const next = { ...c.player }, future = { ...c.player }; c.move(next, dir, PLAYER_SPEED * 0.05); c.move(future, dir, PLAYER_SPEED * 0.3);
     for (const p of [next, future]) { p.x = Math.min(bounds.xMax, Math.max(bounds.xMin, p.x)); p.y = Math.min(bounds.yMax, Math.max(bounds.yMin, p.y)); }
-    let score = Math.abs(c.distance(future, target) - WEAPONS[c.weapon].range * 0.65) * 0.4;
+    let score = Math.abs(c.distance(future, target) - c.attackRange() * (c.weapon === 'bell' ? 0.82 : 0.65)) * 0.4;
     for (const h of c.hazards) if (!h.friendly) {
       // Plan around the vine's visible final boundary, including future growth.
       const danger = h.kind === 'root' ? { ...h, age: Math.max(h.age, h.delay + 0.65) } : h;
@@ -20,6 +20,14 @@ function movement(c, bounds = { xMin: 6, xMax: 94, yMin: 20, yMax: 82 }) {
   return { x: best.x, y: best.y };
 }
 function upgrade(c, offers, build = 'balanced') {
+  if (c.weapon === 'bell' && c.hp >= 55) {
+    const range = offers.find(u => u.kind === 'range');
+    if (range && !c.bellUpgrades.range) return range;
+    if (c.level % 4 === 0) {
+      const weapon = offers.find(u => ['echo', 'resonance', 'range'].includes(u.kind) && c.bellUpgrades[u.kind] < (u.kind === 'range' ? 2 : 1));
+      if (weapon) return weapon;
+    }
+  }
   const desired = c.hp < 55 ? 'health' : !c.elements.fire && build === 'balanced' ? 'fire' : !c.elements.water && build === 'balanced' ? 'water' : build !== 'balanced' && c.elements[build] < 4 ? build : c.level % 3 === 0 ? 'haste' : 'power';
   return offers.find(u => u.kind === desired) || offers.find(u => u.kind === 'power') || offers[0];
 }

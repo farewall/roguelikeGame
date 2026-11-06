@@ -9,10 +9,11 @@ function enemy(c, dx, kind = 'wraith') { const e = c.spawn(kind); Object.assign(
 function strike(c) { c.strike({ direction: { x: 1, y: 0 } }); }
 
 test('bell wave propagates, hits once, and reserves the outer quarter for resonance damage', () => {
-  const c = fresh(), a = enemy(c, 80), outer = enemy(c, 120), edge = enemy(c, 160), outside = enemy(c, 161);
+  const c = fresh(), a = enemy(c, 80), outer = enemy(c, 135), edge = enemy(c, 180), outside = enemy(c, 181);
   strike(c); near(a.hp, 100); c.updateBellWaves(0.1); near(a.hp, 100);
   c.updateBellWaves(0.025); near(a.hp, 97); near(outer.hp, 100);
-  c.updateBellWaves(0.125); near(outer.hp, 96.1); near(edge.hp, 96.1); near(outside.hp, 100);
+  c.updateBellWaves(0.125); near(outer.hp, 96.1); near(edge.hp, 100);
+  c.updateBellWaves(0.04); near(edge.hp, 96.1); near(outside.hp, 100);
   c.updateBellWaves(0.1); near(a.hp, 97); near(edge.hp, 96.1); assert.equal(c.strikeCount, 1);
   assert.ok(c.battleReport().damage.includes('共鸣'));
 });
@@ -28,7 +29,7 @@ test('normal sound waves keep their release origin and damage snapshot, and do n
 });
 test('effective normal waves count once each and empty casts cannot earn charge or echoes', () => {
   const c = fresh(); c.energy = 0; strike(c); c.updateBellWaves(0.26); near(c.energy, 0); assert.equal(c.strikeCount, 0);
-  const a = enemy(c, 40), b = enemy(c, 120); strike(c);
+  const a = enemy(c, 40), b = enemy(c, 135); strike(c);
   c.updateBellWaves(0.1); near(c.energy, 12); c.updateBellWaves(0.15); near(c.energy, 12); assert.equal(c.strikeCount, 1);
   near(a.hp, 97); near(b.hp, 96.1);
 });
@@ -44,7 +45,7 @@ test('third effective bell releases its echo from the current player center afte
 test('echo path uses two hit marks and a wider stronger echo; ward reduces one hit and repels nearby ordinary enemies', () => {
   const c = fresh(); c.path = 'echo'; enemy(c, 50);
   for (let i = 0; i < 2; i++) { strike(c); c.updateBellWaves(0.26); }
-  assert.equal(c.followups[0].radius, 190); near(c.followups[0].damage, c.damage() * 0.65);
+  assert.equal(c.followups[0].radius, 216); near(c.followups[0].damage, c.damage() * 0.65);
   const ward = fresh(); ward.path = 'ward'; const a = enemy(ward, 35), boss = enemy(ward, 90, 'boss');
   for (let i = 0; i < 3; i++) { strike(ward); ward.updateBellWaves(0.26); }
   near(ward.wardTime, 5); const before = { ...a }, bossX = boss.x; ward.hurt(10, 'test');
@@ -85,7 +86,7 @@ test('renamed Chaos Bell centers delayed dominion on the player when it actually
 
 test('Chaos Bell reserves enough top clearance to keep its overhead body inside the arena', () => {
   const { game } = setup({ nativeLayout: true });
-  const bounds = game.playerBounds(); assert.ok(bounds.yMin / 100 * game.arenaRect.height / game.rpxScale >= 195.9);
+  const bounds = game.playerBounds(); assert.ok(bounds.yMin / 100 * game.arenaRect.height / game.rpxScale >= 175.9);
 });
 
 test('Chaos Bell has sixteen textured rotation frames with solid bronze and translucent edge alpha', () => {

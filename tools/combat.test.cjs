@@ -23,7 +23,7 @@ test('bell waits for windup, then its traveling front reaches near targets befor
   c.update(0.025); assert.ok(c.pendingAttack); closeTo(a.hp, 100); simulate(c, 0.125); closeTo(a.hp, 100);
   simulate(c, 0.05); closeTo(a.hp, 100); assert.equal(c.bellWaves.length, 1);
   simulate(c, 0.125, false); closeTo(a.hp, 97); closeTo(b.hp, 97); closeTo(edge.hp, 100);
-  simulate(c, 0.125, false); closeTo(edge.hp, 96.1); closeTo(outside.hp, 100);
+  simulate(c, 0.175, false); closeTo(edge.hp, 96.1); closeTo(outside.hp, 100);
 });
 test('distant enemies never start attacks or consume cooldown', () => {
   const c = fresh(); const e = target(c, 95); simulate(c, 1); assert.equal(c.pendingAttack, null); closeTo(e.hp, 100); closeTo(c.attackCd, 0);
@@ -80,6 +80,7 @@ test('element cap removes exhausted choices; each offer contains unique, usable 
   const c = fresh(); for (let i = 0; i < 4; i++) c.upgrade('fire'); assert.equal(c.upgrade('fire'), false);
   for (let i = 0; i < 30; i++) { const choices = c.choices(); assert.equal(choices.length, 3); assert.equal(new Set(choices.map(u => u.id)).size, 3); assert.ok(!choices.some(u => u.kind === 'fire')); }
   c.elements.water = c.elements.earth = 4; while (c.upgrade('haste')) {}
+  for (const kind of ['range', 'echo', 'resonance']) while (c.upgrade(kind)) {}
   assert.equal(c.choices().length, 2); // Honest two choices if the entire finite pool is exhausted.
 });
 test('health changes both maximum and current HP with a cap', () => {
@@ -291,9 +292,9 @@ test('the new boss and chaos mist atlas keeps all five silhouettes and six VFX w
 
 test('single-spawn cadence consumes one queued enemy and never backfills a group on delayed frames', () => {
   const c = new Combat('bell', () => 0.5); c.update(0.025, false);
-  assert.equal(c.enemies.length, 1); assert.equal(c.remaining, 9);
+  assert.equal(c.enemies.length, 1); assert.equal(c.remaining, 16);
   simulate(c, 0.2, false); assert.equal(c.enemies.length, 1);
-  c.spawnCd = 0; c.update(0.1, false); assert.equal(c.enemies.length, 2); assert.equal(c.remaining, 8);
+  c.spawnCd = 0; c.update(0.1, false); assert.equal(c.enemies.length, 2); assert.equal(c.remaining, 15);
   assert.ok(c.enemies.every(e => e.hp <= c.damage()));
 });
 

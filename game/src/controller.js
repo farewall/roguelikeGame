@@ -24,7 +24,7 @@ const definition = {
     hp: 100, maxHp: 100, hpPct: 100, hurt: false, level: 1, xp: 0, xpNeed: 5, xpPct: 0,
     stage: 1, stageName: '', phaseName: '', objective: '', progress: 0, boss: null, kills: 0, combatStats: '', weaponId: 'bell', actorSheets: [], actorFrame: { left: 0, top: 0, action: 'idle' }, pathName: '', warded: false,
     player: { x: 50, y: 55 }, enemies: [], hazards: [], effects: [], weaponName: '混沌钟', elementName: '未附魔', comboName: '', message: '',
-    showChoice: false, choices: [], choiceToken: 0, joystick: { x: 0, y: 0, active: false }, attackRange: 160,
+    showChoice: false, choices: [], choiceToken: 0, joystick: { x: 0, y: 0, active: false }, attackRange: 180,
     ended: false, showEnding: false, won: false, endingTitle: '', endingCopy: '', showMemory: false, memory: null,
     selectedWeapon: 'bell', weapons: Object.keys(WEAPONS).map(id => ({ id, ...WEAPONS[id] })),
     archiveMemories: [], archiveEnemies: [], archiveRuns: [], memoryCount: 0, enemyCount: 0, runSummary: null, runReport: null,
@@ -202,7 +202,7 @@ const definition = {
     if (!u || combat.xp < combat.xpNeed) return;
     this.choiceApplying = true;
     if (!combat.upgrade(u.kind)) { this.choiceApplying = false; return; }
-    combat.level++; combat.xp -= combat.xpNeed; combat.xpNeed = Math.ceil(combat.xpNeed * 1.25);
+    combat.level++; combat.xp -= combat.xpNeed; combat.xpNeed = combat.nextXpNeed();
     this.setData({ showChoice: false, choices: [] }); this.syncCombat();
     this.notify(u.name + '已生效 · ' + u.change);
     this.choiceApplying = false; this.actor.awaken(); this.renderActor(0);
@@ -289,7 +289,7 @@ const definition = {
   playerBounds() {
     const size = ACTOR_FRAME_SIZE * this.rpxScale;
     const xMargin = Math.min(45, Math.max(5, size * 0.5 / this.arenaRect.width * 100));
-    const headroom = this.combat && this.combat.weapon === 'bell' ? Math.max(size * 0.54, 196 * this.rpxScale) : size * 0.54;
+    const headroom = this.combat && this.combat.weapon === 'bell' ? Math.max(size * 0.54, 176 * this.rpxScale) : size * 0.54;
     const yMin = Math.min(45, Math.max(12, headroom / this.arenaRect.height * 100));
     const yMax = Math.max(55, Math.min(90, 100 - size * 0.46 / this.arenaRect.height * 100));
     return { xMin: xMargin, xMax: 100 - xMargin, yMin, yMax };

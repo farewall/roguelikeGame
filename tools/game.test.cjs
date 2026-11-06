@@ -66,7 +66,7 @@ test('queued upgrades close for awakening then reject the old modal token', () =
   game.chooseUpgrade(first); assert.equal(game.data.showChoice, false); assert.equal(game.data.level, 2); assert.equal(game.data.xp, 7);
   for (let i = 0; i < 33; i++) advance(); fireTimer(game.upgradeTimer);
   assert.equal(game.data.showChoice, true); game.chooseUpgrade(first); assert.equal(game.data.level, 2);
-  game.chooseUpgrade(upgradeEvent(game)); assert.equal(game.data.level, 3); assert.equal(game.data.xp, 0);
+  game.chooseUpgrade(upgradeEvent(game)); assert.equal(game.data.level, 3); assert.equal(game.data.xp, 1);
 });
 test('settings freezes simulation, pending strikes and warning clocks; resume creates no duplicate loops', () => {
   const { game, simulate, timers } = setup(); simulate(0.5); game.combat.circle(game.player, 100, 1, 1, '劫', 'arcane');

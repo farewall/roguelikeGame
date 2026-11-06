@@ -21,6 +21,9 @@ function runPage(weapon, seed, path, build = 'balanced', viewport = { windowWidt
       game.chooseUpgrade(upgradeEvent(game, index)); choices++;
     }
     if (!game.isBlocked()) {
+      const skillRange = weapon === 'bell' ? 330 : 650;
+      const targets = c.enemies.filter(e => e.hp > 0 && !e.spawnTime && c.distance(c.player, e) <= skillRange);
+      if (c.energy >= 100 && c.skillCooldown <= 0 && targets.length && (targets.some(e => e.boss) || targets.length >= 4 || c.hp < 55 || c.rootTime > 0)) game.castSkill();
       const dir = movement(c, game.playerBounds()), r = game.joystickRect, x = r.left + r.width / 2, y = r.top + r.height / 2;
       if (!game.touchOrigin) game.onTouchStart({ touches: [touch(x, y)] });
       game.onTouchMove({ touches: [touch(x + dir.x * 64 * game.rpxScale, y + dir.y * 64 * game.rpxScale)] });
@@ -30,7 +33,7 @@ function runPage(weapon, seed, path, build = 'balanced', viewport = { windowWidt
     // Do not retain every bridge patch during a long automated run.
     h.dataWrites.length = 0;
   }
-  const result = { weapon, seed, path: c.path, won: game.data.won, stage: c.stage, stages, choices, rewards, seconds: Math.round(c.time), wallSeconds: frames * 0.025, hp: c.hp, build: c.buildLabel(), report: c.battleReport(), ending: game.data.showEnding, cause: c.lastDamageName };
+  const result = { weapon, seed, path: c.path, won: game.data.won, stage: c.stage, stages, choices, rewards, skills: c.skillUses, level: c.level, seconds: Math.round(c.time), wallSeconds: frames * 0.025, hp: c.hp, build: c.buildLabel(), report: c.battleReport(), ending: game.data.showEnding, cause: c.lastDamageName };
   game.onUnload(); return result;
 }
 module.exports = { runPage };

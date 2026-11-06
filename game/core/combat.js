@@ -5,6 +5,7 @@ const { ArtifactCombat } = require('./artifacts');
 const { BELL } = require('./bell');
 const { VINES, vineRadius } = require('./vines');
 const { METEOR, meteorPhase } = require('./meteor');
+const { experienceNeed, waveQuota, enemyProfile } = require('./progression');
 const { advanceEnemyAnimation } = require('./enemy-animation');
 const STAGES = ['东方·初生之野', '西方·白骨战场', '南方·焚天熔界', '北方·归墟寒海', '天道之庭'];
 const BOSSES = ['青龙法相', '白虎法相', '朱雀法相', '玄武法相', '天道化身'];
@@ -14,7 +15,7 @@ const WEAPONS = {
   banner: { name: '盘古幡', range: 360, interval: 1.8, damage: 3.6, desc: '贯穿飞刃 · 远距御敌，拖动裂天定向爆发' }
 };
 const PATHS = {
-  echo: { id: 'echo', weapon: 'bell', name: '万壑回声', desc: '每两次有效钟鸣，从自身中心释放更强更远的回响', change: '回响：三击 → 两击 · 范围 160 → 190' },
+  echo: { id: 'echo', weapon: 'bell', name: '万壑回声', desc: '减少回响触发计数，从自身中心释放更强更远的回响', change: '触发计数减少一次 · 回响范围额外扩大20%' },
   ward: { id: 'ward', weapon: 'bell', name: '玄钟护念', desc: '每三次有效钟鸣获得护体，抵伤后震退身边普通敌人', change: '抵伤40% · 护体持续5秒 · 触发震退' },
   sweep: { id: 'sweep', weapon: 'banner', name: '横扫八荒', desc: '每轮发射五道飞刃，覆盖更宽的敌群', change: '三道飞刃 → 五道飞刃，展开至 80°' },
   rend: { id: 'rend', weapon: 'banner', name: '破劫裂空', desc: '飞刃汇聚为一道，对精英与首领额外造成伤害', change: '凝聚贯穿 · 精英/首领伤害 +30%' }
@@ -74,6 +75,9 @@ class Combat extends ArtifactCombat {
     this.effects.push({ id: ++this.nextId, type, x: point.x, y: point.y, radius, age: 0, life: 0.5, ...extra });
     if (this.effects.length > 40) this.effects.shift();
   }
+  attackRange() { return this.weapon === 'bell' ? this.bellRange() : WEAPONS[this.weapon].range; }
+  nextXpNeed() { return experienceNeed(this.level); }
+  enemyStats(kind) { return enemyProfile(this.stage, this.phase, this.stageTime, kind); }
   damage() { return WEAPONS[this.weapon].damage * this.power; }
   interval() { return Math.max(0.52, WEAPONS[this.weapon].interval * this.haste); }
   startStage() {
@@ -85,7 +89,7 @@ class Combat extends ArtifactCombat {
   }
   nextWave() {
     this.phase++; this.phaseTime = 0; this.spawnCd = 0; this.waveSpawns = 0;
-    this.remaining = [8 + this.stage * 2, 10 + this.stage * 2, 3, 0][this.phase];
+    this.remaining = waveQuota(this.stage, this.phase);
     this.emit('wave', { name: this.phaseLabel() });
     if (this.phase === 3) { this.spawn('boss', true); this.emit('boss', { name: BOSSES[this.stage - 1] }); }
   }
@@ -143,9 +147,9 @@ class Combat extends ArtifactCombat {
     if (this.enemies.length >= 32 || this.cleared || this.ended) return null;
     const p = this.spawnPoint(kind); if (!p) return null;
     const boss = kind === 'boss';
-    const hp = boss ? 65 + this.stage * 18 : (3 + this.stage) * (kind === 'elite' ? 3 : 1);
+    const stats = this.enemyStats(kind), hp = stats.hp;
     const e = { id: ++this.nextId, ...p, kind, boss, bossType: boss ? this.stage : 0, name: boss ? BOSSES[this.stage - 1] : ENEMIES.find(x => x.id === kind).name,
-      hp, maxHp: hp, hpPct: 100, speed: boss ? 42 : kind === 'charger' ? 66 : 52,
+      hp, maxHp: hp, hpPct: 100, damageScale: stats.damageScale, pressure: stats.pressure, speed: (boss ? 42 : kind === 'charger' ? 66 : 52) * stats.speedScale,
       cooldown: boss ? 2 : kind === 'ranged' ? 1.3 : 2.5, castTime: 0, recoverTime: 0,
       burnTime: 0, slowTime: 0, freezeTime: 0, hitTime: 0, sequence: 0, phase2: false, chargeHit: false };
     e.spawnDuration = boss ? 1.2 : kind === 'elite' ? 0.95 : 0.75; e.spawnTime = forming ? e.spawnDuration : 0;
@@ -155,7 +159,7 @@ class Combat extends ArtifactCombat {
     if (this.enemies.length >= 31) return null;
     const e = this.spawn('wraith', true); if (!e) return null;
     e.fodder = true; e.hp = e.maxHp = 1.8 + this.stage * 0.3;
-    e.speed = 58 + this.random() * 10; return e;
+    e.speed = (58 + this.random() * 8) * (1 + (this.stage - 1) * 0.025); return e;
   }
   update(dt, canAttack = true) {
     if (this.ended || this.cleared) return;
@@ -192,7 +196,7 @@ class Combat extends ArtifactCombat {
     this.collectDeaths();
     if (this.cleared) return;
     if (!this.pendingAttack && canAttack && this.attackLock <= 0 && this.attackCd <= 0 && this.enemies.length) {
-      const reachable = this.enemies.filter(e => e.hp > 0 && !e.spawnTime && this.distance(this.player, e) <= WEAPONS[this.weapon].range + 1e-6);
+      const reachable = this.enemies.filter(e => e.hp > 0 && !e.spawnTime && this.distance(this.player, e) <= this.attackRange() + 1e-6);
       if (reachable.length) {
         const target = this.nearest(reachable);
         const direction = this.vector(this.player, target);
@@ -201,7 +205,7 @@ class Combat extends ArtifactCombat {
       }
     }
     for (const e of this.enemies) {
-      if (e.hp > 0 && !e.spawnTime && this.distance(this.player, e) < (e.boss ? 45 : e.fodder ? 22 : 28)) { this.hurt(e.boss ? 12 : e.kind === 'elite' ? 9 : e.fodder ? 3 : 5, e.name); break; }
+      if (e.hp > 0 && !e.spawnTime && this.distance(this.player, e) < (e.boss ? 45 : e.fodder ? 22 : 28)) { this.hurt((e.boss ? 12 : e.kind === 'elite' ? 9 : e.fodder ? 3 : 5) * (e.damageScale || 1), e.name); break; }
     }
     if (this.phase === 2 && this.enemies.length) {
       this.climateCd -= dt;
@@ -216,13 +220,13 @@ class Combat extends ArtifactCombat {
     if (this.phase >= 3) return;
     this.spawnCd -= dt;
     if (this.remaining > 0 && this.spawnCd <= 0 && this.enemies.length < 31) {
-      const kind = this.phase === 2 ? (this.waveSpawns === 0 ? 'elite' : 'wraith')
+      const kind = this.phase === 2 ? (this.waveSpawns % 4 === 0 ? 'elite' : 'wraith')
         : this.phase === 0 ? (this.stage > 1 && this.waveSpawns % 10 === 9 ? 'charger' : 'wraith')
         : ['wraith', 'wraith', 'wraith', 'wraith', 'ranged', 'wraith', 'wraith', 'wraith', 'wraith', 'charger'][this.waveSpawns % 10];
       const enemy = kind === 'wraith' ? this.spawnFodder() : this.spawn(kind, true);
       if (enemy) {
         this.remaining--; this.waveSpawns++;
-        this.spawnCd = this.phase === 2 ? 0.95 : 0.4 + this.random() * 0.25;
+        this.spawnCd = this.phase === 2 ? 0.65 : 0.26 - (this.stage - 1) * 0.012 + this.random() * 0.12;
       } else this.spawnCd = 0.15;
 
     }
@@ -251,7 +255,7 @@ class Combat extends ArtifactCombat {
     }
     if (!e.castTime && !e.recoverTime && !e.dashing) {
       const d = this.distance(e, this.player), direction = this.vector(e, this.player);
-      if (e.kind === 'ranged' && d < 180) this.move(e, direction, -e.speed * slow * dt);
+      if (e.kind === 'ranged' && d < 180 + (this.stage - 1) * 15) this.move(e, direction, -e.speed * slow * dt);
       else if (e.kind !== 'ranged' || d > 260) this.move(e, direction, e.speed * slow * dt);
     }
     e.shielded = e.bossType === 4 && e.phase2 && e.castTime > 0;
@@ -259,6 +263,10 @@ class Combat extends ArtifactCombat {
   hazard(data) {
     if (this.hazards.length >= 16 && !data.skill) return;
     const hazard = { id: ++this.nextId, age: 0, active: false, damage: 10, owner: null, friendly: false, ...data };
+    if (!hazard.friendly) {
+      const owner = this.enemies.find(e => e.id === hazard.owner), scale = owner && owner.damageScale ? owner.damageScale : this.enemyStats('wraith').damageScale;
+      hazard.damage *= scale; if (hazard.burnDamage) hazard.burnDamage *= scale;
+    }
     this.hazards.push(hazard); return hazard;
   }
   circle(point, radius, delay, duration, label, kind, damage = 10, owner = null) {
@@ -361,11 +369,11 @@ class Combat extends ArtifactCombat {
     const primary = attack.bellWave ? this.nearest(targets, origin) : targets.find(e => e.id === attack.targetId) || this.nearest(targets, origin);
     const center = { x: primary.x, y: primary.y };
     for (const e of targets) {
-      const resonance = attack.bellWave && this.distance(origin, e) >= attack.range * BELL.resonanceStart;
-      this.deal(e, damage * (resonance ? BELL.resonanceMultiplier : 1), resonance ? 'resonance' : 'direct'); this.effect(resonance ? 'resonance' : 'impact', e, resonance ? 38 : 25);
+      const resonance = attack.bellWave && this.distance(origin, e) >= attack.range * (attack.resonanceStart ?? BELL.resonanceStart);
+      this.deal(e, damage * (resonance ? (attack.resonanceMultiplier ?? BELL.resonanceMultiplier) : 1), resonance ? 'resonance' : 'direct'); this.effect(resonance ? 'resonance' : 'impact', e, resonance ? 38 : 25);
       if (attack.bellWave) {
         if (!e.boss) this.move(e, this.vector(origin, e), Math.min(14, Math.max(0, attack.range - this.distance(origin, e) - 3)));
-        this.applyBellElements(e, damage, attack.elements);
+        this.applyBellElements(e, damage * (resonance ? (attack.resonanceMultiplier ?? BELL.resonanceMultiplier) : 1), attack.elements);
       } else if (e.fodder) this.move(e, attack.direction, 14);
       if (!attack.bellWave && levels.fire) { e.burnTime = 2 + levels.fire * 0.65; e.burnDps = damage * (0.12 + levels.fire * 0.07); }
       if (!attack.bellWave && levels.water) e.slowTime = 2 + levels.water * 0.55;
@@ -373,7 +381,7 @@ class Combat extends ArtifactCombat {
     if (!firstImpact) return;
     if (attack.bellWave) this.registerBellHit(attack);
     if (levels.water >= 2 && this.strikeCount % 3 === 0) {
-      const radius = weapon.range + 35;
+      const radius = (attack.bellWave ? attack.range : weapon.range) + 35;
       for (const e of this.enemies) if (e.hp > 0 && !e.spawnTime && this.distance(origin, e) <= radius) {
         this.deal(e, damage * (0.2 + levels.water * 0.08), 'tide');
         e.slowTime = Math.max(e.slowTime, 2.5);
@@ -477,6 +485,10 @@ class Combat extends ArtifactCombat {
     this.invulnerable = 1; this.startStage(); return true;
   }
   upgrade(kind) {
+    if (['range', 'echo', 'resonance'].includes(kind)) {
+      if (this.weapon !== 'bell' || this.bellUpgrades[kind] >= 3) return false;
+      this.bellUpgrades[kind]++; return true;
+    }
     if (!['power', 'haste', 'health', ...Object.keys(ELEMENTS)].includes(kind)) return false;
     if (ELEMENTS[kind] && this.elements[kind] >= 4) return false;
     if (kind === 'haste' && this.interval() <= 0.520001) return false;
@@ -488,7 +500,13 @@ class Combat extends ArtifactCombat {
   }
   upgradePool() {
     const damage = this.damage(), interval = this.interval();
+    const bellOptions = this.weapon !== 'bell' ? [] : [
+      { id: 'range', kind: 'range', name: '钟域扩张', iconKind: 'water', desc: '扩大普攻、回响与外缘共鸣覆盖；最多三重', change: `音波半径 ${round(this.bellRange())} → ${round(this.bellRange() * 1.15)}`, tag: '更远清群' },
+      { id: 'echo', kind: 'echo', name: '叠浪回声', iconKind: 'haste', desc: '二重减少触发计数，三重追加半威力二次回响', change: this.bellUpgrades.echo === 1 ? '触发计数减少1次 · 回响伤害+10个百分点' : this.bellUpgrades.echo === 2 ? '追加半威力回响 · 回响伤害+10个百分点' : '回响伤害+10个百分点 · 蓄势缩短0.04秒', tag: '强化回响' },
+      { id: 'resonance', kind: 'resonance', name: '洪钟共振', iconKind: 'power', desc: '提高外缘增伤并拓宽共鸣带，保持距离反打', change: `共鸣倍率 ${round(1.3 + this.bellUpgrades.resonance * 0.15)} → ${round(1.45 + this.bellUpgrades.resonance * 0.15)} · 共鸣带加宽5%`, tag: '强化外缘' }
+    ].filter(u => this.bellUpgrades[u.kind] < 3).map(u => ({ ...u, tag: u.tag + ` ${this.bellUpgrades[u.kind]} → ${this.bellUpgrades[u.kind] + 1}重` }));
     return [
+      ...bellOptions,
       { id: 'power', kind: 'power', name: '开天劲', desc: '至宝伤害提升 25%', change: `伤害 ${round(damage)} → ${round(damage * 1.25)}`, tag: '强化输出' },
       { id: 'haste', kind: 'haste', name: '疾风法', desc: '至宝攻击间隔缩短 18%', change: `间隔 ${interval.toFixed(2)} → ${Math.max(0.52, interval * 0.82).toFixed(2)} 秒`, tag: '更快出招' },
       { id: 'health', kind: 'health', name: '玄黄护体', desc: '恢复 25 元气，生命上限增加 20', change: `上限 ${this.maxHp} → ${this.maxHp + 20}`, tag: '生存补给' },
@@ -513,14 +531,18 @@ class Combat extends ArtifactCombat {
   }
   choices() {
     const pool = this.upgradePool(), choices = [];
-    const take = list => { if (!list.length) return; const u = list[Math.floor(this.random() * list.length)]; choices.push(u); pool.splice(pool.indexOf(u), 1); };
-    take(pool.filter(u => ELEMENTS[u.kind] && this.elements[u.kind] === 0));
-    take(pool.filter(u => ELEMENTS[u.kind] && this.elements[u.kind] > 0));
+    const take = list => { if (!list.length || choices.length >= 3) return; const u = list[Math.floor(this.random() * list.length)]; choices.push(u); pool.splice(pool.indexOf(u), 1); };
+    // Weapon mechanics, base stats and elements each get a real opportunity;
+    // a growing weapon pool must not squeeze damage/haste/health out of offers.
+    if (this.weapon === 'bell') take(pool.filter(u => ['range', 'echo', 'resonance'].includes(u.kind) && (this.level === 1 && !this.bellUpgrades.range ? u.kind === 'range' : true)));
+    take(pool.filter(u => this.hp <= this.maxHp * 0.55 ? u.kind === 'health' : ['power', 'haste'].includes(u.kind) || u.kind === 'health' && this.level % 4 === 0));
+    take(pool.filter(u => ELEMENTS[u.kind] && (this.weapon === 'bell' || this.elements[u.kind] === 0)));
+    if (this.weapon !== 'bell') take(pool.filter(u => ELEMENTS[u.kind] && this.elements[u.kind] > 0));
     while (choices.length < 3 && pool.length) take(pool);
     return choices;
   }
   elementLabel() { const names = this.weapon === 'bell' ? { fire: '焚音', water: '潮鸣', earth: '裂岳' } : ELEMENTS; return Object.keys(ELEMENTS).filter(k => this.elements[k]).map(k => names[k] + this.elements[k] + '重').join(' · ') || '未附魔'; }
-  buildLabel() { return (this.path ? PATHS[this.path].name + ' · ' : '') + this.elementLabel(); }
+  buildLabel() { return (this.path ? PATHS[this.path].name + ' · ' : '') + (this.weapon === 'bell' && this.bellLabel() ? this.bellLabel() + ' · ' : '') + this.elementLabel(); }
   battleReport() {
     const names = { resonance: '外缘共鸣', direct: '直击', burn: '灼烧', field: '区域', earth: '震荡', steam: '蒸腾', tide: '潮涌', echo: '回响', aftershock: '余震', ignite: '爆燃', skill: this.weapon === 'bell' ? '镇界' : '裂天' };
     const total = Object.values(this.damageBySource).reduce((a, b) => a + b, 0);
@@ -550,10 +572,10 @@ class Combat extends ArtifactCombat {
       }),
       effects: this.effects.map(f => ({ id: f.id, type: f.type, x: f.x, y: f.y, radius: f.radius, angle: f.angle || 0, cone: f.cone || 60 })),
       boss: boss ? { name: boss.name, hpPct: round(Math.max(0, boss.hp / boss.maxHp * 100)), phase: boss.phase2 ? '二阶段' : '一阶段', state: boss.shielded ? '护甲 · 全伤害减免45%' : exposed ? '扑空破绽 · 易伤35%' : boss.castTime > 0 ? '正在蓄力' : boss.recoverTime > 0 ? '收招 · 输出机会' : '游走', hint } : null,
-      weaponName: WEAPONS[this.weapon].name, weaponId: this.weapon, attackRange: WEAPONS[this.weapon].range,
-      elementName: this.elementLabel(), combatStats: `伤害 ${round(this.damage())} · 间隔 ${this.interval().toFixed(2)}秒`, pathName: this.path ? PATHS[this.path].name : '', warded: this.wardTime > 0,
+      weaponName: WEAPONS[this.weapon].name, weaponId: this.weapon, attackRange: this.attackRange(), bellUpgradeLabel: this.bellLabel(),
+      elementName: this.elementLabel(), combatStats: `范围 ${Math.round(this.attackRange())} · 伤害 ${round(this.damage())} · ${this.interval().toFixed(2)}秒`, pathName: this.path ? PATHS[this.path].name : '', warded: this.wardTime > 0,
       comboName: this.elements.fire && this.elements.water && this.elements.earth ? '蒸腾 + 熔沼' : this.elements.fire && this.elements.water ? '水火 · 蒸腾' : this.elements.earth && this.elements.fire ? '地火 · 熔流' : this.elements.earth && this.elements.water ? '地水 · 泥沼' : '',
-      bellMarks: this.strikeCount % (this.path === 'echo' ? 2 : 3), bellThreshold: this.path === 'echo' ? 2 : 3,
+      bellMarks: this.strikeCount % this.bellThreshold(), bellThreshold: this.bellThreshold(),
       energy: Math.floor(this.energy), skillReady: this.energy >= 100 && this.skillCooldown <= 0, skillName: this.weapon === 'bell' ? '镇界' : '裂天', skillUses: this.skillUses,
       kills: this.kills
     };

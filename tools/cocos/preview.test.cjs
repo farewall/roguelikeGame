@@ -79,17 +79,18 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
       for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
         await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);
         await click('start'); await click('weapon-bell'); await click('intro-enter');
-        for (const mode of ['idle-a', 'idle-b', 'plain', 'fire', 'water', 'earth', 'echo', 'dominion']) {
+        for (const mode of ['idle-a', 'idle-b', 'plain', 'wide', 'fire', 'water', 'earth', 'echo', 'dominion']) {
           await page.evaluate(mode => {
             const c = kaitian.controller; c.resetGame(); c.pauseGame(); const core = c.combat;
             core.phase = 3; core.remaining = 0; core.enemies = []; core.hazards = []; core.effects = []; core.player.x = 50; core.player.y = 55; core.time = mode === 'idle-b' ? 1 : 0;
+            if (mode === 'wide') for (const kind of ['range', 'echo', 'resonance']) for (let i = 0; i < 3; i++) core.upgrade(kind);
             if (['fire', 'water', 'earth'].includes(mode)) core.elements[mode] = 2;
-            for (const dx of [60, 140, -130]) { const e = core.spawn('wraith'); Object.assign(e, { x: core.player.x + dx / core.width * 100, y: core.player.y, hp: 1000, maxHp: 1000, speed: 0, cooldown: 100 }); }
+            for (const dx of (mode === 'wide' ? [60, 230, -260] : [60, 140, -130])) { const e = core.spawn('wraith'); Object.assign(e, { x: core.player.x + dx / core.width * 100, y: core.player.y, hp: 1000, maxHp: 1000, speed: 0, cooldown: 100 }); }
             if (mode === 'echo') {
               for (let i = 0; i < 3; i++) { core.strike({ direction: { x: 1, y: 0 } }); core.updateBellWaves(0.26); }
               core.player.x += 180 / core.width * 100; core.updateFollowups(0.32); core.updateBellWaves(0.12);
             } else if (mode === 'dominion') { core.useSkill(); core.updateFollowups(0.12); core.updateBellWaves(0.18); }
-            else if (!mode.startsWith('idle')) { core.strike({ direction: { x: 1, y: 0 } }); core.updateBellWaves(0.225); }
+            else if (!mode.startsWith('idle')) { core.strike({ direction: { x: 1, y: 0 } }); core.updateBellWaves(mode === 'wide' ? 0.4 : 0.225); }
             c.setData({ message: '' }); c.syncCombat(); kaitian.presentation.render();
           }, mode);
           await page.waitForTimeout(80);
@@ -99,6 +100,8 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
             if (!clock || !clock.active || controller.data.weaponName !== '混沌钟') return false;
             const body = clock.getComponent('cc.Sprite');
             if (!body || body.color.a !== 255 || body.spriteFrame.rect.width !== 192) return false;
+            const size = clock.getComponent('cc.UITransform').contentSize; if (size.width > 90 || size.height > 96) return false;
+            if (mode === 'wide' && c.snapshot().attackRange < 270) return false;
             const index = Math.floor(((c.time * 1.4 / (Math.PI * 2)) % 1) * 16) % 16;
             if (body.spriteFrame.rect.x !== (index % 4) * 192 || body.spriteFrame.rect.y !== Math.floor(index / 4) * 192) return false;
             const x = arena.x + c.player.x / 100 * arena.width, y = arena.y + c.player.y / 100 * arena.height;

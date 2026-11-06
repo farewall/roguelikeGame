@@ -1,20 +1,28 @@
 'use strict';
-const BELL = { range: 160, speed: 640, interval: 1.2, resonanceStart: 0.75, resonanceMultiplier: 1.3, echoDelay: 0.32, skillDelay: 0.12 };
+const BELL = { range: 180, speed: 640, interval: 1.2, resonanceStart: 0.75, resonanceMultiplier: 1.3, echoDelay: 0.32, skillDelay: 0.12 };
 class BellCombat {
-  constructor() { this.bellWaves = []; }
+  constructor() { this.bellWaves = []; this.bellUpgrades = { range: 0, echo: 0, resonance: 0 }; }
+  bellRange() { return BELL.range * Math.pow(1.15, this.bellUpgrades.range); }
+  bellThreshold(tier = this.bellUpgrades.echo) { return Math.max(1, (this.path === 'echo' ? 2 : 3) - (tier >= 2 ? 1 : 0)); }
+  echoRange() { return this.bellRange() * (this.path === 'echo' ? 1.2 : 1.12); }
+  bellLabel() { return Object.entries(this.bellUpgrades).filter(([, tier]) => tier > 0).map(([kind, tier]) => ({ range: '钟域', echo: '回响', resonance: '共鸣' }[kind]) + tier + '重').join(' · '); }
   launchBellWave(origin, options = {}) {
-    const wave = { id: ++this.nextId, origin: { ...origin }, radius: 0, age: 0, range: BELL.range, speed: BELL.speed,
-      damage: this.damage(), kind: 'normal', bellWave: true, hitIds: new Set(), distances: new Map(), elements: { ...this.elements }, ...options };
+    const wave = { id: ++this.nextId, origin: { ...origin }, radius: 0, age: 0, range: this.bellRange(), speed: BELL.speed,
+      damage: this.damage(), resonanceStart: BELL.resonanceStart - this.bellUpgrades.resonance * 0.05, resonanceMultiplier: BELL.resonanceMultiplier + this.bellUpgrades.resonance * 0.15, echoTier: this.bellUpgrades.echo, kind: 'normal', bellWave: true, hitIds: new Set(), distances: new Map(), elements: { ...this.elements }, ...options };
     for (const e of this.enemies) wave.distances.set(e.id, this.distance(wave.origin, e));
     this.bellWaves.push(wave); if (this.bellWaves.length > 12) this.bellWaves.shift();
     this.emit('bell-release', { kind: wave.kind }); return wave;
   }
   registerBellHit(wave) {
-    const threshold = this.path === 'echo' ? 2 : 3;
+    const threshold = this.bellThreshold(wave.echoTier || 0);
     if (this.strikeCount % threshold) return;
-    const range = this.path === 'echo' ? 190 : BELL.range;
-    this.followups.push({ kind: 'bell-echo', center: { ...wave.origin }, radius: range, remaining: BELL.echoDelay,
-      damage: wave.damage * (this.path === 'echo' ? 0.65 : 0.45), elements: { ...wave.elements } });
+    const range = wave.range * (this.path === 'echo' ? 1.2 : 1.12), tier = wave.echoTier || 0;
+    this.followups.push({ kind: 'bell-echo', center: { ...wave.origin }, radius: range, remaining: BELL.echoDelay - tier * 0.04,
+      damage: wave.damage * ((this.path === 'echo' ? 0.65 : 0.45) + tier * 0.1), elements: { ...wave.elements } });
+    if (tier >= 3) {
+      const first = this.followups[this.followups.length - 1];
+      this.followups.push({ ...first, remaining: first.remaining + 0.18, damage: first.damage * 0.5, elements: { ...first.elements } });
+    }
     if (this.path === 'ward') { this.wardTime = 5; this.effect('ward', this.player, 70); }
   }
   applyBellElements(e, damage, levels) {
