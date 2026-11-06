@@ -32,6 +32,8 @@ jobs:
           github-token: ${{ github.token }}
           run-id: 42178926857
       - name: Verify package budgets and uploader
+        env:
+          GITHUB_SHA: 64d998054b5a85556033a73e8c873faf0515794f
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npm run test:package
@@ -43,6 +45,7 @@ jobs:
           WECHAT_APPID: ${{ vars.WECHAT_APPID }}
           WECHAT_PRIVATE_KEY: ${{ secrets.WECHAT_PRIVATE_KEY }}
           WECHAT_VERSION: 0.4.23
+          GITHUB_SHA: 64d998054b5a85556033a73e8c873faf0515794f
         run: node tools/wechat-ci/upload.cjs
       - name: Save WeChat preview QR
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
