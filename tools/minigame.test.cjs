@@ -78,7 +78,7 @@ test('uploader packages the Mini Game type and root, omits pagePath, and never w
       const config = JSON.parse(fs.readFileSync(path.join(temporary, 'project.config.json'))); assert.equal(config.compileType, 'game'); assert.equal(config.appid, 'wx0123456789abcdef');
       for (const file of fs.readdirSync(temporary, { recursive: true })) { const p = path.join(temporary, file); if (fs.statSync(p).isFile()) assert.ok(!fs.readFileSync(p).includes(Buffer.from('BEGIN PRIVATE KEY')), file); }
     }
-  }, async upload(options) { assert.ok(options.project); uploaded = true; }, async preview(options) { assert.ok(uploaded); assert.equal('pagePath' in options, false); previewed = true; } };
+  }, async upload(options) { assert.ok(options.project); assert.equal(options.useCOS, false); uploaded = true; }, async preview(options) { assert.ok(uploaded); assert.equal(options.useCOS, false); assert.equal('pagePath' in options, false); previewed = true; } };
   const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'creator-upload-fixture-')); fs.mkdirSync(path.join(fixture, 'minigame')); fs.copyFileSync(path.join(root, 'project.config.json'), path.join(fixture, 'project.config.json'));
   for (const [file, content] of Object.entries({ 'game.js': 'require("./cocos-js/cc")', 'game.json': JSON.stringify({ deviceOrientation: 'landscape' }), 'build-info.json': JSON.stringify({ framework: 'Cocos Creator 3.8.8', builder: 'official Creator CLI', platform: 'wechatgame' }) })) fs.writeFileSync(path.join(fixture, 'minigame', file), content);
   await main({ root: fixture, env: { WECHAT_APPID: 'wx0123456789abcdef', WECHAT_PRIVATE_KEY: privateKey, WECHAT_VERSION: '0.2.test' }, sdk, log() {} });

@@ -25,7 +25,9 @@ async function main(options = {}) {
     fs.writeFileSync(path.join(tmp, 'project.config.json'), JSON.stringify({ ...config, appid }));
     const ci = options.sdk || require('miniprogram-ci');
     const project = new ci.Project({ appid, type: 'miniGame', projectPath: tmp, privateKey, ignores: ['node_modules/**/*'] });
-    const common = { project, robot: 1, desc: '开天一念小游戏 · ' + (env.GITHUB_SHA || 'local').slice(0, 8), setting: { es6: true, minify: true }, onProgressUpdate: () => {} };
+    // COS auto-enables above 5 MiB; use the SDK's HTTP route to avoid repeated
+    // COS transfers timing out on the hosted runner.
+    const common = { project, robot: 1, useCOS: false, desc: '开天一念小游戏 · ' + (env.GITHUB_SHA || 'local').slice(0, 8), setting: { es6: true, minify: true }, onProgressUpdate: () => {} };
     await ci.upload({ ...common, version });
     log('Mini Game development version uploaded: ' + version);
     if (env.GITHUB_STEP_SUMMARY) fs.appendFileSync(env.GITHUB_STEP_SUMMARY, `## 微信小游戏开发版本上传成功\n\n版本：${version}。可在微信公众平台「版本管理」查看并设置体验版。\n`);
