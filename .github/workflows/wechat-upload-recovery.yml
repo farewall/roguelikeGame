@@ -36,7 +36,7 @@ jobs:
           GITHUB_SHA: 64d998054b5a85556033a73e8c873faf0515794f
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
-          npm run test:package
+          GITHUB_SHA=64d998054b5a85556033a73e8c873faf0515794f npm run test:package
           node tools/package-budget.cjs
           node --test tools/minigame.test.cjs
           npm ci --prefix tools/wechat-ci --no-audit --no-fund
@@ -46,7 +46,7 @@ jobs:
           WECHAT_PRIVATE_KEY: ${{ secrets.WECHAT_PRIVATE_KEY }}
           WECHAT_VERSION: 0.4.23
           GITHUB_SHA: 64d998054b5a85556033a73e8c873faf0515794f
-        run: node tools/wechat-ci/upload.cjs
+        run: GITHUB_SHA=64d998054b5a85556033a73e8c873faf0515794f node tools/wechat-ci/upload.cjs
       - name: Save WeChat preview QR
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
