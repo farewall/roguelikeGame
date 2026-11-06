@@ -13,3 +13,7 @@ import vines from './core/vines.js';
 export const vineGrowth = vines.vineGrowth;
 export const vineRadius = vines.vineRadius;
 export const vinePaths = vines.vinePaths;
+
+import meteor from './core/meteor.js';
+export const METEOR = meteor.METEOR;
+export const meteorPhase = meteor.meteorPhase;

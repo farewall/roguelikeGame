@@ -200,6 +200,31 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         }
         await page.evaluate(() => kaitian.controller.exitToHome());
       }
+      for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
+        await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);
+        await page.evaluate(() => kaitian.controller.beginGame());
+        for (const phase of ['warning', 'falling', 'impact', 'burning', 'fading']) {
+          await page.evaluate(phase => {
+            const c = kaitian.controller; c.resetGame(); c.pauseGame(); const core = c.combat;
+            core.enemies = []; core.hazards = []; core.effects = []; core.phase = 3; core.stage = 3; core.player.x = 37; core.player.y = 62;
+            const boss = core.spawn('boss'); Object.assign(boss, { x: 80, y: 28, cooldown: 100, castTime: 1.3, visualState: phase === 'warning' || phase === 'falling' ? 'cast' : 'release' });
+            core.castPattern(3, boss, false);
+            for (let i = 0; i < core.hazards.length; i++) {
+              const h = core.hazards[i]; h.x = 57 + i * 13; h.y = 65 - i * 16;
+              h.age = { warning: h.delay * 0.1, falling: h.delay * 0.75, impact: h.delay + 0.09, burning: h.delay + 0.8, fading: h.delay + h.duration - 0.12 }[phase]; h.active = h.age >= h.delay;
+            }
+            c.setData({ message: '' }); c.syncCombat(); kaitian.presentation.render();
+          }, phase);
+          await page.waitForTimeout(80);
+          assert.ok(await page.evaluate(phase => {
+            const ids = [...kaitian.presentation.layers.world.used].filter(id => id.startsWith('meteor-'));
+            const kind = phase === 'warning' ? '-target' : phase === 'falling' ? '-fall' : phase === 'impact' ? '-burst' : '-ground';
+            return kaitian.controller.combat.hazards.every(h => h.meteor) && ids.filter(id => id.endsWith(kind)).length === 3;
+          }, phase), 'Meteor fall, impact and lingering ground fire must use the new atlas');
+          await page.screenshot({ path: output + '/meteor-' + viewport.width + '-' + phase + '.png' });
+        }
+        await page.evaluate(() => kaitian.controller.exitToHome());
+      }
       const saved = await page.evaluate(() => kaitian.api.getStorageSync('pangu.archive.v1'));
       await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForFunction(() => window.kaitian && kaitian.presentation.ready, null, { timeout: 60000 });
       assert.deepEqual(await page.evaluate(() => kaitian.controller.archive.memories), saved.memories);

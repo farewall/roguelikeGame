@@ -339,3 +339,25 @@ test('invulnerability prevents vine binding and losing its source releases exist
   caster.hp = 0; c.collectDeaths(); assert.equal(c.rootTime, 0);
   c.startStage(); assert.equal(c.rootTime, 0); assert.equal(c.rootImmunity, 0);
 });
+
+test('phoenix meteors lock harmless warnings, impact once, and leave weaker persistent burning ground', () => {
+  const c = fresh(); c.castPattern(3, null, false); const h = c.hazards[0];
+  assert.equal(c.hazards.length, 3); assert.ok(c.hazards.every(h => h.meteor && h.kind === 'flame'));
+  c.hazards = [h]; h.age = h.delay - 0.1; c.updateHazards(0.01); assert.equal(c.hp, 100);
+  c.updateHazards(0.1); assert.equal(c.hp, 89); assert.equal(h.impactHit, true);
+  c.invulnerable = 0; c.updateHazards(0.1); assert.equal(c.hp, 89, 'The same meteor cannot hit twice during its impact window');
+  c.updateHazards(0.3); assert.equal(c.hp, 85); assert.equal(c.lastDamageName, '余烬焚地');
+  c.player.x = 90; c.player.y = 20; c.invulnerable = 0; c.updateHazards(0.2); assert.equal(c.hp, 85);
+  c.updateHazards(h.duration); assert.equal(c.hazards.length, 0);
+});
+
+test('entering an existing fire patch causes burn damage without a delayed meteor impact', () => {
+  const c = fresh(); c.castPattern(3, null, true); assert.equal(c.hazards.filter(h => h.meteor).length, 5);
+  const h = c.hazards[0]; c.hazards = [h]; h.age = h.delay + 0.6;
+  c.updateHazards(0); assert.equal(c.hp, 96); assert.equal(c.lastDamageName, '余烬焚地');
+  assert.equal(h.impactHit, undefined);
+  const { meteorPhase } = require('../game/core/meteor');
+  assert.equal(meteorPhase({ age: 0.9, delay: 1 }), 'falling');
+  assert.equal(meteorPhase({ age: 1.1, delay: 1 }), 'impact');
+  assert.equal(meteorPhase({ age: 1.4, delay: 1 }), 'burning');
+});

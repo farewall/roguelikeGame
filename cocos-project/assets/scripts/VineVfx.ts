@@ -5,6 +5,7 @@ const clamp = (n: number) => Math.max(0, Math.min(1, n));
 function canvas(v, layer, id, p) {
   const node = v.use(layer, id, () => { const n = v.makeNode(id); n.addComponent(Graphics); return n; });
   node.setPosition(p.x, -p.y);
+  node.setSiblingIndex(id.startsWith('vines-') ? 0 : layer.node.children.length - 1);
   const g: DrawList = (node as any).vineDraw || ((node as any).vineDraw = new DrawList(node.getComponent(Graphics))); g.clear();
   return g;
 }

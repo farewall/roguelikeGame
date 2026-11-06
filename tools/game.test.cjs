@@ -179,3 +179,10 @@ test('vine bind stops joystick movement, freezes in settings/background, and exp
   game.closeSettings(); game.onHide(); simulate(1); assert.equal(c.rootTime, time); game.onShow();
   simulate(0.9); assert.equal(c.rootTime, 0); game.moveVector = { x: 1, y: 0 }; game.moveFrame(0.05); assert.ok(game.player.x > x);
 });
+
+test('meteor fall and burning phase clocks freeze in settings and resume on returning', () => {
+  const { game, simulate } = setup(); const c = game.combat; c.phase = 3; c.remaining = 0; c.enemies = [];
+  c.castPattern(3, null, false); c.player.x = 5; c.player.y = 20;
+  const ages = c.hazards.map(h => h.age); game.openSettings(); simulate(2); assert.deepEqual(c.hazards.map(h => h.age), ages);
+  game.closeSettings(); simulate(0.2); assert.ok(c.hazards[0].age > 0);
+});

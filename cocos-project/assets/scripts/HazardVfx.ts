@@ -1,18 +1,20 @@
 import { UITransform } from 'cc';
 import { drawRootHazard } from './VineVfx';
+import { drawMeteor } from './MeteorVfx';
 const clamp = (n: number, a = 0, b = 1) => Math.max(a, Math.min(b, n));
 const COLORS = { root: 0xa5d46d, flame: 0xff9446, tide: 0x8edbea, slash: 0xffd17e, order: 0xd3a6ff, arcane: 0xbba8fa, rift: 0xb9efdc, lava: 0xe1a05c, mud: 0x8db6a4, confluence: 0xc8c887 };
 // Pictures supply the spell identity. Exact circles/rings/capsules remain the
 // damage boundary; every animation reads hazard.age, never wall-clock time.
 export function drawHazard(v: any, layer: any, h: any, point: (p: any) => any) {
+  if (h.meteor) { drawMeteor(v, layer, h, point(h)); return; }
   if (h.kind === 'root') { drawRootHazard(v, layer, h, point(h)); return; }
   const g = layer.g, p = point(h), color = COLORS[h.kind] || 0xe3c88b;
   const active = h.age >= h.delay, age = Math.max(0, h.age - h.delay), warning = clamp(h.age / Math.max(0.001, h.delay));
   const pulse = 0.65 + Math.sin(h.age * 8) * 0.2;
   const alpha = h.friendly ? 0.1 : active ? 0.18 : 0.04 + warning * 0.07;
   const key = 'spell-' + h.id + '-';
-  const spell = (id: string, index: number, x: number, y: number, w: number, height: number, opacity: number, angle = 0) => {
-    const sprite = v.image(layer, key + id, v.assets.frames.spells[index], x, y, w, height, opacity);
+  const spell = (id: string, index: number, x: number, y: number, w: number, height: number, opacity: number, angle = 0, atlas = v.assets.frames.spells) => {
+    const sprite = v.image(layer, key + id, atlas[index], x, y, w, height, opacity);
     sprite.node.getComponent(UITransform).setAnchorPoint(0.5, 0.5); sprite.node.angle = -angle;
   };
   const capsule = (q: any) => {
@@ -51,7 +53,7 @@ export function drawHazard(v: any, layer: any, h: any, point: (p: any) => any) {
       const count = Math.min(14, Math.max(3, Math.ceil(length / 90)));
       for (let i = 0; i < count; i++) {
         const t = (i + 0.5) / count;
-        spell('fire-' + i, 0, p.x + dx * t, p.y + dy * t - Math.sin(age * 10 + i) * 4, h.width * 0.8, h.width * 1.5, 0.85);
+        spell('fire-' + i, h.kind === 'flame' ? 12 + i % 4 : 0, p.x + dx * t, p.y + dy * t - Math.sin(age * 10 + i) * 3, h.width * 1.5, h.width * 0.9, 0.85, 0, h.kind === 'flame' ? v.assets.frames.meteor : v.assets.frames.spells);
       }
     } else if (h.kind === 'tide') {
       for (let i = 0; i < 8; i++) {
