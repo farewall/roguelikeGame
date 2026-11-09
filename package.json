@@ -7,7 +7,7 @@
     "prepare:cocos": "node tools/cocos/prepare.cjs",
     "build": "node tools/cocos/build.cjs",
     "build:web": "node tools/cocos/build.cjs web-mobile",
-    "test": "node --test tools/bell.test.cjs tools/progression.test.cjs tools/combat.test.cjs tools/game.test.cjs tools/refinements.test.cjs tools/minigame.test.cjs tools/artifact.test.cjs",
+    "test": "node --test tools/boss-patterns.test.cjs tools/bell.test.cjs tools/progression.test.cjs tools/combat.test.cjs tools/game.test.cjs tools/refinements.test.cjs tools/minigame.test.cjs tools/artifact.test.cjs",
     "test:package": "node --test tools/cocos/package.test.cjs",
     "test:visual": "node tools/cocos/preview.test.cjs"
   },

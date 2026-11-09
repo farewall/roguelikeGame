@@ -17,3 +17,9 @@ export const vinePaths = vines.vinePaths;
 import meteor from './core/meteor.js';
 export const METEOR = meteor.METEOR;
 export const meteorPhase = meteor.meteorPhase;
+
+import bossPatterns from './core/boss-patterns.js';
+export const attackLine = bossPatterns.attackLine;
+export const waveBand = bossPatterns.waveBand;
+export const sectorAngle = bossPatterns.sectorAngle;
+export const inAngleGap = bossPatterns.inAngleGap;

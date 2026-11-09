@@ -54,7 +54,7 @@ const definition = {
   cancelExit() { this.setData({ confirmExit: false }); },
   exitToHome() {
     this.stopLoops(); if (this.audio) this.audio.stopAll(); this.upgradeTouch = null; this.upgradePending = false;
-    this.setData({ view: 'home', showSettings: false, showIntro: false, confirmExit: false, paused: false, showChoice: false, choices: [], showMemory: false, showEnding: false, ended: false, message: '' });
+    this.setData({ view: 'home', showSettings: false, showIntro: false, confirmExit: false, paused: false, showChoice: false, choices: [], showMemory: false, showEnding: false, ended: false, bossTransition: null, message: '' });
     this.refreshArchive();
   },
   stopTap() {},
@@ -133,7 +133,7 @@ const definition = {
     this.pendingTimers = {}; this.stopMovement();
   },
   notify(message) { this.setData({ message }); this.schedule('toastTimer', () => this.setData({ message: '' }), 2300); },
-  isBlocked() { return this.data.view !== 'game' || this.data.paused || this.data.ended || this.data.showChoice || this.data.showMemory || this.upgradePending || this.stageClearRemaining > 0; },
+  isBlocked() { return this.data.view !== 'game' || this.data.paused || this.data.ended || this.data.showChoice || this.data.showMemory || this.upgradePending || this.stageClearRemaining > 0 || Boolean(this.combat && this.combat.enrage); },
   aimSkill(direction) {
     if (this.isBlocked() || !this.combat || !this.combat.snapshot().skillReady || this.combat.weapon !== 'banner') return false;
     this.setData({ skillAim: this.combat.skillDirection(direction) }); return true;
@@ -146,6 +146,9 @@ const definition = {
   tick(delta) {
     const now = Date.now(), dt = Math.min(0.05, typeof delta === 'number' ? Math.max(0, delta) : Math.max(0, (now - this.lastTickTime) / 1000));
     this.lastTickTime = now;
+    if (this.combat && this.combat.enrage && this.data.view === 'game' && !this.data.paused && !this.data.ended && !this.data.showChoice && !this.data.showMemory) {
+      this.combat.update(dt); this.syncCombat(); return;
+    }
     if (this.stageClearRemaining > 0 && this.data.view === 'game' && !this.data.paused && !this.data.ended) {
       this.combat.advanceRemnants(dt); this.stageClearRemaining = Math.max(0, this.stageClearRemaining - dt);
       this.syncCombat(); if (!this.stageClearRemaining) this.completeStage(); return;
@@ -174,7 +177,8 @@ const definition = {
       }
       if (event.type === 'rooted') this.notify('藤蔓缠足 · 暂时无法移动，仍可使用至宝');
       if (event.type === 'boss') this.notify(event.name + '现身 · 观察预警后再接近');
-      if (event.type === 'boss-phase') this.notify(event.name + ' · 二阶段，招式发生变化');
+      if (event.type === 'boss-phase') { this.stopMovement(); this.cancelSkillAim(); if (this.audio) { this.audio.stopAll(); this.audio.play('dominion'); } this.notify(event.name + ' · 法相暴怒'); }
+      if (event.type === 'boss-enraged') this.notify(event.name + ' · 留意新的蓄势动作');
       if (event.type === 'cast' && this.audio && !warned && now >= (this.warningSoundUntil || 0)) { this.audio.play('warning'); this.warningSoundUntil = now + 650; warned = true; }
       if (event.type === 'trial-clear') this.notify('试炼完成 · 额外获得 6 灵气，恢复 10 元气');
       if (event.type === 'discover' && !this.archive.enemies.includes(event.id)) { this.archive.enemies.push(event.id); saveArchive(wx, this.archive); }
@@ -296,7 +300,7 @@ const definition = {
   },
   moveFrame(delta) {
     const now = Date.now(), dt = typeof delta === 'number' ? Math.min(0.05, Math.max(0, delta)) : Math.min(0.05, Math.max(0, (now - this.lastMoveTime) / 1000)); this.lastMoveTime = now;
-    if (this.data.view !== 'game' || this.data.paused || this.data.showChoice || this.data.showMemory || this.stageClearRemaining > 0) return;
+    if (this.data.view !== 'game' || this.data.paused || this.data.showChoice || this.data.showMemory || this.stageClearRemaining > 0 || this.combat && this.combat.enrage) return;
     if (!this.data.ended && !this.upgradePending && this.arenaRect && this.combat.rootTime > 0) this.actor.move(0, 0);
     if (!this.data.ended && !this.upgradePending && this.arenaRect && !(this.combat.rootTime > 0)) {
       const direction = this.moveVector || { x: 0, y: 0 }, step = PLAYER_SPEED * this.rpxScale * dt, bounds = this.playerBounds();
@@ -310,7 +314,8 @@ const definition = {
 };
   const controller = { ...definition, data: JSON.parse(JSON.stringify(definition.data)), viewport: options.viewport || wx.getWindowInfo() };
   controller.setData = function(patch, callback) {
-    const boundary = INPUT_BOUNDARIES.some(key => Object.prototype.hasOwnProperty.call(patch, key) && patch[key] !== this.data[key]);
+    const phaseBoundary = Object.prototype.hasOwnProperty.call(patch, 'bossTransition') && (patch.bossTransition && patch.bossTransition.owner) !== (this.data.bossTransition && this.data.bossTransition.owner);
+    const boundary = phaseBoundary || INPUT_BOUNDARIES.some(key => Object.prototype.hasOwnProperty.call(patch, key) && patch[key] !== this.data[key]);
     Object.assign(this.data, patch); if (boundary) this.data.inputEpoch = (this.data.inputEpoch || 0) + 1;
     this.version = (this.version || 0) + 1; if (callback) callback();
   };

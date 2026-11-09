@@ -95,7 +95,8 @@ test('ranged casters maintain distance and show a harmless warning before a dama
 test('chargers lock a lane and physically dash only after the warning', () => {
   const c = fresh(); const e = target(c, 75, 55, 'charger'); e.cooldown = 0; const start = e.x; c.update(0.025, false);
   simulate(c, 0.8, false); closeTo(e.x, start); assert.equal(c.hp, 100);
-  simulate(c, 0.3, false); assert.notEqual(e.x, start); assert.equal(c.hp, 91);
+  simulate(c, 0.3, false); assert.notEqual(e.x, start); assert.equal(c.hp, 100);
+  simulate(c, 0.3, false); assert.equal(c.hp, 91);
 });
 test('warning shape matches the collision geometry for circles, rings and diagonal lines', () => {
   const c = fresh(); const h = { shape: 'ring', x: 50, y: 55, radius: 200, inner: 120 };
@@ -111,20 +112,27 @@ test('each boss has a distinct base pattern and second phase adds a meaningful t
     const c = fresh(); c.stage = stage; const boss = c.spawn('boss'); boss.cooldown = 0; c.update(0.025, false);
     const first = c.hazards.map(h => h.kind + ':' + h.shape); signatures.push(first.join(','));
     assert.ok(c.hazards.length); assert.ok(c.hazards.every(h => h.delay >= 0.85)); assert.equal(c.hp, 100);
-    c.hazards = []; boss.castTime = boss.recoverTime = boss.cooldown = 0; boss.hp = boss.maxHp * 0.49; c.update(0.025, false); simulate(c, 0.85, false);
+    c.hazards = []; boss.castTime = boss.recoverTime = boss.cooldown = 0; boss.hp = boss.maxHp * 0.49; c.update(0.025, false);
+    assert.ok(c.enrage); assert.equal(c.hazards.length, 0); c.invulnerable = 100;
+    simulate(c, 2.6, false);
     assert.equal(boss.phase2, true); assert.ok(c.drainEvents().some(e => e.type === 'boss-phase'));
     assert.ok(c.hazards.length >= first.length);
   }
   assert.equal(new Set(signatures).size, 5);
 });
-test('tortoise takes reduced damage only during second-phase cast armor', () => {
+test('tortoise closes its shell while gathering waves and opens it during recovery', () => {
   const c = fresh(); c.stage = 4; const e = target(c, 55, 55, 'boss'); e.bossType = 4; e.hp = 40; e.maxHp = 100; e.cooldown = 0;
-  simulate(c, 0.85, false); assert.equal(e.shielded, true);
-  const hp = e.hp; c.deal(e, 10); closeTo(e.hp, hp - 5.5); e.castTime = 0; c.update(0.025, false); assert.equal(e.shielded, false);
+  c.invulnerable = 100; simulate(c, 2.6, false); assert.equal(e.shielded, true);
+  const hp = e.hp; c.deal(e, 10); closeTo(e.hp, hp - 5.5);
+  e.bossPattern.age = e.bossPattern.castEnd + 0.01; c.update(0.025, false); assert.equal(e.shielded, false);
 });
-test('heaven cycles all four guardian patterns instead of repeating one attack', () => {
+test('heaven composes roots and pursuit, then meteor fire and outward sea waves', () => {
   const c = fresh(); c.stage = 5; const e = c.spawn('boss'); const seen = new Set();
-  for (let i = 0; i < 4; i++) { c.hazards = []; c.castPattern(5, e, true); c.hazards.filter(h => h.kind !== 'order').forEach(h => seen.add(h.kind)); }
+  c.invulnerable = 1000;
+  for (let i = 0; i < 2; i++) {
+    c.hazards = []; c.castPattern(5, e, true); e.cooldown = 100;
+    for (let step = 0; step < 360; step++) { c.update(0.025, false); c.hazards.filter(h => h.kind !== 'order').forEach(h => seen.add(h.kind)); }
+  }
   assert.deepEqual([...seen].sort(), ['flame', 'root', 'slash', 'tide']);
 });
 test('escaping a fixed warning avoids damage; standing inside honors invulnerability', () => {

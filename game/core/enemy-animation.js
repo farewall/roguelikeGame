@@ -13,9 +13,10 @@ function enemyFrame(enemy) {
   return row * 6 + pose(enemy);
 }
 function pose(enemy) {
-  if (enemy.hitTime > 0) return 4;
   if (enemy.visualState === 'dash' || enemy.visualState === 'release') return 3;
   if (enemy.visualState === 'cast') return 2;
+  if (enemy.hitTime > 0) return 4;
+  if (enemy.visualState === 'recover') return 1;
   return Math.floor((enemy.visualAge || 0) * (enemy.boss ? 2 : 6) + (enemy.id || 0) % 2) % 2;
 }
 function bossFrame(enemy) { return pose(enemy); }

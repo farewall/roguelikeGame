@@ -1,118 +1,95 @@
 import { UITransform } from 'cc';
+import { attackLine, waveBand, sectorAngle, inAngleGap } from './generated/game-core';
 import { drawRootHazard } from './VineVfx';
 import { drawMeteor } from './MeteorVfx';
 const clamp = (n: number, a = 0, b = 1) => Math.max(a, Math.min(b, n));
-const COLORS = { root: 0xa5d46d, flame: 0xff9446, tide: 0x8edbea, slash: 0xffd17e, order: 0xd3a6ff, arcane: 0xbba8fa, rift: 0xb9efdc, lava: 0xe1a05c, mud: 0x8db6a4, confluence: 0xc8c887 };
-// Pictures supply the spell identity. Exact circles/rings/capsules remain the
-// damage boundary; every animation reads hazard.age, never wall-clock time.
+
+// Only physical attacks are drawn. Wind-up comes from the caster's body.
+// There are no ground outlines, lanes, arrows or area-of-effect markers.
 export function drawHazard(v: any, layer: any, h: any, point: (p: any) => any) {
-  if (h.meteor) { drawMeteor(v, layer, h, point(h)); return; }
-  if (h.kind === 'root') { drawRootHazard(v, layer, h, point(h)); return; }
-  const g = layer.g, p = point(h), color = COLORS[h.kind] || 0xe3c88b;
-  const active = h.age >= h.delay, age = Math.max(0, h.age - h.delay), warning = clamp(h.age / Math.max(0.001, h.delay));
-  const pulse = 0.65 + Math.sin(h.age * 8) * 0.2;
-  const alpha = h.friendly ? 0.1 : active ? 0.18 : 0.04 + warning * 0.07;
-  const key = 'spell-' + h.id + '-';
-  const spell = (id: string, index: number, x: number, y: number, w: number, height: number, opacity: number, angle = 0, atlas = v.assets.frames.spells) => {
-    const sprite = v.image(layer, key + id, atlas[index], x, y, w, height, opacity);
+  if (h.meteor) { drawMeteor(v, layer, h, point(h), point); return; }
+  if (h.kind === 'root') { drawRootHazard(v, layer, h, point(h), point); return; }
+  if (h.age < h.delay) return;
+  const g = layer.g, p = point(h), age = h.age - h.delay;
+  const fade = clamp((h.duration - age) / 0.25), prefix = 'spell-' + h.id + '-';
+  const tile = (id: string, index: number, x: number, y: number, w: number, height: number, opacity: number, angle = 0, atlas = v.assets.frames.spells) => {
+    const sprite = v.image(layer, prefix + id, atlas[index], x, y, w, height, opacity * fade);
     sprite.node.getComponent(UITransform).setAnchorPoint(0.5, 0.5); sprite.node.angle = -angle;
   };
-  const capsule = (q: any) => {
-    const dx = q.x - p.x, dy = q.y - p.y, length = Math.hypot(dx, dy) || 1, nx = -dy / length * h.width / 2, ny = dx / length * h.width / 2;
-    g.lineStyle(active ? 2 : 1.5, color, active ? 0.85 : 0.45 + warning * 0.4); g.beginFill(color, alpha);
-    g.drawPolygon([p.x + nx, p.y + ny, q.x + nx, q.y + ny, q.x - nx, q.y - ny, p.x - nx, p.y - ny]); g.endFill();
-    g.lineStyle(0); g.beginFill(color, alpha); g.drawCircle(p.x, p.y, h.width / 2); g.drawCircle(q.x, q.y, h.width / 2); g.endFill();
-    return { dx, dy, length, angle: Math.atan2(dy, dx) * 180 / Math.PI };
-  };
   if (h.shape === 'line') {
-    const q = point(h.end), { dx, dy, length, angle } = capsule(q);
-    if (!active) {
-      // Direction chevrons replace the old “符/冲/再/斩” labels.
-      const count = Math.max(2, Math.min(12, Math.floor(length / 65)));
-      for (let i = 1; i < count; i++) {
-        const x = p.x + dx * i / count, y = p.y + dy * i / count, sx = dx / length, sy = dy / length;
-        g.lineStyle(2, color, 0.3 + warning * 0.5); g.moveTo(x - sx * 9 - sy * 6, y - sy * 9 + sx * 6); g.lineTo(x, y); g.lineTo(x - sx * 9 + sy * 6, y - sy * 9 - sx * 6);
-      }
-      return;
-    }
-    if (h.kind === 'arcane') {
-      // A continuous luminous spell beam matches the existing line damage.
-      g.lineStyle(Math.min(h.width * 0.65, 14), 0x6bc5ee, 0.28); g.moveTo(p.x, p.y); g.lineTo(q.x, q.y);
-      g.lineStyle(3, 0xe2fbff, 0.95); g.moveTo(p.x, p.y); g.lineTo(q.x, q.y);
-      const t = clamp(age / Math.max(0.001, h.duration));
-      spell('comet', 2, p.x + dx * t, p.y + dy * t, 88, Math.min(30, h.width), 0.95, angle);
-      spell('muzzle', 1, p.x, p.y, h.width * 1.6, h.width * 1.6, 0.65, age * 100);
-    } else if (h.kind === 'slash') {
+    const line = attackLine(h), a = point(line), b = point(line.end);
+    const dx = b.x - a.x, dy = b.y - a.y, length = Math.hypot(dx, dy) || 1, angle = Math.atan2(dy, dx) * 180 / Math.PI;
+    if (h.kind === 'slash') {
+      const t = clamp(age / h.duration), body = { x: p.x + dx * t, y: p.y + dy * t };
+      // Claws and dust follow the beast, never the entire attack lane.
       for (let i = 0; i < 3; i++) {
-        const t = clamp(age / Math.max(0.001, h.duration) - i * 0.16);
-        spell('claw-' + i, 5, p.x + dx * t, p.y + dy * t, 88 + h.width * 0.35, h.width * 0.85, 0.85 - i * 0.22, angle);
+        const back = 16 + i * 17;
+        tile('claw-' + i, 5, body.x - dx / length * back, body.y - dy / length * back, 65 - i * 10, h.width * 0.7, 0.9 - i * 0.23, angle);
       }
-      // Keep the full active attack lane visible, including the tiger's second leap.
-      g.lineStyle(3, 0xffe5b0, 0.65); g.moveTo(p.x, p.y); g.lineTo(q.x, q.y);
+      for (let i = 0; i < 3; i++) tile('dust-' + i, i % 4, body.x - dx / length * (25 + i * 20), body.y - dy / length * (25 + i * 20) + 30, 48 + i * 8, 24, 0.2, 0, v.assets.frames.chaosMist);
     } else if (h.kind === 'flame' || h.kind === 'lava') {
-      const count = Math.min(14, Math.max(3, Math.ceil(length / 90)));
-      for (let i = 0; i < count; i++) {
-        const t = (i + 0.5) / count;
-        spell('fire-' + i, h.kind === 'flame' ? 12 + i % 4 : 0, p.x + dx * t, p.y + dy * t - Math.sin(age * 10 + i) * 3, h.width * 1.5, h.width * 0.9, 0.85, 0, h.kind === 'flame' ? v.assets.frames.meteor : v.assets.frames.spells);
+      const count = Math.max(2, Math.ceil(length / 38));
+      for (let i = 0; i <= count; i++) {
+        const t = i / count;
+        tile('fire-' + i, 12 + (i + Math.floor(age * 8)) % 4, a.x + dx * t, a.y + dy * t - 6, h.width * 1.35, h.width * 1.3, 0.82, 0, v.assets.frames.meteor);
       }
-    } else if (h.kind === 'tide') {
-      for (let i = 0; i < 8; i++) {
-        const t = (i / 8 + age * 0.3) % 1;
-        spell('wave-' + i, 4, p.x + dx * t, p.y + dy * t, 72, h.width * 0.85, 0.75, angle);
-      }
-    } else if (h.kind === 'order') {
-      const count = Math.max(3, Math.min(9, Math.floor(length / 80)));
-      for (let i = 0; i < count; i++) {
-        const t = (i + 0.5) / count;
-        spell('seal-' + i, 1, p.x + dx * t, p.y + dy * t, h.width * 0.85, h.width * 0.85, pulse, age * 30);
-      }
-      g.lineStyle(4, 0xfbe1aa, 0.8); g.moveTo(p.x, p.y); g.lineTo(q.x, q.y);
     } else {
-      g.lineStyle(3, color, 0.65); g.moveTo(p.x, p.y); g.lineTo(q.x, q.y);
+      const color = h.kind === 'order' ? 0xe8d7ff : h.kind === 'rift' ? 0xb4e8db : 0xbee5f2;
+      g.lineStyle(h.width * 0.4, color, fade * 0.22); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y);
+      g.lineStyle(h.width * 0.12, 0xf5f5e4, fade * 0.9); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y);
+      for (let i = 0; i < 3; i++) {
+        const t = (age * 3 + i / 3) % 1;
+        tile('breath-' + i, 2, a.x + dx * t, a.y + dy * t, 74, Math.min(h.width * 1.4, 55), 0.75, angle);
+      }
+    }
+    return;
+  }
+  if (h.shape === 'sector') {
+    const a = sectorAngle(h);
+    for (let i = 0; i < 5; i++) {
+      const r = (h.inner || 0) + (h.radius - (h.inner || 0)) * (i + 0.5) / 5;
+      tile('tail-' + i, 5, p.x + Math.cos(a) * r, p.y + Math.sin(a) * r, 55, 42, 0.8, a * 180 / Math.PI);
     }
     return;
   }
   if (h.shape === 'ring') {
-    // Stroke is centred on the middle radius, preserving the safe inner hole.
-    g.lineStyle(h.radius - h.inner, color, alpha); g.drawCircle(p.x, p.y, (h.radius + h.inner) / 2);
-    g.lineStyle(2, color, 0.8); g.drawCircle(p.x, p.y, h.radius); g.drawCircle(p.x, p.y, h.inner);
-    if (active) {
-      for (let i = 0; i < 3; i++) {
-        const r = h.inner + (h.radius - h.inner) * ((age * 1.2 + i / 3) % 1);
-        g.lineStyle(3, h.kind === 'tide' ? 0xd9fbff : color, 0.55); g.drawCircle(p.x, p.y, r);
-      }
-      for (let i = 0; i < 8; i++) {
-        const angle = i * Math.PI / 4 + age * 0.2, r = (h.radius + h.inner) / 2;
-        spell('rim-' + i, 4, p.x + Math.cos(angle) * r, p.y + Math.sin(angle) * r, 48, Math.min(42, h.radius - h.inner), 0.8, angle * 180 / Math.PI + 90);
+    const { radius, inner } = waveBand(h), r = (radius + inner) / 2, count = Math.max(10, Math.ceil(r * Math.PI * 2 / 34));
+    if (h.kind === 'tide') {
+      // A rolling body of water, with an uneven foam lip and a fading wake.
+      // This is the damaging crest itself; no predictive boundary is drawn.
+      const samples = Math.max(24, Math.ceil(radius * Math.PI * 2 / 18)), step = Math.PI * 2 / samples;
+      for (let i = 0; i < samples; i++) {
+        const a = i * step, b = a + step;
+        if (inAngleGap(h, Math.cos(a), Math.sin(a)) || inAngleGap(h, Math.cos(b), Math.sin(b))) continue;
+        const wave = angle => Math.sin(angle * 9 + age * 8 + h.id) * 3 + Math.sin(angle * 17 - age * 11) * 1.5;
+        const outerA = radius + wave(a), outerB = radius + wave(b), wakeA = Math.max(0, inner - 12 + wave(a)), wakeB = Math.max(0, inner - 12 + wave(b));
+        g.lineStyle(0); g.beginFill(0x236d82, fade * 0.46);
+        g.drawPolygon([p.x + Math.cos(a) * wakeA, p.y + Math.sin(a) * wakeA, p.x + Math.cos(a) * outerA, p.y + Math.sin(a) * outerA, p.x + Math.cos(b) * outerB, p.y + Math.sin(b) * outerB, p.x + Math.cos(b) * wakeB, p.y + Math.sin(b) * wakeB]); g.endFill();
+        g.beginFill(0x7cc8da, fade * 0.32);
+        g.drawPolygon([p.x + Math.cos(a) * (outerA - 17), p.y + Math.sin(a) * (outerA - 17), p.x + Math.cos(a) * outerA, p.y + Math.sin(a) * outerA, p.x + Math.cos(b) * outerB, p.y + Math.sin(b) * outerB, p.x + Math.cos(b) * (outerB - 17), p.y + Math.sin(b) * (outerB - 17)]); g.endFill();
       }
     }
-    return;
-  }
-  g.lineStyle(active ? 2.5 : 1.5, color, active ? 0.85 : 0.55 + warning * 0.35); g.beginFill(color, alpha); g.drawCircle(p.x, p.y, h.radius); g.endFill();
-  if (!active) {
-    g.lineStyle(2, color, 0.35); g.arc(p.x, p.y, h.radius * 0.86, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * warning);
-    if (h.kind === 'flame') {
-      // The feather descends to its locked warning circle, then becomes fire.
-      spell('fall', 0, p.x, p.y - (1 - warning) * 150 - 12, 44, 72, 0.4 + warning * 0.55, -12 + warning * 12);
-    } else if (h.kind === 'arcane') spell('seal', 1, p.x, p.y, h.radius * 1.8, h.radius * 1.8, 0.2 + warning * 0.35, h.age * 35);
+    for (let i = 0; i < count; i++) {
+      const a = i * Math.PI * 2 / count, dx = Math.cos(a), dy = Math.sin(a);
+      if (inAngleGap(h, dx, dy)) continue;
+      // Overlapping foam textures form a thick, irregular physical wavefront.
+      const crest = h.kind === 'tide' ? radius - 8 + Math.sin(i * 1.7 + age * 7) * 3 : r;
+      tile('water-' + i, h.shockwave ? 5 : 4, p.x + dx * crest, p.y + dy * crest, 56 + Math.sin(i * 2.1) * 9, Math.max(37, radius - inner + 8), 0.8, a * 180 / Math.PI + 90);
+      if (h.kind === 'tide' && i % 2 === 0) tile('spray-' + i, 4, p.x + dx * (r + 13), p.y + dy * (r + 13) - Math.sin(age * 9 + i) * 5, 27, 18, 0.35, a * 180 / Math.PI + 90);
+    }
     return;
   }
   if (h.kind === 'flame' || h.kind === 'lava' || h.kind === 'confluence') {
-    const burst = clamp(age / 0.22);
-    if (age < 0.3) { g.lineStyle(4, 0xffe2a0, 1 - age / 0.3); g.drawCircle(p.x, p.y, h.radius * burst); }
-    for (let i = 0; i < 4; i++) {
-      const angle = i * Math.PI / 2 + h.id, r = h.radius * 0.4;
-      spell('flame-' + i, 0, p.x + Math.cos(angle) * r, p.y + Math.sin(angle) * r - 8 - Math.sin(age * 11 + i) * 5, h.radius * 0.65, h.radius * 1.25, h.friendly ? 0.45 : 0.9, Math.sin(age * 4 + i) * 12);
+    for (let i = 0; i < 5; i++) {
+      const a = i * Math.PI * 2 / 5 + h.id, r = h.radius * 0.45;
+      tile('ember-' + i, 12 + (i + Math.floor(age * 7)) % 4, p.x + Math.cos(a) * r, p.y + Math.sin(a) * r * 0.65, h.radius * 0.8, h.radius * 0.7, h.friendly ? 0.36 : 0.85, 0, v.assets.frames.meteor);
     }
-  } else if (h.kind === 'arcane') {
-    spell('seal', 1, p.x, p.y, h.radius * 1.9, h.radius * 1.9, 0.9, age * 45);
-    g.lineStyle(3, 0xffe9bb, 0.55); g.drawCircle(p.x, p.y, h.radius * (0.45 + Math.sin(age * 8) * 0.08));
   } else if (h.kind === 'mud') {
-    for (let i = 0; i < 3; i++) { g.lineStyle(2, 0xb6d4c0, 0.25); g.drawEllipse(p.x, p.y, h.radius * ((age * 0.4 + i / 3) % 1), h.radius * 0.35); }
-  }
-  // Small embers/light motes add motion without a particle-system allocation.
-  for (let i = 0; i < 5; i++) {
-    const t = (age * 0.7 + i / 5) % 1, angle = i * 2.4 + h.id;
-    g.lineStyle(0); g.beginFill(color, (1 - t) * 0.65); g.drawCircle(p.x + Math.cos(angle) * h.radius * 0.55, p.y + Math.sin(angle) * h.radius * 0.35 - t * h.radius * 0.55, 1.5 + (1 - t) * 2); g.endFill();
+    for (let i = 0; i < 4; i++) tile('mud-' + i, 4, p.x + Math.cos(i * 2.4) * h.radius * 0.4, p.y + Math.sin(i * 2.4) * h.radius * 0.4, h.radius, h.radius * 0.35, 0.15);
+  } else {
+    for (let i = 0; i < 5; i++) {
+      const a = i * Math.PI * 2 / 5, r = h.radius * clamp(age / 0.25);
+      tile('shock-' + i, 2, p.x + Math.cos(a) * r, p.y + Math.sin(a) * r, 45, 24, 0.65, a * 180 / Math.PI);
+    }
   }
 }

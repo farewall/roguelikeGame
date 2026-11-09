@@ -108,9 +108,9 @@ test('tiger exposes a damage window only when its charge misses the player', () 
     assert.equal(c.snapshot().boss.state.includes('易伤'), dodge);
   }
 });
-test('phoenix first marks the player position and leaves persistent fire to constrain the next route', () => {
+test('phoenix locks each falling feather and lets its persistent fire fade before the next wave', () => {
   const c = fresh(); c.stage = 3; const boss = enemy(c, 80, 50, 'boss'); c.castPattern(3, boss, true);
-  const h = c.hazards[0]; near(h.x, c.player.x); near(h.y, c.player.y); assert.ok(h.duration >= 3);
+  const h = c.hazards[0]; near(h.x, c.player.x); near(h.y, c.player.y); assert.ok(h.duration >= 2);
   const locked = { x: h.x, y: h.y }; c.player.x = 10; advance(c, 2.7); assert.ok(c.hazards.includes(h)); assert.deepEqual({ x: h.x, y: h.y }, locked);
 });
 test('camp event is fixed once drawn and both blood payment and duplicate resolution are guarded', () => {

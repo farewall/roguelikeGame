@@ -133,18 +133,44 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
               h.age = state === 'warning' ? h.delay * 0.7 : h.delay + h.duration * 0.3; h.active = state === 'active';
               if (h.dash && h.owner === charger.id && state === 'active') { charger.x = h.x + (h.end.x - h.x) * 0.3; charger.y = h.y + (h.end.y - h.y) * 0.3; }
             }
+            boss.visualState = state === 'warning' ? 'cast' : 'release'; boss.visualAge = 0.6;
             c.setData({ message: '' }); c.syncCombat(); kaitian.presentation.render();
           }, { stage, state });
           await page.waitForTimeout(80);
           assert.ok(await page.evaluate(({ stage, state }) => {
             const v = kaitian.presentation, boss = kaitian.controller.combat.enemies.find(e => e.boss);
             const sprite = v.layers.world.nodes.get('enemy-' + boss.id).getComponent('cc.Sprite');
-            const spells = [...v.layers.world.nodes.keys()].filter(id => id.startsWith('spell-'));
-            return sprite.spriteFrame.rect.y === (stage - 1) * 192 && sprite.spriteFrame.rect.x === (state === 'warning' ? 2 : 3) * 192 && spells.length > 0 && ![...v.layers.world.nodes.keys()].some(id => id.startsWith('hazard-'));
-          }, { stage, state }), 'Boss poses and real spell sprites must replace ground labels');
+            const used = [...v.layers.world.used];
+            const attack = used.some(id => id.startsWith('spell-') || id.startsWith('vines-') || id.startsWith('meteor-'));
+            return sprite.spriteFrame.rect.y === (stage - 1) * 192 && sprite.spriteFrame.rect.x === (state === 'warning' ? 2 : 3) * 192 && (state === 'warning' || attack) && !used.some(id => id.startsWith('hazard-'));
+          }, { stage, state }), 'Casting bodies and physical attacks must render without ground markers');
           await page.screenshot({ path: output + '/boss-' + stage + '-' + viewport.width + '-' + state + '.png' });
         }
         await page.evaluate(() => kaitian.controller.exitToHome());
+      }
+      // Actual production phase transition: the battle freezes, the pause
+      // button remains usable during animation, then phase two resumes once.
+      for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
+        await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);
+        for (let stage = 1; stage <= 5; stage++) {
+          await page.evaluate(stage => {
+            const c = kaitian.controller; c.beginGame(); const core = c.combat;
+            core.stage = stage; core.phase = 3; core.remaining = 0; core.enemies = []; core.hazards = []; core.invulnerable = 100;
+            const e = core.spawn('boss'); Object.assign(e, { x: 60, y: 45, speed: 0, cooldown: 100 }); e.hp = e.maxHp * 0.49;
+          }, stage);
+          await page.waitForFunction(() => kaitian.controller.data.bossTransition && kaitian.controller.data.bossTransition.age > 0.3);
+          const time = await page.evaluate(() => kaitian.controller.combat.time);
+          await click('enrage-pause');
+          const age = await page.evaluate(() => kaitian.controller.combat.enrage.age);
+          await page.waitForTimeout(100); assert.equal(await page.evaluate(() => kaitian.controller.combat.enrage.age), age);
+          await click('settings-close');
+          await page.waitForFunction(() => kaitian.controller.data.bossTransition && kaitian.controller.data.bossTransition.age >= 0.8);
+          await page.screenshot({ path: output + '/enrage-' + stage + '-' + viewport.width + '.png' });
+          assert.equal(await page.evaluate(() => kaitian.controller.combat.time), time);
+          await page.waitForFunction(() => !kaitian.controller.combat.enrage);
+          assert.equal(await page.evaluate(() => kaitian.controller.combat.enemies.find(e => e.boss).phase2), true);
+          await page.evaluate(() => kaitian.controller.exitToHome());
+        }
       }
       // Each approved silhouette at every lifecycle phase, from the actual export.
       for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
@@ -198,7 +224,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
           assert.ok(await page.evaluate(phase => {
             const v = kaitian.presentation, c = kaitian.controller;
             const vines = [...v.layers.world.used].filter(id => id.startsWith('vines-'));
-            return vines.length === 2 && c.combat.contains(c.combat.hazards[1], c.combat.hazards[1]) === false && (phase !== 'bound' || v.layers.world.used.has('player-bind') && c.data.rooted);
+            return vines.length === (phase === 'warning' ? 0 : 2) && c.combat.contains(c.combat.hazards[1], c.combat.hazards[1]) === false && (phase !== 'bound' || v.layers.world.used.has('player-bind') && c.data.rooted);
           }, phase), 'Growing vines and their safe inner hole must render correctly');
           await page.screenshot({ path: output + '/vines-' + viewport.width + '-' + phase + '.png' });
         }
@@ -213,6 +239,8 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
             core.enemies = []; core.hazards = []; core.effects = []; core.phase = 3; core.stage = 3; core.player.x = 37; core.player.y = 62;
             const boss = core.spawn('boss'); Object.assign(boss, { x: 80, y: 28, cooldown: 100, castTime: 1.3, visualState: phase === 'warning' || phase === 'falling' ? 'cast' : 'release' });
             core.castPattern(3, boss, false);
+            for (let i = 0; i < 28; i++) core.update(0.025, false);
+            boss.visualState = phase === 'warning' || phase === 'falling' ? 'cast' : 'release';
             for (let i = 0; i < core.hazards.length; i++) {
               const h = core.hazards[i]; h.x = 57 + i * 13; h.y = 65 - i * 16;
               h.age = { warning: h.delay * 0.1, falling: h.delay * 0.75, impact: h.delay + 0.09, burning: h.delay + 0.8, fading: h.delay + h.duration - 0.12 }[phase]; h.active = h.age >= h.delay;
@@ -222,7 +250,8 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
           await page.waitForTimeout(80);
           assert.ok(await page.evaluate(phase => {
             const ids = [...kaitian.presentation.layers.world.used].filter(id => id.startsWith('meteor-'));
-            const kind = phase === 'warning' ? '-target' : phase === 'falling' ? '-fall' : phase === 'impact' ? '-burst' : '-ground';
+            if (phase === 'warning') return ids.length === 0;
+            const kind = phase === 'falling' ? '-fall' : phase === 'impact' ? '-burst' : '-ground';
             return kaitian.controller.combat.hazards.every(h => h.meteor) && ids.filter(id => id.endsWith(kind)).length === 3;
           }, phase), 'Meteor fall, impact and lingering ground fire must use the new atlas');
           await page.screenshot({ path: output + '/meteor-' + viewport.width + '-' + phase + '.png' });

@@ -1,6 +1,6 @@
 import { Graphics } from 'cc';
 import { DrawList } from './DrawList';
-import { vineGrowth, vineRadius, vinePaths } from './generated/game-core';
+import { vineGrowth, vineRadius, vinePaths, attackLine } from './generated/game-core';
 const clamp = (n: number) => Math.max(0, Math.min(1, n));
 function canvas(v, layer, id, p) {
   const node = v.use(layer, id, () => { const n = v.makeNode(id); n.addComponent(Graphics); return n; });
@@ -21,19 +21,26 @@ function leaf(g, x, y, angle, size, alpha) {
   g.lineStyle(0.8, 0xb3d473, alpha * 0.7); g.beginFill(0x5c9b45, alpha);
   g.drawPolygon([x, y, x + dx * size * 0.45 - dy * size * 0.3, y + dy * size * 0.45 + dx * size * 0.3, x + dx * size, y + dy * size, x + dx * size * 0.45 + dy * size * 0.3, y + dy * size * 0.45 - dx * size * 0.3]); g.endFill();
 }
-export function drawRootHazard(v, layer, h, p) {
-  const g = canvas(v, layer, 'vines-' + h.id, p), active = h.age >= h.delay;
-  const growth = active ? vineGrowth(h) : 0, warning = clamp(h.age / h.delay);
-  const fade = clamp((h.delay + h.duration - h.age) / 0.3), inner = h.shape === 'ring' ? h.inner : 0;
-  g.lineStyle(1.5, 0xb2d77c, active ? 0.5 * fade : 0.35 + warning * 0.4); g.drawCircle(0, 0, h.radius);
-  if (inner) g.drawCircle(0, 0, inner);
-  if (!active) {
-    g.lineStyle(2, 0xb4d97d, 0.5); g.arc(0, 0, h.radius * 0.94, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * warning);
-    if (!inner) for (let i = 0; i < 3; i++) leaf(g, 0, 0, i * Math.PI * 2 / 3, 5 + warning * 5, 0.3 + warning * 0.35);
+export function drawRootHazard(v, layer, h, p, point = null) {
+  if (h.age < h.delay) return;
+  const g = canvas(v, layer, 'vines-' + h.id, p);
+  if (h.shape === 'line' && point) {
+    const line = attackLine(h), end = point(line.end), dx = end.x - p.x, dy = end.y - p.y;
+    const length = Math.hypot(dx, dy), angle = Math.atan2(dy, dx), fade = clamp((h.delay + h.duration - h.age) / 0.3);
+    const segments = Math.max(2, Math.ceil(length / 16));
+    const path = Array.from({ length: segments + 1 }, (_, i) => { const t = i / segments, bend = Math.sin(t * Math.PI * 3 + h.id) * 4 * Math.sin(t * Math.PI); return { x: dx * t - Math.sin(angle) * bend, y: dy * t + Math.cos(angle) * bend }; });
+    stem(g, path, 9, fade);
+    for (let i = 2; i < path.length - 1; i += 3) {
+      const root = path[i], a = angle + (i % 2 ? 1 : -1) * 0.85;
+      const tip = { x: root.x + Math.cos(a) * 15, y: root.y + Math.sin(a) * 15 };
+      stem(g, [root, tip], 2.5, fade); leaf(g, tip.x, tip.y, a, 7, fade);
+    }
+    if (path.length > 1) { const tip = path[path.length - 1]; leaf(g, tip.x, tip.y, angle, 11, fade); }
     g.flush(); return;
   }
+  const growth = vineGrowth(h);
+  const fade = clamp((h.delay + h.duration - h.age) / 0.3), inner = h.shape === 'ring' ? h.inner : 0;
   const front = vineRadius(h);
-  g.lineStyle(Math.max(0.1, front - inner), 0x76a74b, 0.035 * fade); g.drawCircle(0, 0, (front + inner) / 2);
   for (const path of (h.vinePaths || (h.vinePaths = vinePaths(h)))) {
     const points = path.points.filter(p => p.t <= growth);
     if (growth < 1 && points.length) {

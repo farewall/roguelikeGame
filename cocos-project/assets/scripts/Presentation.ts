@@ -5,6 +5,7 @@ import { enemyFrame, bossFrame } from './generated/game-core';
 import { drawHazard } from './HazardVfx';
 import { drawPlayerBind } from './VineVfx';
 import { creatureSize, drawCondensation, drawRemnant, condensationOpacity } from './CreatureVfx';
+import { creatureMotion, drawCreatureTell, drawEnrage } from './BossVfx';
 const GOLD = 0xe3c88b, INK = 0x14262d, LIGHT = 0xe4e2ce, MUTE = 0x9fb8ac;
 const ROWS = { down: 0, up: 1, left: 2, right: 3 };
 const clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
@@ -70,10 +71,11 @@ export class CocosPresentation {
     const sprite: any = node.getComponent(Sprite); (node as any).imageAlpha = alpha;
     if (cover) {
       const key = texture.uuid + ':' + w + ':' + h;
-      if ((node as any).coverKey !== key) {
+      if ((node as any).coverKey !== key || (node as any).coverSource !== texture) {
         const source = texture.rect, ratio = w / h, sw = source.width, sh = source.height;
         const cw = sw / sh > ratio ? sh * ratio : sw, ch = sw / sh > ratio ? sh : sw / ratio;
-        (node as any).coverFrame = frame(texture.texture, new Rect(source.x + (sw - cw) / 2, source.y + (sh - ch) / 2, cw, ch)); (node as any).coverKey = key;
+        if ((node as any).coverFrame) (node as any).coverFrame.destroy();
+        (node as any).coverFrame = frame(texture.texture, new Rect(source.x + (sw - cw) / 2, source.y + (sh - ch) / 2, cw, ch)); (node as any).coverKey = key; (node as any).coverSource = texture;
       }
       sprite.spriteFrame = (node as any).coverFrame;
     } else sprite.spriteFrame = texture;
@@ -113,6 +115,7 @@ export class CocosPresentation {
     if (d.showMemory) this.memory();
     if (d.showEnding) this.ending();
     if (d.showArchive) this.archive();
+    if (d.bossTransition) drawEnrage(this);
     if (d.showSettings) this.settings();
     this.finishLayers();
     // Entity-specific display nodes are destroyed after leaving the arena, preventing run-length growth.
@@ -162,11 +165,6 @@ export class CocosPresentation {
     const point = p => ({ x: a.x + p.x * a.width / 100, y: a.y + p.y * a.height / 100 });
     for (const hazard of c.combat.hazards) drawHazard(this, world, hazard, point);
     const player = point(d.player);
-    if (!d.ended && d.weaponId === 'bell') {
-      g.lineStyle(d.attackRange * 0.25, GOLD, 0.055); g.drawCircle(player.x, player.y, d.attackRange * 0.875);
-      g.lineStyle(1.5, GOLD, 0.25); g.drawCircle(player.x, player.y, d.attackRange);
-      g.lineStyle(1, GOLD, 0.15); g.drawCircle(player.x, player.y, d.attackRange * 0.75);
-    }
     for (const wave of c.combat.bellWaves) this.bellWave(world, wave, point);
     for (const effect of c.combat.effects) this.drawEffect(world, effect, point);
     for (const volley of c.combat.projectiles) for (const bolt of volley.bolts) {
@@ -178,8 +176,7 @@ export class CocosPresentation {
     }
     if (d.skillAim && !c.isBlocked()) {
       const q = { x: player.x + d.skillAim.x * 650, y: player.y + d.skillAim.y * 650 };
-      this.beam(g, player, q, 100, 0x99e4dc, 0.07);
-      g.lineStyle(2, 0xc5f6df, 0.75); g.moveTo(player.x, player.y); g.lineTo(q.x, q.y); g.drawCircle(q.x, q.y, 17);
+      g.lineStyle(2, 0xc5f6df, 0.55); g.moveTo(player.x, player.y); g.lineTo(q.x, q.y);
       this.text(hud, 'aim-help', '拖动调整方向 · 松手裂天', a.x + a.width / 2, a.y + 112, 24, 0xbcead8, { center: true });
     }
     for (const body of c.combat.remnants) drawRemnant(this, world, body, point(body));
@@ -188,35 +185,36 @@ export class CocosPresentation {
       const forming = enemy.spawnTime > 0, solidity = condensationOpacity(enemy);
       if (forming) drawCondensation(this, world, enemy, p, size);
       const hit = clamp(enemy.hitTime / 0.16, 0, 1), punch = Math.sin(hit * Math.PI), direction = enemy.hitDirection || { x: 0, y: 0 };
-      const sw = size * (0.85 + solidity * 0.15) * (1 + punch * 0.13), sh = size * (0.8 + solidity * 0.2) * (1 - punch * 0.1), recoil = punch * (enemy.boss ? 2 : 8);
+      const motion = creatureMotion(enemy, c.combat.time);
+      const sw = size * (0.85 + solidity * 0.15) * (1 + punch * 0.13) * motion.sx, sh = size * (0.8 + solidity * 0.2) * (1 - punch * 0.1) * motion.sy, recoil = punch * (enemy.boss ? 2 : 8);
       const texture = enemy.boss ? this.assets.frames.bosses[enemy.bossType - 1][bossFrame(enemy)] : this.assets.frames.enemies[enemyFrame(enemy)];
       // Keep a charging creature facing its locked lane, even if the player
       // crosses behind it during the warning. Only the sprite is mirrored.
       const charging = enemy.kind === 'charger' || enemy.bossType === 2;
       const lane = charging && c.combat.hazards.find(h => h.dash && h.owner === enemy.id && h.age < h.delay + h.duration);
-      const flipped = enemy.bossType !== 5 && (lane ? lane.end.x - lane.x : c.player.x - enemy.x) > 0;
-      const sprite = this.image(world, 'enemy-' + enemy.id, texture, p.x + (flipped ? sw / 2 : -sw / 2) + direction.x * recoil, p.y - sh / 2 + direction.y * recoil, sw, sh, solidity);
-      sprite.node.setScale(flipped ? -1 : 1, 1, 1);
+      const facing = enemy.castTime > 0 && enemy.attackAngle !== undefined ? Math.cos(enemy.attackAngle) : c.player.x - enemy.x;
+      const flipped = enemy.bossType !== 5 && (lane ? lane.end.x - lane.x : facing) > 0;
+      const sprite = this.image(world, 'enemy-' + enemy.id, texture, p.x + (flipped ? sw / 2 : -sw / 2) + direction.x * recoil, p.y - sh / 2 + direction.y * recoil + motion.dy, sw, sh, solidity);
+      sprite.node.setScale(flipped ? -1 : 1, 1, 1); sprite.node.angle = motion.angle * (flipped ? -1 : 1);
       sprite.tint = hit > 0.5 ? 0xffffff : hit > 0 ? 0xffd39a : enemy.freezeTime > 0 ? 0xb5e4f1 : 0xffffff;
-      if (hit > 0.5) { g.lineStyle(2, 0xfff1ce, hit * 0.9); g.drawCircle(p.x, p.y, size * 0.36); }
+      drawCreatureTell(this, world, enemy, p, size);
       if (!enemy.boss) {
         if (enemy.kind !== 'wraith') this.text(world, 'role-' + enemy.id, enemy.trial ? '试炼' : enemy.kind === 'ranged' ? '吞灵' : enemy.kind === 'charger' ? '裂界' : '重兽', p.x, p.y - size / 2 - 14, 20, LIGHT, { center: true });
         if (enemy.hp < enemy.maxHp) { this.rect(world, p.x - 26, p.y + size / 2 - 1, 52, 5, 0x24322f); this.rect(world, p.x - 26, p.y + size / 2 - 1, 52 * Math.max(0, enemy.hp / enemy.maxHp), 5, 0xd18b60); }
       }
-      if (enemy.castTime > 0 || enemy.freezeTime > 0) { g.lineStyle(2, enemy.freezeTime > 0 ? 0xade0ef : GOLD, 0.8); g.drawCircle(p.x, p.y, size * 0.45); }
       if (enemy.fractureTime > 0) {
         g.lineStyle(2.5, 0xe7bf7e, 0.9);
         for (const side of [-1, 1]) { g.moveTo(p.x + side * 16, p.y + size * 0.3); g.lineTo(p.x + side * 25, p.y + size * 0.22); g.lineTo(p.x + side * 33, p.y + size * 0.33); }
       }
-      if (enemy.burnTime > 0) { g.lineStyle(3, 0xf29358, 0.8); g.drawCircle(p.x, p.y + size * 0.2, size * 0.25); }
-      if (enemy.slowTime > 0) { g.lineStyle(2, 0xa3d5e4, 0.8); g.drawEllipse(p.x, p.y + size * 0.3, size * 0.4, size * 0.15); }
+      if (enemy.burnTime > 0) this.image(world, 'burn-' + enemy.id, this.assets.frames.meteor[12 + Math.floor(c.combat.time * 8) % 4], p.x - size * 0.24, p.y + size * 0.05, size * 0.48, size * 0.4, 0.4);
+      if (enemy.slowTime > 0) for (const side of [-1, 1]) { g.lineStyle(2, 0xa3d5e4, 0.65); g.moveTo(p.x + side * size * 0.25, p.y + size * 0.22); g.lineTo(p.x + side * size * 0.2, p.y + size * 0.36); }
     }
     const frame = d.actorFrame, atlas = d.ended && d.won ? this.assets.frames[frame.action || 'idle'] : this.assets.frames.artifact[frame.action || 'idle'], texture = atlas[(ROWS[frame.direction || 'down'] || 0) * 6 + (frame.index || 0)];
     const hero = this.image(world, 'hero', texture, player.x - 96, player.y - 104, 192, 192, d.ended && !d.won ? Math.max(0, 1 - (frame.index || 0) / 5) : d.hurt ? 0.65 : 1);
     if (!d.ended) this.artifact(world, player, d.weaponId, c.combat.time, frame.action === 'attack');
     if (!d.ended) drawPlayerBind(this, world, player, c.combat.rootTime, c.combat.time);
     hero.tint = d.hurt ? 0xffd4a8 : 0xffffff;
-    if (d.warded) { g.lineStyle(3, 0xbcdfc8, 0.9); g.drawCircle(player.x, player.y, 68); }
+    if (d.warded) for (const side of [-1, 1]) { g.lineStyle(3, 0xbcdfc8, 0.65); g.moveTo(player.x + side * 45, player.y - 32); g.lineTo(player.x + side * 51, player.y + 20); }
     this.text(hud, 'brand', '开天一念', a.x, 22, 31, GOLD, { bold: true });
     this.text(hud, 'phase', d.phaseName, a.x + 200, 16, 23, GOLD);
     this.text(hud, 'objective', d.objective, a.x + 200, 48, 19, MUTE);
@@ -254,10 +252,8 @@ export class CocosPresentation {
     this.text(hud, 'kills', '击破 ' + d.kills + '       ' + (d.stage === 5 ? '天道终战' : '四象 ' + d.stage + ' / 4'), a.x + a.width - 280, h - 39, 20, MUTE);
   }
   beam(g, p, q, width, color, alpha) {
-    const length = Math.hypot(q.x - p.x, q.y - p.y) || 1, nx = -(q.y - p.y) / length * width / 2, ny = (q.x - p.x) / length * width / 2;
-    g.lineStyle(1.5, color, Math.min(0.75, alpha * 3)); g.beginFill(color, alpha);
-    g.drawPolygon([p.x + nx, p.y + ny, q.x + nx, q.y + ny, q.x - nx, q.y - ny, p.x - nx, p.y - ny]); g.endFill();
-    g.lineStyle(0); g.beginFill(color, alpha); g.drawCircle(p.x, p.y, width / 2); g.drawCircle(q.x, q.y, width / 2); g.endFill();
+    g.lineStyle(width * 0.28, color, alpha); g.moveTo(p.x, p.y); g.lineTo(q.x, q.y);
+    g.lineStyle(width * 0.09, 0xeaffec, Math.min(0.8, alpha * 3)); g.moveTo(p.x, p.y); g.lineTo(q.x, q.y);
   }
   drawEffect(layer, effect, point) {
     const g = layer.g, p = point(effect), t = clamp(effect.age / effect.life, 0, 1), life = 1 - t;
@@ -286,6 +282,7 @@ export class CocosPresentation {
     const color = ({ steam: 0xd6edf0, earth: 0xc8aa7b, 'water-pulse': 0xace1e8, ember: 0xf3a367, ward: 0xb8dcb4, rift: 0xb9efdc })[effect.type] || GOLD;
     if (effect.type === 'rift' || effect.type === 'rift-windup') {
       const q = point(effect.end), windup = effect.type === 'rift-windup';
+      if (windup) return;
       this.beam(g, p, q, effect.width, color, windup ? 0.08 : life * 0.24);
       g.lineStyle(windup ? 2 : 8 * life + 1, windup ? 0xaadcd2 : 0xebfff0, life * 0.9); g.moveTo(p.x, p.y); g.lineTo(q.x, q.y);
       return;
