@@ -1,7 +1,8 @@
 'use strict';
-const { BannerCombat, normalized } = require('./banner');
+const { normalized } = require('./banner');
+const { SwordCombat } = require('./swords');
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
-class ArtifactCombat extends BannerCombat {
+class ArtifactCombat extends SwordCombat {
   constructor() { super(); this.energy = 100; this.skillCooldown = 0; this.skillUses = 0; this.lastAimDirection = { x: 0, y: -1 }; }
   gainEnergy(amount) {
     const before = this.energy; this.energy = clamp(this.energy + amount, 0, 100);
@@ -12,6 +13,7 @@ class ArtifactCombat extends BannerCombat {
     if (this.enemies.some(e => e.hp > 0 && !e.spawnTime)) this.gainEnergy(2.5 * dt);
     this.updateBlades(dt);
     this.updateBellWaves(dt);
+    this.updateSwords(dt);
   }
   skillDirection(direction) {
     const closest = this.nearest(this.enemies.filter(e => e.hp > 0 && !e.spawnTime));
@@ -27,6 +29,9 @@ class ArtifactCombat extends BannerCombat {
       this.invulnerable = Math.max(this.invulnerable, 0.55);
       this.effect('bell-summon', origin, 110, { life: 0.75 });
       this.followups.push({ kind: 'dominion', center: origin, remaining: 0.12, damage: damage * 2.8 });
+    } else if (this.weapon === 'swords') {
+      this.invulnerable = Math.max(this.invulnerable, 0.45); this.swordStrike = null;
+      this.followups.push({ kind: 'sword-storm', direction, remaining: 0.12, damage: damage * 3.5 });
     } else {
       const start = this.point(origin), end = this.percent({ x: start.x + direction.x * 650, y: start.y + direction.y * 650 });
       this.followups.push({ kind: 'rift', center: origin, end, width: 100, remaining: 0.22, damage: damage * 5 });

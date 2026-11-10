@@ -156,6 +156,8 @@ test('runtime assets fit the 4 MiB Mini Game budget, preserve animation transpar
   }
   const banner = fs.readFileSync(path.join(root, 'images/pangu-banner.png'));
   assert.equal(banner.readUInt32BE(16), 768); assert.equal(banner.readUInt32BE(20), 768); assert.ok(banner.includes(Buffer.from('tRNS')));
+  const swords = fs.readFileSync(path.join(root, 'images/zhuxian-swords.png'));
+  assert.equal(swords.readUInt32BE(16), 512); assert.equal(swords.readUInt32BE(20), 512); assert.ok(swords.includes(Buffer.from('tRNS')));
   for (const name of ['attack', 'bell', 'echo', 'banner', 'dominion', 'rift', 'ready', 'warning', 'hurt', 'upgrade', 'victory', 'death']) {
     const wav = fs.readFileSync(path.join(root, 'audio', name + '.wav')); assert.equal(wav.toString('ascii', 0, 4), 'RIFF'); assert.equal(wav.readUInt16LE(22), 1); assert.equal(wav.readUInt16LE(34), 16); assert.equal(wav.readUInt32LE(40), wav.length - 44);
   }

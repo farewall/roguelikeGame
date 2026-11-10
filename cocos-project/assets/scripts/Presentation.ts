@@ -145,7 +145,7 @@ export class CocosPresentation {
     this.text(layer, 'intro-kicker', '序章 · 混沌初醒', x + width / 2, y + 44, 21, MUTE, { center: true });
     this.text(layer, 'intro-title', '选择一件至宝', x + width / 2, y + 99, 42, GOLD, { center: true, serif: true });
     this.text(layer, 'intro-story', '远处传来天地崩裂的回声。你忘记了来处，只记得仍有一件事未曾完成。', x + 40, y + 148, 24, LIGHT, { wrap: width - 80 });
-    const gap = 24, cardW = (width - 104) / 2;
+    const gap = 24, cardW = (width - 80 - gap * (c.data.weapons.length - 1)) / c.data.weapons.length, buttonW = (width - 104) / 2;
     c.data.weapons.forEach((weapon, i) => {
       const cx = x + 40 + i * (cardW + gap), cy = y + 225, selected = c.data.selectedWeapon === weapon.id;
       this.rect(layer, cx, cy, cardW, 212, selected ? 0x2d443c : 0x192d34, 1, selected ? GOLD : 0x5a7065);
@@ -154,8 +154,8 @@ export class CocosPresentation {
       this.text(layer, 'weapon-state-' + i, selected ? '已选定' : '选择至宝', cx + cardW / 2, cy + 179, 21, MUTE, { center: true });
       this.regions.push({ id: 'weapon-' + weapon.id, x: cx, y: cy, width: cardW, height: 212, action: () => c.selectWeapon({ currentTarget: { dataset: { weapon: weapon.id } } }) });
     });
-    this.button(layer, 'intro-back', '返回', x + 40, y + 470, (width - 104) / 2, 62, () => c.closeIntro());
-    this.button(layer, 'intro-enter', '循光而行', x + 64 + cardW, y + 470, cardW, 62, () => c.beginGame(), { primary: true });
+    this.button(layer, 'intro-back', '返回', x + 40, y + 470, buttonW, 62, () => c.closeIntro());
+    this.button(layer, 'intro-enter', '循光而行', x + 64 + buttonW, y + 470, buttonW, 62, () => c.beginGame(), { primary: true });
   }
   battle() {
     const c = this.c, d = c.data, { w, h, arena: a, joystick: joy } = c.layout, bg = this.layers.background, world = this.layers.world, hud = this.layers.hud, g = world.g;
@@ -233,13 +233,13 @@ export class CocosPresentation {
       this.text(hud, 'boss-state', d.boss.state, bx + bw * 0.49, a.y + 23, 19, MUTE);
       this.rect(hud, bx + 14, a.y + 67, bw - 28, 5, 0x35443d); this.rect(hud, bx + 14, a.y + 67, (bw - 28) * d.boss.hpPct / 100, 5, 0xcd9d71);
     }
-    const buildW = 350, buildX = a.x + a.width - buildW - 240, buildExtra = d.bannerUpgradeLabel ? 26 : 0, buildY = a.y + a.height - (d.pathName ? 140 : 112) - buildExtra;
+    const buildW = 350, buildX = a.x + a.width - buildW - 240, weaponDetail = d.bannerUpgradeLabel || d.swordLabel, buildExtra = weaponDetail ? 26 : 0, buildY = a.y + a.height - (d.pathName ? 140 : 112) - buildExtra;
     this.rect(hud, buildX, buildY, buildW, (d.pathName ? 125 : 99) + buildExtra, 0x0c1d25, 0.73);
     this.text(hud, 'build-weapon', d.weaponName + (d.comboName ? ' · ' + d.comboName : ''), buildX + 15, buildY + 8, 24, GOLD);
     this.text(hud, 'build-elements', d.elementName, buildX + 15, buildY + (d.pathName ? 64 : 42), 20, LIGHT);
     if (d.pathName) this.text(hud, 'build-path', d.pathName + (d.warded ? ' · 护体中' : ''), buildX + 15, buildY + 40, 20, MUTE);
     this.text(hud, 'build-stats', d.combatStats, buildX + 15, buildY + (d.pathName ? 92 : 70), 19, MUTE);
-    if (d.bannerUpgradeLabel) this.text(hud, 'build-blades', d.bannerUpgradeLabel, buildX + 15, buildY + (d.pathName ? 118 : 96), 19, GOLD);
+    if (weaponDetail) this.text(hud, 'build-blades', weaponDetail, buildX + 15, buildY + (d.pathName ? 118 : 96), 19, GOLD);
     if (!d.ended) {
       this.skillControl(hud);
       g.lineStyle(2, 0xc8cdb8, 0.28); g.beginFill(0x142c30, 0.18); g.drawCircle(joy.x + 100, joy.y + 100, 100); g.endFill();
@@ -347,6 +347,7 @@ export class CocosPresentation {
     if (wave.elements.earth) { g.lineStyle(2, 0xc6a779, fade * 0.6); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; g.drawCircle(p.x + Math.cos(a) * radius, p.y + Math.sin(a) * radius, 3); } }
   }
   artifact(layer, player, weapon, time, actorFrame) {
+    if (weapon === 'swords') { this.swordBodies(layer); return; }
     if (weapon === 'bell') {
       const pending = this.c.combat.pendingAttack;
       const charge = pending ? 1 - Math.min(1, pending.remaining / (2 / 12)) : 0;
@@ -363,14 +364,32 @@ export class CocosPresentation {
       banner.node.setSiblingIndex(layer.node.children.length - 1);
     }
   }
+  swordBodies(layer) {
+    const c = this.c, a = c.layout.arena, hero = layer.nodes.get('hero');
+    const swords = c.combat.swordPoses().sort((a, b) => a.depth - b.depth), bodies = [];
+    for (const sword of swords) {
+      const x = a.x + sword.x / 100 * a.width, y = a.y + sword.y / 100 * a.height;
+      const body = this.image(layer, 'zhuxian-sword-' + sword.index, this.assets.frames.swords[sword.index], x, y, sword.size, sword.size);
+      body.node.getComponent(UITransform).setAnchorPoint(0.5, 0.5); body.node.setPosition(x, -y); body.node.angle = sword.angle;
+      bodies.push({ node: body.node, depth: sword.depth });
+      if (c.combat.swordStrike) {
+        const tip = sword.blade.tip, base = sword.blade.base;
+        const tx = a.x + tip.x, ty = a.y + tip.y, bx = a.x + base.x, by = a.y + base.y;
+        layer.g.lineStyle(c.combat.swordStrike.skill ? 3 : 1.5, [0xd6a17f, 0xc9a36f, 0x9cc8d6, 0xa9cbb2][sword.index], 0.45);
+        layer.g.moveTo(bx, by); layer.g.lineTo(tx, ty);
+      }
+    }
+    // Reorder the whole group so a sword changing sides never covers the wrong half of the hero.
+    for (const node of [...bodies.filter(b => b.depth < 0).map(b => b.node), hero, ...bodies.filter(b => b.depth >= 0).map(b => b.node)]) node.setSiblingIndex(layer.node.children.length - 1);
+  }
   skillControl(layer) {
-    const c = this.c, d = c.data, r = c.layout.skill, g = layer.g, x = r.x + 96, y = r.y + 92, ready = d.skillReady && !c.isBlocked(), color = d.weaponId === 'bell' ? GOLD : 0xb1e4d7;
+    const c = this.c, d = c.data, r = c.layout.skill, g = layer.g, x = r.x + 96, y = r.y + 92, ready = d.skillReady && !c.isBlocked(), color = d.weaponId === 'bell' ? GOLD : d.weaponId === 'swords' ? 0xddbc96 : 0xb1e4d7;
     g.lineStyle(2, color, ready ? 0.9 : 0.35); g.beginFill(0x102a31, 0.92); g.drawCircle(x, y, 77); g.endFill();
     g.lineStyle(7, color, ready ? 0.95 : 0.65); g.arc(x, y, 84, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.001, d.energy / 100));
     if (ready) { g.lineStyle(1.5, color, 0.3 + Math.sin(c.combat.time * 4) * 0.14); g.drawCircle(x, y, 92); }
     this.text(layer, 'skill-name', d.skillName, x, y - 13, 35, color, { center: true, serif: true, bold: true });
     this.text(layer, 'skill-charge', ready ? '释放' : d.energy + '%', x, y + 29, 22, ready ? LIGHT : MUTE, { center: true });
-    this.text(layer, 'skill-help', d.weaponId === 'banner' && ready ? '拖动瞄准 · 松手释放' : ready ? '点击震退 · 打断施法' : '命中与击破蓄能', x, r.y + 193, 17, MUTE, { center: true });
+    this.text(layer, 'skill-help', d.weaponId === 'banner' && ready ? '拖动瞄准 · 松手释放' : d.weaponId === 'swords' && ready ? '点击展开 · 四剑回旋' : ready ? '点击震退 · 打断施法' : '命中与击破蓄能', x, r.y + 193, 17, MUTE, { center: true });
     this.regions.push({ id: 'skill', type: 'skill', ...r, enabled: ready });
   }
   upgrades() {

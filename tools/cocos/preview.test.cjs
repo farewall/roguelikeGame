@@ -24,9 +24,11 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
       await page.goto('http://127.0.0.1:4173/', { waitUntil: 'domcontentloaded' });
       await page.waitForFunction(() => window.kaitian && kaitian.presentation.ready, null, { timeout: 60000 });
       await page.screenshot({ path: output + '/cocos-home.png' });
-      for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) for (const weapon of ['bell', 'banner']) {
+      for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) for (const weapon of ['bell', 'banner', 'swords']) {
         await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);
-        await click('start'); await click('weapon-' + weapon); await click('intro-enter');
+        await click('start'); await click('weapon-' + weapon);
+        if (weapon === 'swords') await page.screenshot({ path: output + '/swords-' + viewport.width + '-selection.png' });
+        await click('intro-enter');
         assert.equal(await page.evaluate(() => kaitian.controller.combat.weapon), weapon);
         const joy = await page.evaluate(() => { const r = kaitian.controller.joystickRect; return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
         const before = await page.evaluate(() => kaitian.controller.player.x); await page.mouse.move(joy.x, joy.y); await page.mouse.down(); await page.mouse.move(joy.x + 30, joy.y, { steps: 3 });
@@ -68,13 +70,52 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         await page.waitForFunction(() => kaitian.presentation.regions.some(r => r.id.startsWith('upgrade-'))); await page.screenshot({ path: output + '/' + prefix + '-upgrade.png' });
         await click(await page.evaluate(() => kaitian.presentation.regions.find(r => r.id.startsWith('upgrade-')).id)); assert.equal(await page.evaluate(() => kaitian.controller.data.level), 2);
         await page.evaluate(() => { const c = kaitian.controller; c.stopLoops(); c.upgradePending = false; c.combat.xp = 0; c.combat.cleared = true; c.combat.stage = 1; c.completeStage(); });
-        const route = weapon === 'bell' ? 'echo' : 'sweep'; await click('reward-' + route); await click('memory-continue'); assert.equal(await page.evaluate(() => kaitian.controller.combat.path), route);
+        const route = weapon === 'bell' ? 'echo' : weapon === 'banner' ? 'sweep' : '';
+        if (route) await click('reward-' + route);
+        await click('memory-continue'); assert.equal(await page.evaluate(() => kaitian.controller.combat.path), route);
         await page.evaluate(() => { const c = kaitian.controller; c.stopLoops(); c.combat.cleared = true; c.combat.stage = 2; c.combat.random = () => 0.9; c.completeStage(); });
         await click('reward-trial'); await click('memory-continue'); assert.ok(await page.evaluate(() => kaitian.controller.combat.enemies.some(e => e.trial)));
         await page.evaluate(() => { const c = kaitian.controller.combat; c.invulnerable = 0; c.hurt(1000, '火羽焚地'); });
         await page.waitForFunction(() => kaitian.controller.data.showEnding, null, { timeout: 5000 }); await page.screenshot({ path: output + '/' + prefix + '-ending.png' });
         await click('ending-home'); await click('archive'); await click('archive-runs'); assert.ok(await page.evaluate(() => kaitian.controller.data.archiveRuns.length > 0)); await click('archive-close');
-        assert.deepEqual(errors, [], prefix); console.log('PASS Cocos Creator ' + prefix + ': native nodes, joystick, skill, pause/background, upgrades, route, trial, ending, archive');
+        assert.deepEqual(errors, [], prefix); console.log('PASS Cocos Creator ' + prefix + ': native nodes, joystick, skill, pause/background, upgrades, stage progression, trial, ending, archive');
+      }
+      for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
+        await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);
+        await click('start'); await click('weapon-swords'); await click('intro-enter');
+        for (const mode of ['idle-a', 'idle-b', 'slash', 'skill', 'left', 'right', 'top', 'bottom']) {
+          await page.evaluate(mode => {
+            const c = kaitian.controller; c.resetGame(); c.pauseGame(); const core = c.combat;
+            core.phase = 3; core.remaining = 0; core.enemies = []; core.hazards = []; core.effects = []; core.invulnerable = 1000; core.player.x = 48; core.player.y = 54;
+            if (mode === 'idle-b') core.updateArtifacts(0.7);
+            if (['left', 'right', 'top', 'bottom'].includes(mode)) {
+              const b = c.playerBounds(); if (mode === 'left') core.player.x = b.xMin; if (mode === 'right') core.player.x = b.xMax; if (mode === 'top') core.player.y = b.yMin; if (mode === 'bottom') core.player.y = b.yMax;
+            }
+            if (mode === 'slash') { core.strike({ direction: { x: 1, y: 0 } }); for (let i = 0; i < 5; i++) core.updateArtifacts(0.025); }
+            if (mode === 'skill' || ['left', 'right', 'top', 'bottom'].includes(mode)) {
+              core.useSkill(); core.updateFollowups(0.12); for (let i = 0; i < 14; i++) core.updateArtifacts(0.025);
+            }
+            c.setData({ message: '' }); c.syncCombat(); kaitian.presentation.render();
+          }, mode);
+          await page.waitForTimeout(80);
+          assert.ok(await page.evaluate(() => {
+            const c = kaitian.controller, v = kaitian.presentation, a = c.layout.arena, hero = v.layers.world.nodes.get('hero');
+            const ids = [...v.layers.world.used].filter(id => id.startsWith('zhuxian-sword-'));
+            if (ids.length !== 4 || v.layers.world.used.has('chaos-bell') || v.layers.world.used.has('pangu-banner')) return false;
+            return c.combat.swordPoses().every(pose => {
+              const n = v.layers.world.nodes.get('zhuxian-sword-' + pose.index), s = n.getComponent('cc.Sprite'), ui = n.getComponent('cc.UITransform');
+              if (s.color.a !== 255 || s.spriteFrame.texture !== v.assets.textures.swords.texture || s.spriteFrame.rect.x !== pose.index % 2 * 256 || s.spriteFrame.rect.y !== Math.floor(pose.index / 2) * 256) return false;
+              if ((n.getSiblingIndex() > hero.getSiblingIndex()) !== (pose.depth >= 0) || Math.abs(ui.contentSize.width - pose.size) > 0.01 || Math.abs(n.angle - pose.angle) > 0.01) return false;
+              const half = pose.size / 2 * (Math.abs(Math.cos(pose.angle * Math.PI / 180)) + Math.abs(Math.sin(pose.angle * Math.PI / 180)));
+              return n.position.x - half >= a.x - 0.01 && n.position.x + half <= a.x + a.width + 0.01 && -n.position.y - half >= a.y - 0.01 && -n.position.y + half <= a.y + a.height + 0.01;
+            });
+          }), 'Four opaque, individually textured swords must follow depth and remain in view: ' + mode);
+          const before = await page.evaluate(() => JSON.stringify(kaitian.controller.combat.swordPoses())); await page.waitForTimeout(80);
+          assert.equal(await page.evaluate(() => JSON.stringify(kaitian.controller.combat.swordPoses())), before);
+          await page.screenshot({ path: output + '/swords-orbit-' + viewport.width + '-' + mode + '.png' });
+        }
+        await page.evaluate(() => kaitian.controller.exitToHome());
+        console.log('PASS Creator four swords ' + viewport.width + ': four distinct physical models, orbit, front/back order, slash/skill, frozen poses, edge bounds');
       }
       for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
         await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);

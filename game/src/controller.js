@@ -2,6 +2,7 @@ const JOYSTICK_RADIUS_RPX = 64;
 const { PanguAnimation } = require('../core/pangu-animation');
 const { GameAudio } = require('../core/game-audio');
 const { Combat, WEAPONS, PLAYER_SPEED, ENEMIES } = require('../core/combat');
+const { SWORDS } = require('../core/swords');
 const { MEMORIES, readArchive, saveArchive, runView } = require('../core/chronicle');
 const SETTINGS_KEY = 'pangu.settings.v1';
 const ACTOR_SHEETS = ['idle', 'move', 'attack', 'hurt', 'awaken', 'death'];
@@ -124,7 +125,7 @@ const definition = {
     this.updateLayout(); this.actor = new PanguAnimation(); this.actorFrameKey = '';
     this.choiceApplying = false; this.upgradePending = false; this.stageClearRemaining = 0; this.upgradeTouch = null;
     this.viewCache = {}; this.renderStats = { ticks: 0, calls: 0, bytes: 0, fullBytes: 0, maxBytes: 0 };
-    this.setData({ ...this.combat.snapshot(), paused: false, hurt: false, player: { ...this.player }, message: this.combat.weapon === 'bell' ? '外缘共鸣增伤 · 三次有效钟鸣释放居中回响 · 镇界先护身后震退' : '盘古幡自动发射飞刃 · 拖动右下「裂天」瞄准，松手释放', showChoice: false, choices: [], showMemory: false, ended: false, showEnding: false, won: false, runSummary: null, actorSheets: ACTOR_SHEETS }, () => this.measureArena());
+    this.setData({ ...this.combat.snapshot(), paused: false, hurt: false, player: { ...this.player }, message: this.combat.weapon === 'bell' ? '外缘共鸣增伤 · 三次有效钟鸣释放居中回响 · 镇界先护身后震退' : this.combat.weapon === 'swords' ? '诛戮陷绝四剑环绕 · 近身自动回旋斩击 · 点击「诛仙」展开剑阵' : '盘古幡自动发射飞刃 · 拖动右下「裂天」瞄准，松手释放', showChoice: false, choices: [], showMemory: false, ended: false, showEnding: false, won: false, runSummary: null, actorSheets: ACTOR_SHEETS }, () => this.measureArena());
     this.renderActor(0); this.startLoops();
     this.schedule('toastTimer', () => this.setData({ message: '' }), 2600);
   },
@@ -160,6 +161,7 @@ const definition = {
       if (event.type === 'attack') { this.actor.attack(event.direction.x, event.direction.y); this.renderActor(0); }
       if (event.type === 'launch' && this.audio) this.audio.play('banner');
       if (event.type === 'bell-release' && this.audio) this.audio.play(event.kind === 'skill' ? 'dominion' : event.kind === 'echo' ? 'echo' : 'bell');
+      if (event.type === 'sword-release' && this.audio) this.audio.play('attack');
       if (event.type === 'impact' && this.audio && now >= (this.impactSoundUntil || 0)) {
         this.audio.play('attack'); this.impactSoundUntil = now + 110;
       }
@@ -168,7 +170,7 @@ const definition = {
         this.actor.play('attack'); this.renderActor(0);
         if (this.audio && event.weapon === 'banner') this.audio.play('rift');
         if (this.data.vibrationOn && wx.vibrateShort) wx.vibrateShort({ type: 'medium' });
-        this.notify(event.weapon === 'bell' ? '镇界 · 震退群敌，短暂护身' : '裂天 · 贯穿爆发，留下裂隙');
+        this.notify(event.weapon === 'bell' ? '镇界 · 震退群敌，短暂护身' : event.weapon === 'swords' ? '诛仙 · 四剑展开，回旋斩击' : '裂天 · 贯穿爆发，留下裂隙');
       }
       if (event.type === 'skill-ready' && this.audio) this.audio.play('ready');
       if (event.type === 'hurt') {
@@ -260,6 +262,7 @@ const definition = {
     this.archive.runs.unshift(run); this.archive.runs = this.archive.runs.slice(0, 8); saveArchive(wx, this.archive);
     this.setData({ ended: true, showEnding: false, showMemory: false, won: win, showChoice: false, hazards: [], runSummary: runView(run), runReport: report, endingTitle: win ? '开天一念' : '神念归寂', endingCopy: win ? '你汇聚四象遗力，镇压天道，劈开混沌。第一缕晨光照亮人间。此后万物，将自行书写未来。' : '止步于' + (this.combat.lastDamageName || '混沌劫境') + '。已苏醒的记忆与图鉴仍留在手记中。' });
     this.combat.hazards = []; this.combat.projectiles = []; this.combat.followups = []; this.renderActor(0);
+    this.combat.swordStrike = null; this.combat.swordPrevious = null;
     this.lastMoveTime = Date.now();
     this.schedule('endingTimer', () => { this.renderActor(1); this.setData({ showEnding: true }); }, 1050);
   },
@@ -292,10 +295,11 @@ const definition = {
   },
   playerBounds() {
     const size = ACTOR_FRAME_SIZE * this.rpxScale;
-    const xMargin = Math.min(45, Math.max(5, size * 0.5 / this.arenaRect.width * 100));
-    const headroom = this.combat && this.combat.weapon === 'bell' ? Math.max(size * 0.54, 176 * this.rpxScale) : size * 0.54;
+    const swords = this.combat && this.combat.weapon === 'swords';
+    const xMargin = Math.min(45, Math.max(5, (swords ? SWORDS.marginX * this.rpxScale : size * 0.5) / this.arenaRect.width * 100));
+    const headroom = swords ? SWORDS.marginTop * this.rpxScale : this.combat && this.combat.weapon === 'bell' ? Math.max(size * 0.54, 176 * this.rpxScale) : size * 0.54;
     const yMin = Math.min(45, Math.max(12, headroom / this.arenaRect.height * 100));
-    const yMax = Math.max(55, Math.min(90, 100 - size * 0.46 / this.arenaRect.height * 100));
+    const yMax = Math.max(55, Math.min(90, 100 - (swords ? SWORDS.marginBottom * this.rpxScale : size * 0.46) / this.arenaRect.height * 100));
     return { xMin: xMargin, xMax: 100 - xMargin, yMin, yMax };
   },
   moveFrame(delta) {
