@@ -104,7 +104,9 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
             if (ids.length !== 4 || v.layers.world.used.has('chaos-bell') || v.layers.world.used.has('pangu-banner')) return false;
             return c.combat.swordPoses().every(pose => {
               const n = v.layers.world.nodes.get('zhuxian-sword-' + pose.index), s = n.getComponent('cc.Sprite'), ui = n.getComponent('cc.UITransform');
-              if (s.color.a !== 255 || s.spriteFrame.texture !== v.assets.textures.swords.texture || s.spriteFrame.rect.x !== pose.index % 2 * 256 || s.spriteFrame.rect.y !== Math.floor(pose.index / 2) * 256) return false;
+              // Dynamic atlas packing moves UVs and changes the texture after rendering.
+              const expected = v.assets.frames.swords[pose.index];
+              if (s.color.a !== 255 || s.spriteFrame !== expected || expected.originalSize.width !== 256 || expected.originalSize.height !== 256) return false;
               if ((n.getSiblingIndex() > hero.getSiblingIndex()) !== (pose.depth >= 0) || Math.abs(ui.contentSize.width - pose.size) > 0.01 || Math.abs(n.angle - pose.angle) > 0.01) return false;
               const half = pose.size / 2 * (Math.abs(Math.cos(pose.angle * Math.PI / 180)) + Math.abs(Math.sin(pose.angle * Math.PI / 180)));
               return n.position.x - half >= a.x - 0.01 && n.position.x + half <= a.x + a.width + 0.01 && -n.position.y - half >= a.y - 0.01 && -n.position.y + half <= a.y + a.height + 0.01;
