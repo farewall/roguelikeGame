@@ -123,3 +123,11 @@ test('a tiny isolated navigation pocket never removes the mainland from the purs
   const world={width:768,height:512,solids:[rect(400,128,32,256),rect(592,128,32,256),rect(400,128,224,32),rect(400,352,224,32)]};
   const nav=new FlowField(world);nav.update({x:512,y:256});assert.equal(nav.components[nav.target],nav.mainComponent);assert.ok(nav.cost[nav.index({x:96,y:256})]>=0);
 });
+test('charges near a world edge follow their terrain-clipped path without jumping to old arena percentage margins',()=>{
+  for(const kind of ['boss','charger']){
+    const c=fresh('bell',2),e=c.spawn(kind);Object.assign(e,c.percent({x:750,y:140}),{spawnTime:0,cooldown:100});Object.assign(c.player,c.percent({x:1100,y:176}));
+    assert.ok(isFree(c.world,c.groundPoint(e),40));if(kind==='boss')c.castPattern(2,e,false);else c.charge(e,false);
+    const h=c.hazards.find(h=>h.dash);h.age=h.delay-.025;c.updateHazards(.05);
+    near(e.x,h.x+(h.end.x-h.x)*.025/h.duration);near(e.y,h.y+(h.end.y-h.y)*.025/h.duration);assert.ok(isFree(c.world,c.groundPoint(e),33));
+  }
+});

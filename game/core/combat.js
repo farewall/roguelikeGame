@@ -361,7 +361,8 @@ class Combat extends ArtifactCombat {
       if (!h.active) continue;
       if (h.dash) {
         const e = this.enemies.find(enemy => enemy.id === h.owner);
-        const at = age => { const t = clamp((age - h.delay) / h.duration, 0, 1); return { x: clamp(h.x + (h.end.x - h.x) * t, 4, 96), y: clamp(h.y + (h.end.y - h.y) * t, 8, 92) }; };
+        const at = age => { const t = clamp((age - h.delay) / h.duration, 0, 1), p = { x: h.x + (h.end.x - h.x) * t, y: h.y + (h.end.y - h.y) * t };
+          if (!this.world) { p.x = clamp(p.x, 4, 96); p.y = clamp(p.y, 8, 92); } return p; };
         const previous = at(previousAge), current = at(h.age); h.swept = { ...previous, end: current };
         if (e) { e.x = current.x; e.y = current.y; e.dashing = h.age < h.delay + h.duration; }
       }
