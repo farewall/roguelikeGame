@@ -18,8 +18,8 @@ const WEAPONS = {
 const PATHS = {
   echo: { id: 'echo', weapon: 'bell', name: '万壑回声', desc: '减少回响触发计数，从自身中心释放更强更远的回响', change: '触发计数减少一次 · 回响范围额外扩大20%' },
   ward: { id: 'ward', weapon: 'bell', name: '玄钟护念', desc: '每三次有效钟鸣获得护体，抵伤后震退身边普通敌人', change: '抵伤40% · 护体持续5秒 · 触发震退' },
-  sweep: { id: 'sweep', weapon: 'banner', name: '横扫八荒', desc: '每轮发射五道飞刃，覆盖更宽的敌群', change: '三道飞刃 → 五道飞刃，展开至 80°' },
-  rend: { id: 'rend', weapon: 'banner', name: '破劫裂空', desc: '飞刃汇聚为一道，对精英与首领额外造成伤害', change: '凝聚贯穿 · 精英/首领伤害 +30%' }
+  sweep: { id: 'sweep', weapon: 'banner', name: '横扫八荒', desc: '基础五道飞刃，刃阵每重再加两道，覆盖更宽的敌群', change: '基础三道 → 五道 · 展开至80° · 保留刃阵加成' },
+  rend: { id: 'rend', weapon: 'banner', name: '破劫裂空', desc: '基础飞刃凝为一道窄束，刃阵可增发，对精英与首领增伤', change: '窄束贯穿 · 精英/首领伤害+30% · 保留刃阵与分裂' }
 };
 const ELEMENTS = { fire: '离火', water: '坎水', earth: '厚土' };
 const ENEMIES = [
@@ -384,19 +384,19 @@ class Combat extends ArtifactCombat {
     this.launchBellWave(origin, { targetId: attack.targetId });
   }
   applyStrike(attack, targets, origin) {
-    const weapon = WEAPONS[this.weapon], damage = attack.bellWave ? attack.damage : this.damage(), firstImpact = !attack.registered;
+    const weapon = WEAPONS[this.weapon], damage = attack.bellWave || attack.bannerVolley ? attack.damage : this.damage(), firstImpact = !attack.registered;
     if (firstImpact) { attack.registered = true; this.strikeCount++; this.gainEnergy(12); this.emit('hit', { weapon: this.weapon }); }
-    const levels = attack.bellWave ? attack.elements : this.elements;
+    const levels = attack.bellWave || attack.bannerVolley ? attack.elements : this.elements;
     const primary = attack.bellWave ? this.nearest(targets, origin) : targets.find(e => e.id === attack.targetId) || this.nearest(targets, origin);
     const center = { x: primary.x, y: primary.y };
     for (const e of targets) {
       const resonance = attack.bellWave && this.distance(origin, e) >= attack.range * (attack.resonanceStart ?? BELL.resonanceStart);
-      this.deal(e, damage * (resonance ? (attack.resonanceMultiplier ?? BELL.resonanceMultiplier) : 1), resonance ? 'resonance' : 'direct'); this.effect(resonance ? 'resonance' : 'impact', e, resonance ? 38 : 25);
+      this.deal(e, damage * (resonance ? (attack.resonanceMultiplier ?? BELL.resonanceMultiplier) : 1), resonance ? 'resonance' : attack.split ? 'split' : 'direct'); this.effect(resonance ? 'resonance' : 'impact', e, resonance ? 38 : 25);
       if (attack.bellWave) {
         if (!e.boss) this.move(e, this.vector(origin, e), Math.min(14, Math.max(0, attack.range - this.distance(origin, e) - 3)));
         this.applyBellElements(e, damage * (resonance ? (attack.resonanceMultiplier ?? BELL.resonanceMultiplier) : 1), attack.elements);
       } else if (e.fodder) this.move(e, attack.direction, 14);
-      if (!attack.bellWave && levels.fire) { e.burnTime = 2 + levels.fire * 0.65; e.burnDps = damage * (0.12 + levels.fire * 0.07); }
+      if (!attack.bellWave && levels.fire) { e.burnTime = Math.max(e.burnTime || 0, 2 + levels.fire * 0.65); e.burnDps = Math.max(e.burnDps || 0, damage * (0.12 + levels.fire * 0.07)); }
       if (!attack.bellWave && levels.water) e.slowTime = 2 + levels.water * 0.55;
     }
     if (!firstImpact) return;
@@ -506,6 +506,10 @@ class Combat extends ArtifactCombat {
     this.invulnerable = 1; this.startStage(); return true;
   }
   upgrade(kind) {
+    if (['blades', 'split'].includes(kind)) {
+      if (this.weapon !== 'banner' || this.bannerUpgrades[kind] >= 3) return false;
+      this.bannerUpgrades[kind]++; return true;
+    }
     if (['range', 'echo', 'resonance'].includes(kind)) {
       if (this.weapon !== 'bell' || this.bellUpgrades[kind] >= 3) return false;
       this.bellUpgrades[kind]++; return true;
@@ -521,13 +525,17 @@ class Combat extends ArtifactCombat {
   }
   upgradePool() {
     const damage = this.damage(), interval = this.interval();
+    const bannerOptions = this.weapon !== 'banner' ? [] : [
+      { id: 'blades', kind: 'blades', name: '混沌刃阵', iconKind: 'haste', desc: '每轮多发两道母刃，扩大覆盖；同轮母刃对同一敌人只命中一次', change: `发射数量 ${this.bladeCount()} → ${this.bladeCount(this.bannerUpgrades.blades + 1)}道`, tag: '增加刃数' },
+      { id: 'split', kind: 'split', name: '裂刃衍生', iconKind: 'power', desc: '每道母刃首次命中实体敌人时分裂，母刃继续贯穿；子刃不再分裂', change: `分裂 ${this.splitStats().count} → ${this.splitStats(this.bannerUpgrades.split + 1).count}道 · 子刃伤害${Math.round(this.splitStats(this.bannerUpgrades.split + 1).multiplier * 100)}%`, tag: '命中分裂' }
+    ].filter(u => this.bannerUpgrades[u.kind] < 3).map(u => ({ ...u, tag: u.tag + ` ${this.bannerUpgrades[u.kind]} → ${this.bannerUpgrades[u.kind] + 1}重` }));
     const bellOptions = this.weapon !== 'bell' ? [] : [
       { id: 'range', kind: 'range', name: '钟域扩张', iconKind: 'water', desc: '扩大普攻、回响与外缘共鸣覆盖；最多三重', change: `音波半径 ${round(this.bellRange())} → ${round(this.bellRange() * 1.15)}`, tag: '更远清群' },
       { id: 'echo', kind: 'echo', name: '叠浪回声', iconKind: 'haste', desc: '二重减少触发计数，三重追加半威力二次回响', change: this.bellUpgrades.echo === 1 ? '触发计数减少1次 · 回响伤害+10个百分点' : this.bellUpgrades.echo === 2 ? '追加半威力回响 · 回响伤害+10个百分点' : '回响伤害+10个百分点 · 蓄势缩短0.04秒', tag: '强化回响' },
       { id: 'resonance', kind: 'resonance', name: '洪钟共振', iconKind: 'power', desc: '提高外缘增伤并拓宽共鸣带，保持距离反打', change: `共鸣倍率 ${round(1.3 + this.bellUpgrades.resonance * 0.15)} → ${round(1.45 + this.bellUpgrades.resonance * 0.15)} · 共鸣带加宽5%`, tag: '强化外缘' }
     ].filter(u => this.bellUpgrades[u.kind] < 3).map(u => ({ ...u, tag: u.tag + ` ${this.bellUpgrades[u.kind]} → ${this.bellUpgrades[u.kind] + 1}重` }));
     return [
-      ...bellOptions,
+      ...bellOptions, ...bannerOptions,
       { id: 'power', kind: 'power', name: '开天劲', desc: '至宝伤害提升 25%', change: `伤害 ${round(damage)} → ${round(damage * 1.25)}`, tag: '强化输出' },
       { id: 'haste', kind: 'haste', name: '疾风法', desc: '至宝攻击间隔缩短 18%', change: `间隔 ${interval.toFixed(2)} → ${Math.max(0.52, interval * 0.82).toFixed(2)} 秒`, tag: '更快出招' },
       { id: 'health', kind: 'health', name: '玄黄护体', desc: '恢复 25 元气，生命上限增加 20', change: `上限 ${this.maxHp} → ${this.maxHp + 20}`, tag: '生存补给' },
@@ -556,6 +564,7 @@ class Combat extends ArtifactCombat {
     // Weapon mechanics, base stats and elements each get a real opportunity;
     // a growing weapon pool must not squeeze damage/haste/health out of offers.
     if (this.weapon === 'bell') take(pool.filter(u => ['range', 'echo', 'resonance'].includes(u.kind) && (this.level === 1 && !this.bellUpgrades.range ? u.kind === 'range' : true)));
+    if (this.weapon === 'banner') take(pool.filter(u => ['blades', 'split'].includes(u.kind) && (this.level === 1 && !this.bannerUpgrades.blades ? u.kind === 'blades' : this.level === 2 && !this.bannerUpgrades.split ? u.kind === 'split' : true)));
     take(pool.filter(u => this.hp <= this.maxHp * 0.55 ? u.kind === 'health' : ['power', 'haste'].includes(u.kind) || u.kind === 'health' && this.level % 4 === 0));
     take(pool.filter(u => ELEMENTS[u.kind] && (this.weapon === 'bell' || this.elements[u.kind] === 0)));
     if (this.weapon !== 'bell') take(pool.filter(u => ELEMENTS[u.kind] && this.elements[u.kind] > 0));
@@ -563,9 +572,9 @@ class Combat extends ArtifactCombat {
     return choices;
   }
   elementLabel() { const names = this.weapon === 'bell' ? { fire: '焚音', water: '潮鸣', earth: '裂岳' } : ELEMENTS; return Object.keys(ELEMENTS).filter(k => this.elements[k]).map(k => names[k] + this.elements[k] + '重').join(' · ') || '未附魔'; }
-  buildLabel() { return (this.path ? PATHS[this.path].name + ' · ' : '') + (this.weapon === 'bell' && this.bellLabel() ? this.bellLabel() + ' · ' : '') + this.elementLabel(); }
+  buildLabel() { const weapon = this.weapon === 'bell' ? this.bellLabel() : this.bannerLabel(); return (this.path ? PATHS[this.path].name + ' · ' : '') + (weapon ? weapon + ' · ' : '') + this.elementLabel(); }
   battleReport() {
-    const names = { resonance: '外缘共鸣', direct: '直击', burn: '灼烧', field: '区域', earth: '震荡', steam: '蒸腾', tide: '潮涌', echo: '回响', aftershock: '余震', ignite: '爆燃', skill: this.weapon === 'bell' ? '镇界' : '裂天' };
+    const names = { resonance: '外缘共鸣', direct: '直击', split: '裂刃', burn: '灼烧', field: '区域', earth: '震荡', steam: '蒸腾', tide: '潮涌', echo: '回响', aftershock: '余震', ignite: '爆燃', skill: this.weapon === 'bell' ? '镇界' : '裂天' };
     const total = Object.values(this.damageBySource).reduce((a, b) => a + b, 0);
     const top = Object.entries(this.damageBySource).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([key, damage]) => names[key] + ' ' + Math.round(damage / (total || 1) * 100) + '%').join(' · ');
     const cause = Object.entries(this.damageByCause).sort((a, b) => b[1] - a[1])[0];
@@ -595,6 +604,7 @@ class Combat extends ArtifactCombat {
       effects: this.effects.map(f => ({ id: f.id, type: f.type, x: f.x, y: f.y, radius: f.radius, angle: f.angle || 0, cone: f.cone || 60 })),
       boss: boss ? { name: boss.name, hpPct: round(Math.max(0, boss.hp / boss.maxHp * 100)), phase: boss.phase2 ? '暴怒' : '一阶段', state: this.enrage ? '法相暴怒' : boss.shielded ? '缩甲聚海 · 绕侧开甲' : exposed ? '扑空破绽 · 易伤35%' : boss.castTime > 0 ? boss.attackName || '正在蓄势' : boss.recoverTime > 0 ? '收招 · 输出机会' : '游走', hint } : null,
       weaponName: WEAPONS[this.weapon].name, weaponId: this.weapon, attackRange: this.attackRange(), bellUpgradeLabel: this.bellLabel(),
+      bannerUpgradeLabel: this.weapon === 'banner' ? this.bannerLabel() : '', bladeCount: this.weapon === 'banner' ? this.bladeCount() : 0, splitCount: this.weapon === 'banner' ? this.splitStats().count : 0,
       elementName: this.elementLabel(), combatStats: `范围 ${Math.round(this.attackRange())} · 伤害 ${round(this.damage())} · ${this.interval().toFixed(2)}秒`, pathName: this.path ? PATHS[this.path].name : '', warded: this.wardTime > 0,
       comboName: this.elements.fire && this.elements.water && this.elements.earth ? '蒸腾 + 熔沼' : this.elements.fire && this.elements.water ? '水火 · 蒸腾' : this.elements.earth && this.elements.fire ? '地火 · 熔流' : this.elements.earth && this.elements.water ? '地水 · 泥沼' : '',
       bellMarks: this.strikeCount % this.bellThreshold(), bellThreshold: this.bellThreshold(),

@@ -167,12 +167,13 @@ export class CocosPresentation {
     const player = point(d.player);
     for (const wave of c.combat.bellWaves) this.bellWave(world, wave, point);
     for (const effect of c.combat.effects) this.drawEffect(world, effect, point);
-    for (const volley of c.combat.projectiles) for (const bolt of volley.bolts) {
-      const p = point(bolt), dx = bolt.direction.x, dy = bolt.direction.y, trail = Math.min(64, volley.traveled);
-      g.lineStyle(10, 0x8bcdd5, 0.14); g.moveTo(p.x - dx * trail, p.y - dy * trail); g.lineTo(p.x, p.y);
-      g.lineStyle(3, 0xd5f4df, 0.85); g.moveTo(p.x - dx * trail * 0.7, p.y - dy * trail * 0.7); g.lineTo(p.x + dx * 12, p.y + dy * 12);
-      g.lineStyle(1, 0xe9f7d9, 0.9); g.beginFill(0xa9dfd0, 0.8);
-      g.drawPolygon([p.x + dx * 24, p.y + dy * 24, p.x - dy * 10 - dx * 12, p.y + dx * 10 - dy * 12, p.x - dx * 4, p.y - dy * 4, p.x + dy * 10 - dx * 12, p.y - dx * 10 - dy * 12]); g.endFill();
+    for (const volley of c.combat.projectiles) for (const [index, bolt] of volley.bolts.entries()) {
+      const p = point(bolt), dx = bolt.direction.x, dy = bolt.direction.y, trail = Math.min(volley.split ? 26 : 42, volley.traveled);
+      g.lineStyle(volley.split ? 1 : 2, 0xe2c68d, 0.4); g.moveTo(p.x - dx * trail, p.y - dy * trail); g.lineTo(p.x, p.y);
+      const size = volley.split ? 46 : 68;
+      const blade = this.image(world, 'blade-' + volley.id + '-' + index, this.assets.frames.banner[volley.split ? 13 : 12], p.x, p.y, size, size);
+      blade.node.getComponent(UITransform).setAnchorPoint(0.5, 0.5); blade.node.setPosition(p.x, -p.y);
+      blade.node.angle = -Math.atan2(dy, dx) * 180 / Math.PI;
     }
     if (d.skillAim && !c.isBlocked()) {
       const q = { x: player.x + d.skillAim.x * 650, y: player.y + d.skillAim.y * 650 };
@@ -211,7 +212,7 @@ export class CocosPresentation {
     }
     const frame = d.actorFrame, atlas = d.ended && d.won ? this.assets.frames[frame.action || 'idle'] : this.assets.frames.artifact[frame.action || 'idle'], texture = atlas[(ROWS[frame.direction || 'down'] || 0) * 6 + (frame.index || 0)];
     const hero = this.image(world, 'hero', texture, player.x - 96, player.y - 104, 192, 192, d.ended && !d.won ? Math.max(0, 1 - (frame.index || 0) / 5) : d.hurt ? 0.65 : 1);
-    if (!d.ended) this.artifact(world, player, d.weaponId, c.combat.time, frame.action === 'attack');
+    if (!d.ended) this.artifact(world, player, d.weaponId, c.combat.time, frame);
     if (!d.ended) drawPlayerBind(this, world, player, c.combat.rootTime, c.combat.time);
     hero.tint = d.hurt ? 0xffd4a8 : 0xffffff;
     if (d.warded) for (const side of [-1, 1]) { g.lineStyle(3, 0xbcdfc8, 0.65); g.moveTo(player.x + side * 45, player.y - 32); g.lineTo(player.x + side * 51, player.y + 20); }
@@ -232,12 +233,13 @@ export class CocosPresentation {
       this.text(hud, 'boss-state', d.boss.state, bx + bw * 0.49, a.y + 23, 19, MUTE);
       this.rect(hud, bx + 14, a.y + 67, bw - 28, 5, 0x35443d); this.rect(hud, bx + 14, a.y + 67, (bw - 28) * d.boss.hpPct / 100, 5, 0xcd9d71);
     }
-    const buildW = 350, buildX = a.x + a.width - buildW - 240, buildY = a.y + a.height - (d.pathName ? 140 : 112);
-    this.rect(hud, buildX, buildY, buildW, d.pathName ? 125 : 99, 0x0c1d25, 0.73);
+    const buildW = 350, buildX = a.x + a.width - buildW - 240, buildExtra = d.bannerUpgradeLabel ? 26 : 0, buildY = a.y + a.height - (d.pathName ? 140 : 112) - buildExtra;
+    this.rect(hud, buildX, buildY, buildW, (d.pathName ? 125 : 99) + buildExtra, 0x0c1d25, 0.73);
     this.text(hud, 'build-weapon', d.weaponName + (d.comboName ? ' · ' + d.comboName : ''), buildX + 15, buildY + 8, 24, GOLD);
     this.text(hud, 'build-elements', d.elementName, buildX + 15, buildY + (d.pathName ? 64 : 42), 20, LIGHT);
     if (d.pathName) this.text(hud, 'build-path', d.pathName + (d.warded ? ' · 护体中' : ''), buildX + 15, buildY + 40, 20, MUTE);
     this.text(hud, 'build-stats', d.combatStats, buildX + 15, buildY + (d.pathName ? 92 : 70), 19, MUTE);
+    if (d.bannerUpgradeLabel) this.text(hud, 'build-blades', d.bannerUpgradeLabel, buildX + 15, buildY + (d.pathName ? 118 : 96), 19, GOLD);
     if (!d.ended) {
       this.skillControl(hud);
       g.lineStyle(2, 0xc8cdb8, 0.28); g.beginFill(0x142c30, 0.18); g.drawCircle(joy.x + 100, joy.y + 100, 100); g.endFill();
@@ -257,6 +259,11 @@ export class CocosPresentation {
   }
   drawEffect(layer, effect, point) {
     const g = layer.g, p = point(effect), t = clamp(effect.age / effect.life, 0, 1), life = 1 - t;
+    if (effect.type === 'blade-split' || effect.type === 'banner-cast') {
+      const split = effect.type === 'blade-split', size = split ? 45 + t * 48 : 48 + t * 24;
+      const sprite = this.image(layer, 'blade-effect-' + effect.id, this.assets.frames.banner[split ? 14 : 15], p.x, p.y, size, size, life * (split ? 0.9 : 0.5));
+      sprite.node.getComponent(UITransform).setAnchorPoint(0.5, 0.5); sprite.node.setPosition(p.x, -p.y); sprite.node.angle = -(effect.angle || 0); return;
+    }
     if (effect.type === 'bell-summon') {
       g.lineStyle(2, GOLD, life * 0.45); g.drawEllipse(p.x, p.y, 58 + t * 22, 20 + t * 8); return;
     }
@@ -339,8 +346,7 @@ export class CocosPresentation {
     }
     if (wave.elements.earth) { g.lineStyle(2, 0xc6a779, fade * 0.6); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; g.drawCircle(p.x + Math.cos(a) * radius, p.y + Math.sin(a) * radius, 3); } }
   }
-  artifact(layer, player, weapon, time, casting) {
-    const g = layer.g;
+  artifact(layer, player, weapon, time, actorFrame) {
     if (weapon === 'bell') {
       const pending = this.c.combat.pendingAttack;
       const charge = pending ? 1 - Math.min(1, pending.remaining / (2 / 12)) : 0;
@@ -348,12 +354,13 @@ export class CocosPresentation {
       const pulse = summon ? Math.sin(Math.PI * summon.age / summon.life) * 0.1 : 0;
       this.bellBody(layer, player.x + Math.sin(time * 65) * charge * 1.5, player.y - 114 + Math.sin(time * 2.2) * 3, 0.7 + pulse, charge, this.c.data.bellMarks || 0, this.c.data.bellThreshold || 3, 1, time * 1.4);
     } else {
-      const x = player.x + 69, y = player.y - 38 + Math.sin(time * 2.5) * 5, glow = casting ? 0.34 : 0.1;
-      g.lineStyle(0); g.beginFill(0x9be2d3, glow); g.drawCircle(x, y, casting ? 52 : 36); g.endFill();
-      const wave = Math.sin(time * 6) * 6;
-      g.lineStyle(3, 0xb9d9b4, 0.95); g.moveTo(x - 23, y - 46); g.lineTo(x - 23, y + 48); g.moveTo(x - 30, y - 37); g.lineTo(x + 31, y - 37);
-      g.beginFill(0x427b79, 0.9); g.drawPolygon([x - 21, y - 34, x + 30, y - 28 + wave, x + 24, y + 35 + wave, x + 2, y + 24, x - 19, y + 37]); g.endFill();
-      g.lineStyle(2, 0xc8e5bd, 0.9); g.moveTo(x + 3, y - 18); g.lineTo(x + 15, y - 2); g.lineTo(x + 2, y + 16); g.lineTo(x - 8, y); g.lineTo(x + 3, y - 18);
+      const a = this.c.layout.arena, release = this.c.combat.effects.find(effect => effect.type === 'banner-cast' || effect.type === 'rift-windup' || effect.type === 'rift');
+      const castFrame = release ? 8 + Math.min(3, Math.floor(release.age / 0.3 * 4)) : actorFrame.action === 'attack' ? [8, 8, 9, 10, 11, 11][actorFrame.index || 0] : -1;
+      const idleFrame = [0, 1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1][Math.floor(time * 8) % 14];
+      const x = clamp(player.x + 98, a.x + 88, a.x + a.width - 88), y = clamp(player.y - 52 + Math.sin(time * 2.5) * 3, a.y + 96, a.y + a.height - 96);
+      const banner = this.image(layer, 'pangu-banner', this.assets.frames.banner[castFrame >= 0 ? castFrame : idleFrame], x, y, 176, 192);
+      banner.node.getComponent(UITransform).setAnchorPoint(0.5, 0.5); banner.node.setPosition(x, -y);
+      banner.node.setSiblingIndex(layer.node.children.length - 1);
     }
   }
   skillControl(layer) {

@@ -171,6 +171,7 @@ test('both weapons can complete all five stages with ordinary HP and actual offe
     const result = run(weapon, seed);
     assert.equal(result.won, true, JSON.stringify(result)); assert.equal(result.stages.length, 5);
     assert.ok(result.hp > 0); assert.ok(result.seconds < 900); assert.ok(result.kills > 80);
+    if (weapon === 'banner') { assert.ok(result.skills > 0); assert.ok(result.details.some(d => d.upgrades.blades > 0 && d.upgrades.split > 0)); }
   }
 });
 

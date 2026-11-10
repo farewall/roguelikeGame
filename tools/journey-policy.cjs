@@ -40,6 +40,10 @@ function movement(c, bounds = { xMin: 6, xMax: 94, yMin: 20, yMax: 82 }) {
   return { x: best.x, y: best.y };
 }
 function upgrade(c, offers, build = 'balanced') {
+  if (c.weapon === 'banner' && c.hp >= 55) {
+    const mechanic = offers.find(u => ['blades', 'split'].includes(u.kind) && !c.bannerUpgrades[u.kind]);
+    if (mechanic) return mechanic;
+  }
   if (c.weapon === 'bell' && c.hp >= 55) {
     const range = offers.find(u => u.kind === 'range');
     if (range && !c.bellUpgrades.range) return range;

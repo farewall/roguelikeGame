@@ -78,6 +78,54 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
       }
       for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
         await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);
+        await click('start'); await click('weapon-banner'); await click('intro-enter');
+        for (const mode of ['idle', 'flutter', 'release', 'volley', 'split', 'max', 'edge', 'cards-count', 'cards-split']) {
+          await page.evaluate(mode => {
+            const c = kaitian.controller; c.resetGame(); c.pauseGame(); const core = c.combat;
+            core.phase = 3; core.remaining = 0; core.enemies = []; core.hazards = []; core.effects = []; core.projectiles = []; core.player.x = 36; core.player.y = 58;
+            core.time = mode === 'flutter' ? 0.5 : 0; core.invulnerable = 1000;
+            const enemy = (dx, dy = 0) => { const e = core.spawn('ranged'); Object.assign(e, { x: core.player.x + dx / core.width * 100, y: core.player.y + dy / core.height * 100, hp: 1000, maxHp: 1000, speed: 0, cooldown: 100, spawnTime: 0 }); };
+            if (mode === 'max') { core.path = 'sweep'; for (const kind of ['blades', 'split']) for (let i = 0; i < 3; i++) core.upgrade(kind); }
+            if (mode === 'edge') { core.player.x = 96; core.player.y = 8; }
+            if (mode === 'split' || mode === 'max') { core.upgrade('split'); enemy(110); enemy(235, 100); }
+            if (['release', 'volley', 'split', 'max'].includes(mode)) {
+              core.strike({ direction: { x: 1, y: 0 } }); core.updateArtifacts(0.18);
+              for (const effect of core.effects) if (effect.type === 'banner-cast') effect.age = 0.18;
+            }
+            if (mode.startsWith('cards')) { core.level = mode === 'cards-split' ? 2 : 1; core.xp = core.xpNeed; c.setData({ paused: false }); c.levelUp(); }
+            c.setData({ message: '' }); c.syncCombat(); kaitian.presentation.render();
+          }, mode);
+          await page.waitForTimeout(80);
+          assert.ok(await page.evaluate(mode => {
+            const c = kaitian.controller, v = kaitian.presentation, core = c.combat, n = v.layers.world.nodes.get('pangu-banner'), hero = v.layers.world.nodes.get('hero'), a = c.layout.arena;
+            if (!n || !n.active || n.getSiblingIndex() <= hero.getSiblingIndex()) return false;
+            const body = n.getComponent('cc.Sprite'), ui = n.getComponent('cc.UITransform');
+            if (body.color.a !== 255 || body.spriteFrame.rect.width !== 192 || body.spriteFrame.texture !== v.assets.textures.banner.texture) return false;
+            if (ui.contentSize.width !== 176 || ui.contentSize.height !== 192 || n.position.x - 88 < a.x || n.position.x + 88 > a.x + a.width || -n.position.y - 96 < a.y || -n.position.y + 96 > a.y + a.height) return false;
+            if (mode === 'idle' && (body.spriteFrame.rect.x !== 0 || body.spriteFrame.rect.y !== 0)) return false;
+            if (mode === 'flutter' && body.spriteFrame.rect.y !== 192) return false;
+            if (mode === 'release' && (body.spriteFrame.rect.x !== 384 || body.spriteFrame.rect.y !== 384)) return false;
+            if (mode === 'split' || mode === 'max') {
+              const fragments = core.projectiles.filter(v => v.split); if (!fragments.length || fragments.some(v => v.bolts.length !== (mode === 'max' ? 4 : 2))) return false;
+              if (!Array.from(v.layers.world.nodes).some(([id, n]) => id.startsWith('blade-') && n.getComponent('cc.Sprite').spriteFrame.rect.x === 192 && n.getComponent('cc.Sprite').spriteFrame.rect.y === 576)) return false;
+            }
+            if (mode === 'max' && (c.data.bladeCount !== 11 || c.data.splitCount !== 4)) return false;
+            if (mode.startsWith('cards') && (!c.data.showChoice || !c.data.choices.some(u => u.kind === (mode === 'cards-count' ? 'blades' : 'split')))) return false;
+            return v.layers.world.nodes.size < 200;
+          }, mode), 'banner ' + viewport.width + ' ' + mode);
+          const before = await page.evaluate(() => JSON.stringify(kaitian.controller.combat.projectiles.map(v => v.traveled)));
+          await page.waitForTimeout(80); assert.equal(await page.evaluate(() => JSON.stringify(kaitian.controller.combat.projectiles.map(v => v.traveled))), before);
+          await page.screenshot({ path: output + '/banner-redesign-' + viewport.width + '-' + mode + '.png' });
+          if (mode.startsWith('cards')) {
+            const kind = mode === 'cards-count' ? 'blades' : 'split'; await click('upgrade-' + kind);
+            assert.equal(await page.evaluate(kind => kaitian.controller.combat.bannerUpgrades[kind], kind), 1); await page.evaluate(() => kaitian.controller.pauseGame());
+          }
+        }
+        await page.evaluate(() => kaitian.controller.exitToHome());
+        console.log('PASS Creator banner ' + viewport.width + ': solid foreground body, flutter/cast frames, blade/splinter textures, count/split cards, paused flight, edge placement');
+      }
+      for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
+        await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);
         await click('start'); await click('weapon-bell'); await click('intro-enter');
         for (const mode of ['idle-a', 'idle-b', 'plain', 'wide', 'fire', 'water', 'earth', 'echo', 'dominion']) {
           await page.evaluate(mode => {
