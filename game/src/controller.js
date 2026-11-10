@@ -9,7 +9,7 @@ const ACTOR_SHEETS = ['idle', 'move', 'attack', 'hurt', 'awaken', 'death'];
 const DIRECTION_ROW = { down: 0, up: 1, left: 2, right: 3 };
 const ACTOR_FRAME_SIZE = 192;
 const NativeDate = Date;
-const INPUT_BOUNDARIES = ['view', 'paused', 'ended', 'showSettings', 'confirmExit', 'showArchive', 'archiveTab', 'showIntro', 'showChoice', 'choiceToken', 'showMemory', 'showEnding', 'rewardSelectedId'];
+const INPUT_BOUNDARIES = ['view', 'paused', 'ended', 'showSettings', 'confirmExit', 'showArchive', 'archiveTab', 'showIntro', 'showChoice', 'choiceToken', 'showMemory', 'showEnding', 'rewardSelectedId', 'showWorldMap'];
 
 
 // Pure controller: Eva.js owns the single frame loop. There is no Page/setData bridge.
@@ -20,7 +20,7 @@ function createController(wx, options = {}) {
   const clearTimeout = id => clock.clearTimeout(id);
 const definition = {
   data: {
-    view: 'home', showSettings: false, showIntro: false, showArchive: false, archiveTab: 'memories', paused: false, confirmExit: false,
+    view: 'home', showSettings: false, showIntro: false, showArchive: false, archiveTab: 'memories', paused: false, confirmExit: false, showWorldMap:false,
     uiScale: 0.5, soundOn: true, effectVolume: 60, vibrationOn: true, hintsOn: true,
     hp: 100, maxHp: 100, hpPct: 100, hurt: false, level: 1, xp: 0, xpNeed: 5, xpPct: 0,
     stage: 1, stageName: '', phaseName: '', objective: '', progress: 0, boss: null, kills: 0, combatStats: '', weaponId: 'bell', actorSheets: [], actorFrame: { left: 0, top: 0, action: 'idle' }, pathName: '', warded: false,
@@ -43,7 +43,9 @@ const definition = {
   },
   onUnload() { this.stopLoops(); if (this.audio) this.audio.destroy(); },
   onHide() { this.upgradeTouch = null; this.cancelSkillAim(); this.pauseGame(); this.stopMovement(); if (this.audio) this.audio.stopAll(); },
-  onShow() { if (this.data.paused && !this.data.showSettings) this.resumeGame(); },
+  onShow() { if (this.data.paused && !this.data.showSettings && !this.data.showWorldMap) this.resumeGame(); },
+  openWorldMap() { if (this.isBlocked() || !this.combat.world) return; this.pauseGame(); this.setData({showWorldMap:true}); },
+  closeWorldMap() { this.setData({showWorldMap:false}); this.resumeGame(); },
   onResize() { this.stopMovement(); this.updateLayout(); this.actorFrameKey = ''; if (this.actor) this.renderActor(0); this.measureArena(); },
   openIntro() { this.setData({ showIntro: true, showSettings: false }); },
   closeIntro() { this.setData({ showIntro: false }); },
@@ -55,7 +57,7 @@ const definition = {
   cancelExit() { this.setData({ confirmExit: false }); },
   exitToHome() {
     this.stopLoops(); if (this.audio) this.audio.stopAll(); this.upgradeTouch = null; this.upgradePending = false;
-    this.setData({ view: 'home', showSettings: false, showIntro: false, confirmExit: false, paused: false, showChoice: false, choices: [], showMemory: false, showEnding: false, ended: false, bossTransition: null, message: '' });
+    this.setData({ view: 'home', showSettings: false, showIntro: false, confirmExit: false, paused: false, showChoice: false, choices: [], showMemory: false, showEnding: false, ended: false, bossTransition: null, message: '', showWorldMap:false });
     this.refreshArchive();
   },
   stopTap() {},
@@ -121,9 +123,9 @@ const definition = {
   resetGame() {
     this.cancelSkillAim();
     this.stopLoops(); if (this.audio) this.audio.stopAll();
-    this.combat = new Combat(this.data.selectedWeapon); this.player = this.combat.player;
+    this.combat = new Combat(this.data.selectedWeapon, Math.random, { exploration: options.exploration !== false }); this.player = this.combat.player;
     this.updateLayout(); this.actor = new PanguAnimation(); this.actorFrameKey = '';
-    this.choiceApplying = false; this.upgradePending = false; this.stageClearRemaining = 0; this.upgradeTouch = null;
+    this.choiceApplying = false; this.upgradePending = false; this.stageClearRemaining = 0; this.upgradeTouch = null; this.setData({showWorldMap:false});
     this.viewCache = {}; this.renderStats = { ticks: 0, calls: 0, bytes: 0, fullBytes: 0, maxBytes: 0 };
     this.setData({ ...this.combat.snapshot(), paused: false, hurt: false, player: { ...this.player }, message: this.combat.weapon === 'bell' ? '外缘共鸣增伤 · 三次有效钟鸣释放居中回响 · 镇界先护身后震退' : this.combat.weapon === 'swords' ? '诛戮陷绝四剑环绕 · 近身自动回旋斩击 · 点击「诛仙」展开剑阵' : '盘古幡自动发射飞刃 · 拖动右下「裂天」瞄准，松手释放', showChoice: false, choices: [], showMemory: false, ended: false, showEnding: false, won: false, runSummary: null, actorSheets: ACTOR_SHEETS }, () => this.measureArena());
     this.renderActor(0); this.startLoops();
@@ -134,7 +136,7 @@ const definition = {
     this.pendingTimers = {}; this.stopMovement();
   },
   notify(message) { this.setData({ message }); this.schedule('toastTimer', () => this.setData({ message: '' }), 2300); },
-  isBlocked() { return this.data.view !== 'game' || this.data.paused || this.data.ended || this.data.showChoice || this.data.showMemory || this.upgradePending || this.stageClearRemaining > 0 || Boolean(this.combat && this.combat.enrage); },
+  isBlocked() { return this.data.view !== 'game' || this.data.paused || this.data.ended || this.data.showChoice || this.data.showMemory || this.data.showWorldMap || this.upgradePending || this.stageClearRemaining > 0 || Boolean(this.combat && this.combat.enrage); },
   aimSkill(direction) {
     if (this.isBlocked() || !this.combat || !this.combat.snapshot().skillReady || this.combat.weapon !== 'banner') return false;
     this.setData({ skillAim: this.combat.skillDirection(direction) }); return true;
@@ -178,6 +180,7 @@ const definition = {
         if (this.data.vibrationOn && wx.vibrateShort) wx.vibrateShort({ type: 'light' });
       }
       if (event.type === 'rooted') this.notify('藤蔓缠足 · 暂时无法移动，仍可使用至宝');
+      if (event.type === 'world-loot') { this.notify(event.name + ' · ' + event.reward); if (this.audio) this.audio.play('upgrade'); }
       if (event.type === 'boss') this.notify(event.name + '现身 · 观察预警后再接近');
       if (event.type === 'boss-phase') { this.stopMovement(); this.cancelSkillAim(); if (this.audio) { this.audio.stopAll(); this.audio.play('dominion'); } this.notify(event.name + ' · 法相暴怒'); }
       if (event.type === 'boss-enraged') this.notify(event.name + ' · 留意新的蓄势动作');
@@ -294,6 +297,10 @@ const definition = {
     this.setData({ actorFrame: { action: frame.action, direction: frame.direction, index: frame.index, left: -frame.index * ACTOR_FRAME_SIZE * this.rpxScale, top: -DIRECTION_ROW[frame.direction] * ACTOR_FRAME_SIZE * this.rpxScale } });
   },
   playerBounds() {
+    if (this.combat && this.combat.world) {
+      const c = this.combat, swords = c.weapon === 'swords', x = swords ? SWORDS.marginX : 96, top = swords ? SWORDS.marginTop : c.weapon === 'bell' ? 176 : 110, bottom = swords ? SWORDS.marginBottom : 100;
+      return { xMin:x/c.width*100, xMax:100-x/c.width*100, yMin:top/c.height*100, yMax:100-bottom/c.height*100 };
+    }
     const size = ACTOR_FRAME_SIZE * this.rpxScale;
     const swords = this.combat && this.combat.weapon === 'swords';
     const xMargin = Math.min(45, Math.max(5, (swords ? SWORDS.marginX * this.rpxScale : size * 0.5) / this.arenaRect.width * 100));
@@ -308,6 +315,11 @@ const definition = {
     if (!this.data.ended && !this.upgradePending && this.arenaRect && this.combat.rootTime > 0) this.actor.move(0, 0);
     if (!this.data.ended && !this.upgradePending && this.arenaRect && !(this.combat.rootTime > 0)) {
       const direction = this.moveVector || { x: 0, y: 0 }, step = PLAYER_SPEED * this.rpxScale * dt, bounds = this.playerBounds();
+      if (this.combat.world) {
+        const before = { ...this.player }; this.combat.move(this.player, direction, PLAYER_SPEED * dt,bounds);
+        const moved = this.player.x !== before.x || this.player.y !== before.y; this.actor.move(moved?direction.x:0,moved?direction.y:0);
+        if (moved) this.setData({player:{...this.player}}); this.renderActor(dt); return;
+      }
       const x = clamp(this.player.x + direction.x * step / this.arenaRect.width * 100, bounds.xMin, bounds.xMax);
       const y = clamp(this.player.y + direction.y * step / this.arenaRect.height * 100, bounds.yMin, bounds.yMax);
       const moved = x !== this.player.x || y !== this.player.y; this.actor.move(moved ? direction.x : 0, moved ? direction.y : 0);

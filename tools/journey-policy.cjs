@@ -2,12 +2,15 @@
 const { WEAPONS, PLAYER_SPEED } = require('../game/core/combat');
 function movement(c, bounds = { xMin: 6, xMax: 94, yMin: 20, yMax: 82 }) {
   const target = c.nearest(c.enemies.filter(e => !e.spawnTime)); if (!target) return { x: 0, y: 0 };
+  let route=null;
+  if(c.world){if(!c.botNav||c.botNav.world!==c.world)c.botNav=new (require('../game/core/world-geometry').FlowField)(c.world);route=c.botNav.direction(c.groundPoint(c.player),c.groundPoint(target));}
   let best = { score: Infinity, x: 0, y: 0 };
   for (let i = 0; i < 17; i++) {
     const angle = i * Math.PI / 8, dir = i === 16 ? { x: 0, y: 0 } : { x: Math.cos(angle), y: Math.sin(angle) };
     const next = { ...c.player }, future = { ...c.player }; c.move(next, dir, PLAYER_SPEED * 0.05); c.move(future, dir, PLAYER_SPEED * 0.3);
     for (const p of [next, future]) { p.x = Math.min(bounds.xMax, Math.max(bounds.xMin, p.x)); p.y = Math.min(bounds.yMax, Math.max(bounds.yMin, p.y)); }
     let score = Math.abs(c.distance(future, target) - c.attackRange() * (c.weapon === 'bell' ? 0.82 : 0.65)) * 0.4;
+    if(route && c.distance(c.player,target)>c.attackRange()) {const actual=c.vector(c.player,future);score+=(1-actual.x*route.x-actual.y*route.y)*100;}
     if (target.shielded && target.coreAngle !== undefined) {
       const from = c.vector(target, future), a = Math.atan2(from.y, from.x) - target.coreAngle;
       score += Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) * 90;

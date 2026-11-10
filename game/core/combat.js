@@ -4,6 +4,7 @@
 const { ArtifactCombat } = require('./artifacts');
 const { BELL } = require('./bell');
 const { SWORDS } = require('./swords');
+const { WorldState } = require('./world');
 const { VINES, vineRadius } = require('./vines');
 const { METEOR, meteorPhase } = require('./meteor');
 const { experienceNeed, waveQuota, enemyProfile } = require('./progression');
@@ -41,10 +42,10 @@ function segmentDistance(p, a, b) {
 }
 
 class Combat extends ArtifactCombat {
-  constructor(weapon = 'bell', random = Math.random) {
+  constructor(weapon = 'bell', random = Math.random, options = {}) {
     super();
     this.weapon = Object.keys(WEAPONS).includes(weapon) ? weapon : 'bell'; this.random = random;
-    this.width = 1400; this.height = 550;
+    this.width = 1400; this.height = 550; this.viewWidth = 1400; this.viewHeight = 550; this.exploration = Boolean(options.exploration); this.world = null;
     this.player = { x: 50, y: 55 }; this.hp = 100; this.maxHp = 100;
     this.power = 1; this.haste = 1; this.elements = { fire: 0, water: 0, earth: 0 };
     this.level = 1; this.xp = 0; this.xpNeed = 5;
@@ -58,17 +59,25 @@ class Combat extends ArtifactCombat {
     this.startStage();
   }
   configureArena(width, height, scale) {
-    if (width > 0 && height > 0 && scale > 0) { this.width = width / scale; this.height = height / scale; this.swordPrevious = null; }
+    if (width > 0 && height > 0 && scale > 0) {
+      this.viewWidth = width / scale; this.viewHeight = height / scale;
+      if (!this.world) { this.width = this.viewWidth; this.height = this.viewHeight; }
+      this.swordPrevious = null;
+    }
   }
+  camera() { return this.world ? this.world.camera(this.point(this.player), this.viewWidth, this.viewHeight) : {x:0,y:0,width:this.width,height:this.height}; }
   point(p) { return { x: p.x * this.width / 100, y: p.y * this.height / 100 }; }
+  groundPoint(entity) { const p=this.point(entity);if(this.world)p.y+=this.world.footOffset(entity);return p; }
   percent(p) { return { x: p.x / this.width * 100, y: p.y / this.height * 100 }; }
   distance(a, b) { const p = this.point(a), q = this.point(b); return Math.hypot(p.x - q.x, p.y - q.y); }
   vector(a, b) {
     const p = this.point(a), q = this.point(b), d = Math.hypot(q.x - p.x, q.y - p.y) || 1;
     return { x: (q.x - p.x) / d, y: (q.y - p.y) / d };
   }
-  move(entity, direction, distance) {
+  move(entity, direction, distance, bounds) {
     if (entity === this.player && (this.rootTime > 0 || this.enrage)) return;
+    if (this.world) { const offset=this.world.footOffset(entity),limits=bounds?{left:bounds.xMin*this.width/100,right:bounds.xMax*this.width/100,top:bounds.yMin*this.height/100+offset,bottom:bounds.yMax*this.height/100+offset}:undefined;
+      const p = this.world.move(this.groundPoint(entity), direction.x * distance, direction.y * distance, entity.boss ? 34 : 20,limits);p.y-=offset;Object.assign(entity, this.percent(p)); return; }
     entity.x = clamp(entity.x + direction.x * distance / this.width * 100, 4, 96);
     entity.y = clamp(entity.y + direction.y * distance / this.height * 100, 8, 92);
   }
@@ -84,9 +93,11 @@ class Combat extends ArtifactCombat {
   damage() { return WEAPONS[this.weapon].damage * this.power; }
   interval() { return Math.max(0.52, WEAPONS[this.weapon].interval * this.haste); }
   startStage() {
+    if (this.exploration) { this.world = new WorldState(this.stage); this.width = this.world.width; this.height = this.world.height; Object.assign(this.player, this.percent(this.world.entry)); }
     this.enrage = null;
     this.rootTime = 0; this.rootImmunity = 0; this.rootSourceId = null;
     this.phase = -1; this.phaseTime = 0; this.stageTime = 0;
+    this.bossPending=false;
     this.enemies = []; this.hazards = []; this.effects = []; this.remnants = []; this.projectiles = []; this.bellWaves = []; this.pendingAttack = null; this.followups = [];
     this.swordStrike = null; this.swordPrevious = null;
     this.cleared = false; this.attackCd = 0; this.nextWave();
@@ -96,7 +107,7 @@ class Combat extends ArtifactCombat {
     this.phase++; this.phaseTime = 0; this.spawnCd = 0; this.waveSpawns = 0;
     this.remaining = waveQuota(this.stage, this.phase);
     this.emit('wave', { name: this.phaseLabel() });
-    if (this.phase === 3) { this.spawn('boss', true); this.emit('boss', { name: BOSSES[this.stage - 1] }); }
+    if (this.phase === 3) { const boss=this.spawn('boss',true);this.bossPending=!boss;this.spawnCd=.3;if(boss)this.emit('boss',{name:BOSSES[this.stage-1]}); }
   }
   phaseLabel() { return ['一 · 初劫', '二 · 群劫', '三 · 精英', '四 · 守关'][this.phase]; }
   nearest(enemies, origin = this.player) {
@@ -127,7 +138,8 @@ class Combat extends ArtifactCombat {
     if (id === 'trial') this.trialPending = true;
     event.resolved = true; this.eventsTaken.push(choice.name); return true;
   }
-  spawnPoint(kind) {
+  spawnPoint(kind,fodder=false) {
+    if (this.world) return this.world.spawnPoint(this, kind,fodder);
     const margin = kind === 'boss' ? 118 : kind === 'elite' ? 86 : 64;
     const mx = Math.min(38, Math.max(6, margin / this.width * 100));
     const my = Math.min(38, Math.max(12, margin / this.height * 100));
@@ -148,21 +160,21 @@ class Combat extends ArtifactCombat {
     }
     return best;
   }
-  spawn(kind, forming = false) {
+  spawn(kind, forming = false, fodder = false) {
     if (this.enemies.length >= 32 || this.cleared || this.ended) return null;
-    const p = this.spawnPoint(kind); if (!p) return null;
+    const p = this.spawnPoint(kind,fodder); if (!p) return null;
     const boss = kind === 'boss';
     const stats = this.enemyStats(kind), hp = stats.hp;
     const e = { id: ++this.nextId, ...p, kind, boss, bossType: boss ? this.stage : 0, name: boss ? BOSSES[this.stage - 1] : ENEMIES.find(x => x.id === kind).name,
       hp, maxHp: hp, hpPct: 100, damageScale: stats.damageScale, pressure: stats.pressure, speed: (boss ? 42 : kind === 'charger' ? 66 : 52) * stats.speedScale,
       cooldown: boss ? 2 : kind === 'ranged' ? 1.3 : 2.5, castTime: 0, recoverTime: 0,
-      burnTime: 0, slowTime: 0, freezeTime: 0, hitTime: 0, sequence: 0, phase2: false, chargeHit: false };
+      burnTime: 0, slowTime: 0, freezeTime: 0, hitTime: 0, sequence: 0, phase2: false, chargeHit: false, fodder };
     e.spawnDuration = boss ? 1.2 : kind === 'elite' ? 0.95 : 0.75; e.spawnTime = forming ? e.spawnDuration : 0;
     this.enemies.push(e); this.emit('discover', { id: boss ? 'boss-' + this.stage : kind }); return e;
   }
   spawnFodder() {
     if (this.enemies.length >= 31) return null;
-    const e = this.spawn('wraith', true); if (!e) return null;
+    const e = this.spawn('wraith', true,true); if (!e) return null;
     e.fodder = true; e.hp = e.maxHp = 1.8 + this.stage * 0.3;
     e.speed = (58 + this.random() * 8) * (1 + (this.stage - 1) * 0.025); return e;
   }
@@ -188,6 +200,7 @@ class Combat extends ArtifactCombat {
     this.wardTime = Math.max(0, this.wardTime - dt);
     this.attackCd = Math.max(0, this.attackCd - dt);
     this.effects.forEach(f => { f.age += dt; }); this.effects = this.effects.filter(f => f.age < f.life);
+    if (this.world) this.world.update(this);
     this.advanceWaves(dt);
     for (const e of this.enemies) { this.updateEnemy(e, dt); if (this.enrage) return; }
     this.collectDeaths(); if (this.cleared) return;
@@ -211,7 +224,8 @@ class Combat extends ArtifactCombat {
       }
     }
     for (const e of this.enemies) {
-      if (e.hp > 0 && !e.spawnTime && this.distance(this.player, e) < (e.boss ? 45 : e.fodder ? 22 : 28)) { this.hurt((e.boss ? 12 : e.kind === 'elite' ? 9 : e.fodder ? 3 : 5) * (e.damageScale || 1), e.name); break; }
+      const contact=this.world?Math.hypot(this.groundPoint(this.player).x-this.groundPoint(e).x,this.groundPoint(this.player).y-this.groundPoint(e).y):this.distance(this.player,e);
+      if (e.hp > 0 && !e.spawnTime && contact < (e.boss ? 45 : e.fodder ? 22 : 28)) { this.hurt((e.boss ? 12 : e.kind === 'elite' ? 9 : e.fodder ? 3 : 5) * (e.damageScale || 1), e.name); break; }
     }
     // Damage is always announced by a living creature's motion. Ambient level
     // art no longer creates ownerless attacks underneath the player.
@@ -221,6 +235,7 @@ class Combat extends ArtifactCombat {
     }
   }
   advanceWaves(dt) {
+    if(this.phase===3&&this.bossPending){this.spawnCd-=dt;if(this.spawnCd<=0){const boss=this.spawn('boss',true);this.bossPending=!boss;this.spawnCd=.3;if(boss)this.emit('boss',{name:BOSSES[this.stage-1]});}return;}
     if (this.phase >= 3) return;
     this.spawnCd -= dt;
     if (this.remaining > 0 && this.spawnCd <= 0 && this.enemies.length < 31) {
@@ -252,14 +267,16 @@ class Combat extends ArtifactCombat {
     }
     advanceBossPattern(this, e, dt);
     e.cooldown -= dt;
-    if (e.cooldown <= 0 && !e.castTime && !e.recoverTime) {
+    const view = this.world && this.camera(), position = this.world && this.point(e), margin = e.boss ? 64 : 24;
+    const visible = !view || position.x >= view.x + margin && position.x <= view.x + view.width - margin && position.y >= view.y + margin && position.y <= view.y + view.height - margin;
+    if (visible && e.cooldown <= 0 && !e.castTime && !e.recoverTime) {
       if (e.boss) { this.castPattern(e.bossType, e, e.phase2); e.cooldown = e.phase2 ? 3.5 : 4.5; }
       else if (e.kind === 'ranged') { this.lineAtPlayer(e, 34, 0.95, 0.24, '息', 'arcane', 7); e.castTime = 1.2; e.recoverTime = 1.7; e.cooldown = 3; this.emit('cast', { name: e.name }); }
       else if (e.kind === 'charger') { this.charge(e, false); e.cooldown = 4.4; }
       else if (e.kind === 'elite') { this.hazard({ shape: 'ring', x: e.x, y: e.y, radius: 150, inner: 120, wave: { from: 20, to: 150, width: 30 }, delay: 1.05, duration: 0.55, label: '震', kind: 'arcane', damage: 9, owner: e.id, shockwave: true }); e.castTime = 1.6; e.recoverTime = 2.1; e.cooldown = 4; this.emit('cast', { name: e.name }); }
     }
     if (!e.castTime && !e.recoverTime && !e.dashing) {
-      const d = this.distance(e, this.player), direction = this.vector(e, this.player);
+      const d = this.distance(e, this.player), direction = this.world ? this.world.steer(this.groundPoint(e), this.groundPoint(this.player),e.boss?34:20) : this.vector(e, this.player);
       if (e.kind === 'ranged' && d < 180 + (this.stage - 1) * 15) this.move(e, direction, -e.speed * slow * dt);
       else if (e.kind !== 'ranged' || d > 260) this.move(e, direction, e.speed * slow * dt);
     }
@@ -280,8 +297,9 @@ class Combat extends ArtifactCombat {
   lineAtPlayer(e, width, delay, duration, label, kind, damage, dash = false) {
     const origin = { x: e.x, y: e.y }, start = this.point(origin), direction = this.vector(e, this.player);
     e.attackAngle = Math.atan2(direction.y, direction.x);
-    const end = this.percent({ x: start.x + direction.x * Math.max(260, Math.min(800, this.distance(e, this.player) + 130)),
+    let end = this.percent({ x: start.x + direction.x * Math.max(260, Math.min(800, this.distance(e, this.player) + 130)),
       y: start.y + direction.y * Math.max(260, Math.min(800, this.distance(e, this.player) + 130)) });
+    if (this.world) { const offset=this.world.footOffset(e),goal=this.point(end);goal.y+=offset;const hit=this.world.clip(this.groundPoint(e),goal,dash?34:width*.5,!dash);hit.y-=offset;end=this.percent(hit); }
     return this.hazard({ shape: 'line', x: origin.x, y: origin.y, end, width, delay, duration, label, kind, damage, owner: e.id, dash });
   }
   charge(e, twice) {
@@ -590,6 +608,7 @@ class Combat extends ArtifactCombat {
     const exposed = boss && boss.bossType === 2 && boss.castTime <= 0 && boss.recoverTime > 0 && !boss.chargeHit;
     const hint = boss ? ['盘身后根脉分叉 · 甩尾前离开龙首朝向', '伏身后横移 · 落地转向后会再扑', '抬翼陨火 · 从火浪缺口穿行', '缩甲后向外发浪 · 绕向发亮甲片', '结印后敕令落下 · 连招结束时反击'][boss.bossType - 1] : '';
     return {
+      world: this.world ? { name:this.world.name, region:this.world.regionAt(this.point(this.player)), explored:this.world.explored, sites:this.world.sites.length, width:this.width, height:this.height } : null,
       bossTransition: this.enrage ? { ...this.enrage } : null,
       rooted: this.rootTime > 0, rootTime: round(this.rootTime), hp: Math.ceil(this.hp), maxHp: this.maxHp, hpPct: this.hp / this.maxHp * 100,
       level: this.level, xp: this.xp, xpNeed: this.xpNeed, xpPct: Math.min(100, this.xp / this.xpNeed * 100),

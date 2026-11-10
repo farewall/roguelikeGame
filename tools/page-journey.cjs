@@ -3,8 +3,8 @@
 // The WeChat bridge, frame clock and audio device remain mocked.
 const { setup, upgradeEvent, touch } = require('./game-harness.cjs');
 const { movement, upgrade, random } = require('./journey-policy.cjs');
-function runPage(weapon, seed, path, build = 'balanced', viewport = { windowWidth: 844, windowHeight: 390 }) {
-  const h = setup({ weapon, nativeLayout: true, windowInfo: viewport, arenaRect: { left: 20, top: 50, width: viewport.windowWidth - 40, height: viewport.windowHeight - 100 } });
+function runPage(weapon, seed, path, build = 'balanced', viewport = { windowWidth: 844, windowHeight: 390 }, exploration = false) {
+  const h = setup({ weapon, exploration, nativeLayout: true, windowInfo: viewport, arenaRect: { left: 20, top: 50, width: viewport.windowWidth - 40, height: viewport.windowHeight - 100 } });
   const { game } = h, c = game.combat; c.random = random(seed); const stages = [];
   let choices = 0, rewards = 0, frames = 0;
   for (; frames < 48000 && !game.data.showEnding; frames++) {
@@ -21,7 +21,7 @@ function runPage(weapon, seed, path, build = 'balanced', viewport = { windowWidt
       game.chooseUpgrade(upgradeEvent(game, index)); choices++;
     }
     if (!game.isBlocked()) {
-      const skillRange = weapon === 'bell' ? 330 : 650;
+      const skillRange = weapon === 'bell' ? 330 : weapon === 'swords' ? 220 : 650;
       const targets = c.enemies.filter(e => e.hp > 0 && !e.spawnTime && c.distance(c.player, e) <= skillRange);
       if (c.energy >= 100 && c.skillCooldown <= 0 && targets.length && (targets.some(e => e.boss) || targets.length >= 4 || c.hp < 55 || c.rootTime > 0)) game.castSkill();
       const dir = movement(c, game.playerBounds()), r = game.joystickRect, x = r.left + r.width / 2, y = r.top + r.height / 2;
@@ -33,7 +33,7 @@ function runPage(weapon, seed, path, build = 'balanced', viewport = { windowWidt
     // Do not retain every bridge patch during a long automated run.
     h.dataWrites.length = 0;
   }
-  const result = { weapon, seed, path: c.path, won: game.data.won, stage: c.stage, stages, choices, rewards, skills: c.skillUses, level: c.level, seconds: Math.round(c.time), wallSeconds: frames * 0.025, hp: c.hp, build: c.buildLabel(), report: c.battleReport(), ending: game.data.showEnding, cause: c.lastDamageName };
+  const result = { weapon, seed, path: c.path, won: game.data.won, stage: c.stage, stages, choices, rewards, skills: c.skillUses, level: c.level, seconds: Math.round(c.time), wallSeconds: frames * 0.025, hp: c.hp, build: c.buildLabel(), report: c.battleReport(), ending: game.data.showEnding, cause: c.lastDamageName, exploration:Boolean(c.world),worldName:c.world?c.world.name:'' };
   game.onUnload(); return result;
 }
 module.exports = { runPage };

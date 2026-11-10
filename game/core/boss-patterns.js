@@ -43,6 +43,7 @@ function pounce(c, e, second = false) {
   const length = clamp(c.distance(origin, c.player) + 85, 180, 680), p = c.point(origin);
   const end = c.percent({ x: p.x + direction.x * length, y: p.y + direction.y * length });
   end.x = clamp(end.x, 6, 94); end.y = clamp(end.y, 14, 86);
+  if (c.world) { const offset=c.world.footOffset(e),hit=c.world.clip(c.groundPoint(e),{x:p.x+direction.x*length,y:p.y+direction.y*length+offset},40);hit.y-=offset;Object.assign(end,c.percent(hit)); }
   e.attackAngle = Math.atan2(direction.y, direction.x);
   e.attackName = second ? '转身追扑' : '伏身扑杀';
   c.hazard({ shape: 'line', ...origin, end, width: 82, delay: second ? 0.78 : 0.95, duration: 0.4,
@@ -76,6 +77,16 @@ function meteor(c, e, index, phase2) {
     owner: e.id, feather: index, flightOrigin: { x: e.x, y: e.y }, phase2 });
 }
 function fireWave(c, e, phase2) {
+  if (c.world) {
+    const start=c.point(e), player=c.point(c.player), sign=player.x>=start.x?1:-1, half=Math.min(330,c.viewHeight*0.55), gap=clamp(player.y,start.y-half+100,start.y+half-100);
+    e.attackAngle=sign>0?0:Math.PI; e.attackName='扇翼焚风';
+    for (const [y,endY] of [[start.y-half,gap-85],[gap+85,start.y+half]]) {
+      if(endY<=y) continue;
+      const a=c.percent({x:start.x+sign*48,y}),b=c.percent({x:start.x+sign*48,y:endY});
+      c.hazard({shape:'line',...a,end:b,width:36,delay:1,duration:2.1,moving:{x:sign*780/c.width*100,y:0},kind:'flame',label:'焚',damage:10,owner:e.id,fireWave:true,gapY:gap/c.height*100,opening:85/c.height*100});
+    }
+    c.emit('cast',{name:e.name}); return;
+  }
   // The wave is split around a real, 170-unit opening. Existing fires have faded
   // before this front reaches the player; all motion is visible flame and ember.
   const left = e.x < 50, x = left ? 7 : 93, gap = clamp(c.player.y, 27, 73), half = 85 / c.height * 100;
@@ -133,6 +144,7 @@ function beginBossPattern(c, e, stage, phase2) {
     cues.push(cue(phase2 ? 3.9 : 3.25, 'fire')); castEnd = phase2 ? 6.55 : 6.15; duration = castEnd + 1.15;
   } else if (stage === 4) {
     e.attackAngle = facing(c, e, c.player); e.coreAngle = e.attackAngle + (e.sequence % 2 ? 1 : -1) * Math.PI / 2;
+    if(c.world) e.coreAngle=c.world.openDirection(c.point(e),e.coreAngle);
     cues = [cue(0, 'wave'), ...(phase2 ? [cue(1, 'wave', { index: 1 }), cue(2, 'wave', { index: 2 })] : [])];
     castEnd = phase2 ? 4.7 : 2.7; duration = castEnd + 1.55;
   } else {

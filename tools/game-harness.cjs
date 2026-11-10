@@ -10,7 +10,7 @@ function setup(options = {}) {
     createInnerAudioContext: () => ({ src: '', volume: 1, stop() {}, play() { audioCalls.push({ src: this.src, volume: this.volume }); }, destroy() { audioCalls.push({ destroyed: true }); } }) };
   for (const key of ['TouchStart', 'TouchMove', 'TouchEnd', 'TouchCancel']) { api['on' + key] = fn => { events[key] = fn; }; api['off' + key] = () => { delete events[key]; }; }
   const clock = { setTimeout(fn) { const id = ++nextTimer; timers.set(id, fn); return id; }, clearTimeout(id) { timers.delete(id); } };
-  const game = createController(api, { viewport: windowInfo, Date: { now: () => now }, clock });
+  const game = createController(api, { viewport: windowInfo, Date: { now: () => now }, clock, exploration: Boolean(options.exploration) });
   const originalSetData = game.setData; game.setData = function(patch, callback) { dataWrites.push(structuredClone(patch)); originalSetData.call(this, patch, callback); };
   if (options.weapon) game.selectWeapon({ currentTarget: { dataset: { weapon: options.weapon } } });
   game.beginGame();

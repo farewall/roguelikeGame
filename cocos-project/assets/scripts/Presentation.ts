@@ -6,6 +6,7 @@ import { drawHazard } from './HazardVfx';
 import { drawPlayerBind } from './VineVfx';
 import { creatureSize, drawCondensation, drawRemnant, condensationOpacity } from './CreatureVfx';
 import { creatureMotion, drawCreatureTell, drawEnrage } from './BossVfx';
+import { drawWorld, drawMap, drawWorldHud } from './WorldVfx';
 const GOLD = 0xe3c88b, INK = 0x14262d, LIGHT = 0xe4e2ce, MUTE = 0x9fb8ac;
 const ROWS = { down: 0, up: 1, left: 2, right: 3 };
 const clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
@@ -14,9 +15,9 @@ export class CocosPresentation {
   layers: Record<string, any> = {}; regions: any[] = []; root: Node; worldClip: Node; private lastVersion = -1; private lastReady = false;
   constructor(owner: Node, controller: any) {
     this.c = controller; this.root = this.makeNode('GameLayers'); owner.addChild(this.root);
-    for (const name of ['background', 'world', 'hud', 'overlay']) {
+    for (const name of ['background', 'ground', 'terrain', 'world', 'hud', 'overlay']) {
       const node = this.makeNode(name);
-      if (name === 'world') { this.worldClip = this.makeNode('ArenaClip'); this.root.addChild(this.worldClip); this.worldClip.addComponent(Mask).type = Mask.Type.GRAPHICS_RECT; this.worldClip.addChild(node); }
+      if (['ground','terrain','world'].includes(name)) { if (!this.worldClip) { this.worldClip = this.makeNode('ArenaClip'); this.root.addChild(this.worldClip); this.worldClip.addComponent(Mask).type = Mask.Type.GRAPHICS_RECT; } this.worldClip.addChild(node); }
       else this.root.addChild(node);
       this.layers[name] = { node, g: new DrawList(node.addComponent(Graphics)), nodes: new Map(), used: new Set() };
     }
@@ -97,11 +98,12 @@ export class CocosPresentation {
     const c = this.c, d = c.data, { w, h } = c.layout;
     if (this.ready && this.lastReady && c.isBlocked() && this.lastVersion === c.version) return;
     this.lastVersion = c.version; this.lastReady = this.ready; this.regions = [];
-    this.begin('background'); this.begin('world'); this.begin('hud'); this.begin('overlay');
+    this.begin('background'); this.begin('ground'); this.begin('terrain'); this.begin('world'); this.begin('hud'); this.begin('overlay');
     this.root.setPosition(-w / 2, h / 2);
     const arena = c.layout.arena;
     this.worldClip.setPosition(arena.x, -arena.y); this.worldClip.getComponent(UITransform).setContentSize(arena.width, arena.height);
-    this.layers.world.node.setPosition(-arena.x, arena.y);
+    const cam = c.combat ? c.combat.camera() : {x:0,y:0};
+    for (const name of ['ground','terrain','world']) this.layers[name].node.setPosition(-arena.x-cam.x, arena.y+cam.y);
     if (!this.ready) {
       const layer = this.layers.hud; this.rect(layer, 0, 0, w, h, 0x101f28);
       this.text(layer, 'loading-title', '开天一念', w / 2, h / 2 - 75, 65, GOLD, { center: true, serif: true });
@@ -115,6 +117,7 @@ export class CocosPresentation {
     if (d.showMemory) this.memory();
     if (d.showEnding) this.ending();
     if (d.showArchive) this.archive();
+    if (d.showWorldMap && c.combat.world) this.worldMap();
     if (d.bossTransition) drawEnrage(this);
     if (d.showSettings) this.settings();
     this.finishLayers();
@@ -160,9 +163,10 @@ export class CocosPresentation {
   battle() {
     const c = this.c, d = c.data, { w, h, arena: a, joystick: joy } = c.layout, bg = this.layers.background, world = this.layers.world, hud = this.layers.hud, g = world.g;
     this.rect(bg, 0, 0, w, h, 0x10202a);
-    this.image(bg, 'arena', this.assets.textures['arena' + d.stage], a.x, a.y, a.width, a.height, 0.68, true);
+    if (!c.combat.world) this.image(bg, 'arena', this.assets.textures['arena' + d.stage], a.x, a.y, a.width, a.height, 0.68, true);
     this.rect(bg, a.x, a.y, a.width, a.height, 0x09171c, 0.15, 0x756f51, 7);
-    const point = p => ({ x: a.x + p.x * a.width / 100, y: a.y + p.y * a.height / 100 });
+    const point = p => ({ x: a.x + p.x * c.combat.width / 100, y: a.y + p.y * c.combat.height / 100 });
+    if (c.combat.world) drawWorld(this,this.layers.ground,this.layers.terrain,world,point);
     for (const hazard of c.combat.hazards) drawHazard(this, world, hazard, point);
     const player = point(d.player);
     for (const wave of c.combat.bellWaves) this.bellWave(world, wave, point);
@@ -183,6 +187,7 @@ export class CocosPresentation {
     for (const body of c.combat.remnants) drawRemnant(this, world, body, point(body));
     for (const enemy of c.combat.enemies) {
       const p = point(enemy), size = creatureSize(enemy);
+      if (c.combat.world) { const camera=c.combat.camera();if(p.x<a.x+camera.x-260 || p.x>a.x+camera.x+a.width+260 || p.y<a.y+camera.y-260 || p.y>a.y+camera.y+a.height+260) continue; }
       const forming = enemy.spawnTime > 0, solidity = condensationOpacity(enemy);
       if (forming) drawCondensation(this, world, enemy, p, size);
       const hit = clamp(enemy.hitTime / 0.16, 0, 1), punch = Math.sin(hit * Math.PI), direction = enemy.hitDirection || { x: 0, y: 0 };
@@ -226,6 +231,7 @@ export class CocosPresentation {
     this.button(hud, 'pause', '暂停', w - 112 - headerRight, 14, 100, 60, () => c.openSettings(), { size: 24 });
     this.rect(hud, a.x, 84, a.width, 3, 0x263a3e); this.rect(hud, a.x, 84, a.width * d.progress / 100, 3, 0xa3b788);
     this.text(hud, 'stage', d.stageName, a.x + 24, a.y + 18, 23, GOLD);
+    if (c.combat.world) drawWorldHud(this);
     if (d.boss) {
       const bw = Math.min(630, a.width * 0.43), bx = a.x + a.width / 2 - bw / 2;
       this.rect(hud, bx, a.y + 13, bw, 72, 0x10232b, 0.94, 0x6f755b);
@@ -259,6 +265,7 @@ export class CocosPresentation {
   }
   drawEffect(layer, effect, point) {
     const g = layer.g, p = point(effect), t = clamp(effect.age / effect.life, 0, 1), life = 1 - t;
+    if(effect.type==='world-loot'){g.lineStyle(2,0xe5d4a1,life);for(let i=0;i<7;i++){const a=i*Math.PI*2/7,r=8+t*30;g.moveTo(p.x+Math.cos(a)*r,p.y+Math.sin(a)*r-t*26);g.lineTo(p.x+Math.cos(a)*(r+7*life),p.y+Math.sin(a)*(r+7*life)-t*26);}return;}
     if (effect.type === 'blade-split' || effect.type === 'banner-cast') {
       const split = effect.type === 'blade-split', size = split ? 45 + t * 48 : 48 + t * 24;
       const sprite = this.image(layer, 'blade-effect-' + effect.id, this.assets.frames.banner[split ? 14 : 15], p.x, p.y, size, size, life * (split ? 0.9 : 0.5));
@@ -355,7 +362,7 @@ export class CocosPresentation {
       const pulse = summon ? Math.sin(Math.PI * summon.age / summon.life) * 0.1 : 0;
       this.bellBody(layer, player.x + Math.sin(time * 65) * charge * 1.5, player.y - 114 + Math.sin(time * 2.2) * 3, 0.7 + pulse, charge, this.c.data.bellMarks || 0, this.c.data.bellThreshold || 3, 1, time * 1.4);
     } else {
-      const a = this.c.layout.arena, release = this.c.combat.effects.find(effect => effect.type === 'banner-cast' || effect.type === 'rift-windup' || effect.type === 'rift');
+      const view = this.c.layout.arena, camera=this.c.combat.camera(), a={...view,x:view.x+camera.x,y:view.y+camera.y}, release = this.c.combat.effects.find(effect => effect.type === 'banner-cast' || effect.type === 'rift-windup' || effect.type === 'rift');
       const castFrame = release ? 8 + Math.min(3, Math.floor(release.age / 0.3 * 4)) : actorFrame.action === 'attack' ? [8, 8, 9, 10, 11, 11][actorFrame.index || 0] : -1;
       const idleFrame = [0, 1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1][Math.floor(time * 8) % 14];
       const x = clamp(player.x + 98, a.x + 88, a.x + a.width - 88), y = clamp(player.y - 52 + Math.sin(time * 2.5) * 3, a.y + 96, a.y + a.height - 96);
@@ -368,7 +375,7 @@ export class CocosPresentation {
     const c = this.c, a = c.layout.arena, hero = layer.nodes.get('hero');
     const swords = c.combat.swordPoses().sort((a, b) => a.depth - b.depth), bodies = [];
     for (const sword of swords) {
-      const x = a.x + sword.x / 100 * a.width, y = a.y + sword.y / 100 * a.height;
+      const x = a.x + sword.x / 100 * c.combat.width, y = a.y + sword.y / 100 * c.combat.height;
       const body = this.image(layer, 'zhuxian-sword-' + sword.index, this.assets.frames.swords[sword.index], x, y, sword.size, sword.size);
       body.node.getComponent(UITransform).setAnchorPoint(0.5, 0.5); body.node.setPosition(x, -y); body.node.angle = sword.angle;
       bodies.push({ node: body.node, depth: sword.depth });
@@ -381,6 +388,13 @@ export class CocosPresentation {
     }
     // Reorder the whole group so a sword changing sides never covers the wrong half of the hero.
     for (const node of [...bodies.filter(b => b.depth < 0).map(b => b.node), hero, ...bodies.filter(b => b.depth >= 0).map(b => b.node)]) node.setSiblingIndex(layer.node.children.length - 1);
+  }
+  worldMap() {
+    const c=this.c,width=Math.min(c.layout.w-100,1120),{layer,x,y}=this.modal(width,650),world=c.combat.world;
+    this.text(layer,'world-map-title',world.name+' · '+world.regionAt(c.combat.point(c.combat.player)),x+32,y+25,32,GOLD);
+    this.text(layer,'world-map-help','已暂停 · 浅色点为主角，菱形为遗迹与补给，红色为首领',x+32,y+77,20,MUTE);
+    drawMap(this,layer,x+90,y+122,width-180,425,true);
+    this.button(layer,'world-map-close','返回探索',x+32,y+573,width-64,52,()=>c.closeWorldMap(),{primary:true,size:24});
   }
   skillControl(layer) {
     const c = this.c, d = c.data, r = c.layout.skill, g = layer.g, x = r.x + 96, y = r.y + 92, ready = d.skillReady && !c.isBlocked(), color = d.weaponId === 'bell' ? GOLD : d.weaponId === 'swords' ? 0xddbc96 : 0xb1e4d7;

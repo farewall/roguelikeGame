@@ -1,6 +1,6 @@
 import { assetManager, AssetManager, AudioClip, ImageAsset, Rect, Size, SpriteFrame, Texture2D } from 'cc';
 import { ARTIFACT_COLUMNS } from './generated/game-core';
-const paths: Record<string, string> = { title: 'titile-bg', enemies: 'enemy-actions', bosses: 'chaos-boss-actions', spellAtlas: 'boss-actions', bell: 'chaos-bell', banner: 'pangu-banner', swords: 'zhuxian-swords', meteor: 'phoenix-meteor', ending: 'ending-dawn', artifact: 'pangu/artifact-cast' };
+const paths: Record<string, string> = { title: 'titile-bg', enemies: 'enemy-actions', bosses: 'chaos-boss-actions', spellAtlas: 'boss-actions', bell: 'chaos-bell', banner: 'pangu-banner', swords: 'zhuxian-swords', meteor: 'phoenix-meteor', worldGround: 'world-ground', worldProps: 'world-props', worldPools: 'world-pools', ending: 'ending-dawn', artifact: 'pangu/artifact-cast' };
 for (let i = 1; i <= 5; i++) { paths['arena' + i] = 'arena-' + i; paths['boss' + i] = 'boss-' + i; }
 for (const kind of ['power', 'haste', 'health', 'fire', 'water', 'earth']) paths['upgrade-' + kind] = 'upgrade-' + kind;
 for (const action of ['idle', 'move', 'attack', 'hurt', 'awaken', 'death']) paths[action] = 'pangu/' + action;
@@ -9,7 +9,7 @@ export function frame(texture: Texture2D, rect?: Rect) {
 }
 export async function loadAssets(progress: (value: number) => void = () => {}) {
   const bundle = await new Promise<AssetManager.Bundle>((resolve, reject) => assetManager.loadBundle('game-content', (error, value) => error ? reject(error) : resolve(value)));
-  const textures: Record<string, SpriteFrame> = {}, frames: any = { artifact: {}, enemies: [], bosses: [], spells: [], chaosMist: [], bell: [], banner: [], swords: [], meteor: [] }, audio: Record<string, AudioClip> = {};
+  const textures: Record<string, SpriteFrame> = {}, frames: any = { artifact: {}, enemies: [], bosses: [], spells: [], chaosMist: [], bell: [], banner: [], swords: [], meteor: [], worldGround: [], worldProps: [], worldPools: [] }, audio: Record<string, AudioClip> = {};
   const sounds = ['attack', 'bell', 'echo', 'banner', 'dominion', 'rift', 'ready', 'warning', 'hurt', 'upgrade', 'victory', 'death'];
   let done = 0; const total = Object.keys(paths).length + sounds.length;
   await Promise.all(Object.entries(paths).map(async ([key, file]) => {
@@ -36,6 +36,9 @@ export async function loadAssets(progress: (value: number) => void = () => {}) {
   for (let row = 0; row < 4; row++) for (let column = 0; column < 4; column++) frames.bell.push(frame(textures.bell.texture, new Rect(column * 192, row * 192, 192, 192)));
   for (let row = 0; row < 4; row++) for (let column = 0; column < 4; column++) frames.banner.push(frame(textures.banner.texture, new Rect(column * 192, row * 192, 192, 192)));
   for (let row = 0; row < 2; row++) for (let column = 0; column < 2; column++) frames.swords.push(frame(textures.swords.texture, new Rect(column * 256, row * 256, 256, 256)));
+  for (let row = 0; row < 2; row++) for (let column = 0; column < 3; column++) frames.worldGround.push(frame(textures.worldGround.texture, new Rect(column * 256 + 1, row * 256 + 1, 254, 254)));
+  for (let row = 0; row < 4; row++) for (let column = 0; column < 4; column++) frames.worldProps.push(frame(textures.worldProps.texture, new Rect(column * 192, row * 192, 192, 192)));
+  for (let row = 0; row < 2; row++) for (let column = 0; column < 2; column++) frames.worldPools.push(frame(textures.worldPools.texture, new Rect(column * 192, row * 192, 192, 192)));
   for (let row = 0; row < 4; row++) for (let column = 0; column < 4; column++) frames.meteor.push(frame(textures.meteor.texture, new Rect(column * 192, row * 192, 192, 192)));
   return { textures, frames, audio, bundle };
 }

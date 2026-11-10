@@ -23,6 +23,9 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
     try {
       await page.goto('http://127.0.0.1:4173/', { waitUntil: 'domcontentloaded' });
       await page.waitForFunction(() => window.kaitian && kaitian.presentation.ready, null, { timeout: 60000 });
+      // Keep authored weapon/boss geometry fixtures in a measured arena;
+      // production input flows and the five-map traversal suite use exploration.
+      await page.evaluate(() => { window.arenaFixture = c => { const core=new c.combat.constructor(c.data.selectedWeapon);core.configureArena(c.layout.arena.width,c.layout.arena.height,1);c.combat=core;c.player=core.player;return core; }; });
       await page.screenshot({ path: output + '/cocos-home.png' });
       for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) for (const weapon of ['bell', 'banner', 'swords']) {
         await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);
@@ -80,12 +83,46 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         await click('ending-home'); await click('archive'); await click('archive-runs'); assert.ok(await page.evaluate(() => kaitian.controller.data.archiveRuns.length > 0)); await click('archive-close');
         assert.deepEqual(errors, [], prefix); console.log('PASS Cocos Creator ' + prefix + ': native nodes, joystick, skill, pause/background, upgrades, stage progression, trial, ending, archive');
       }
+      for (const viewport of [{ width:844,height:390 },{ width:667,height:320 }]) {
+        await page.setViewportSize(viewport);await page.waitForFunction(w=>kaitian.controller.viewport.windowWidth===w,viewport.width);
+        await click('start');await click('weapon-swords');await click('intro-enter');
+        for(let stage=1;stage<=5;stage++)for(const mode of ['entry','roam','shrine','map']){
+          await page.evaluate(({stage,mode})=>{
+            const c=kaitian.controller;c.resetGame();c.pauseGame();const core=c.combat;
+            core.stage=stage;core.startStage();core.phase=3;core.remaining=0;core.enemies=[];core.hazards=[];core.effects=[];core.invulnerable=1000;
+            core.cameraStart=core.camera();core.travelStart=core.point(core.player);
+            if(mode==='roam'){
+              const goal=core.world.sites[1];for(let i=0;i<600&&Math.hypot(core.groundPoint(core.player).x-goal.x,core.groundPoint(core.player).y-goal.y)>80;i++){const d=core.world.steer(core.groundPoint(core.player),goal);core.move(core.player,d,15);core.update(.05,false);}
+            }
+            if(mode==='shrine'){const site=core.world.sites[0];Object.assign(core.player,core.percent(site));core.hp=70;core.energy=40;core.world.update(core);}
+            c.setData({message:''});c.syncCombat();kaitian.presentation.render();
+          },{stage,mode});
+          if(mode==='map'){await page.evaluate(()=>kaitian.controller.resumeGame());await click('world-map');}
+          await page.waitForTimeout(80);
+          assert.ok(await page.evaluate(({stage,mode})=>{
+            const c=kaitian.controller,core=c.combat,v=kaitian.presentation,a=c.layout.arena,cam=core.camera();
+            if(!core.world||core.world.stage!==stage||core.width*core.height<8*a.width*a.height)return false;
+            if(Math.abs(v.layers.world.node.position.x+a.x+cam.x)>.01||Math.abs(v.layers.world.node.position.y-a.y-cam.y)>.01)return false;
+            if(![...v.layers.ground.used].some(id=>v.layers.ground.nodes.get(id).getComponent('cc.Sprite').spriteFrame===v.assets.frames.worldGround[stage-1]))return false;
+            if([...v.layers.world.used].filter(id=>id.startsWith('zhuxian-sword-')).length!==4)return false;
+            if(mode==='roam'&&(Math.hypot(cam.x-core.cameraStart.x,cam.y-core.cameraStart.y)<400||Math.hypot(core.point(core.player).x-core.travelStart.x,core.point(core.player).y-core.travelStart.y)<1100))return false;
+            if(mode==='map'&&(!c.data.showWorldMap||!c.data.paused))return false;
+            if(mode==='shrine'&&!core.world.sites[0].visited)return false;
+            return v.layers.world.nodes.size<220&&v.layers.ground.nodes.size<=30;
+          },{stage,mode}),'large world '+stage+' '+mode);
+          const frozen=await page.evaluate(()=>JSON.stringify({time:kaitian.controller.combat.time,player:kaitian.controller.player,camera:kaitian.controller.combat.camera()}));await page.waitForTimeout(80);
+          assert.equal(await page.evaluate(()=>JSON.stringify({time:kaitian.controller.combat.time,player:kaitian.controller.player,camera:kaitian.controller.combat.camera()})),frozen);
+          await page.screenshot({path:output+'/world-'+viewport.width+'-'+stage+'-'+mode+'.png'});
+          if(mode==='map'){await click('world-map-close');assert.equal(await page.evaluate(()=>kaitian.controller.data.showWorldMap),false);await page.evaluate(()=>kaitian.controller.pauseGame());}
+        }
+        await page.evaluate(()=>kaitian.controller.exitToHome());console.log('PASS Creator large worlds '+viewport.width+': five layouts, real terrain, travel across screens, following camera, loot sites, map pause, four swords, bounded nodes');
+      }
       for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
         await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);
         await click('start'); await click('weapon-swords'); await click('intro-enter');
         for (const mode of ['idle-a', 'idle-b', 'slash', 'skill', 'left', 'right', 'top', 'bottom']) {
           await page.evaluate(mode => {
-            const c = kaitian.controller; c.resetGame(); c.pauseGame(); const core = c.combat;
+            const c = kaitian.controller; c.resetGame(); window.arenaFixture(c); c.pauseGame(); const core = c.combat;
             core.phase = 3; core.remaining = 0; core.enemies = []; core.hazards = []; core.effects = []; core.invulnerable = 1000; core.player.x = 48; core.player.y = 54;
             if (mode === 'idle-b') core.updateArtifacts(0.7);
             if (['left', 'right', 'top', 'bottom'].includes(mode)) {
@@ -124,7 +161,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         await click('start'); await click('weapon-banner'); await click('intro-enter');
         for (const mode of ['idle', 'flutter', 'release', 'volley', 'split', 'max', 'edge', 'cards-count', 'cards-split']) {
           await page.evaluate(mode => {
-            const c = kaitian.controller; c.resetGame(); c.pauseGame(); const core = c.combat;
+            const c = kaitian.controller; c.resetGame(); window.arenaFixture(c); c.pauseGame(); const core = c.combat;
             core.phase = 3; core.remaining = 0; core.enemies = []; core.hazards = []; core.effects = []; core.projectiles = []; core.player.x = 36; core.player.y = 58;
             core.time = mode === 'flutter' ? 0.5 : 0; core.invulnerable = 1000;
             const enemy = (dx, dy = 0) => { const e = core.spawn('ranged'); Object.assign(e, { x: core.player.x + dx / core.width * 100, y: core.player.y + dy / core.height * 100, hp: 1000, maxHp: 1000, speed: 0, cooldown: 100, spawnTime: 0 }); };
@@ -172,7 +209,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         await click('start'); await click('weapon-bell'); await click('intro-enter');
         for (const mode of ['idle-a', 'idle-b', 'plain', 'wide', 'fire', 'water', 'earth', 'echo', 'dominion']) {
           await page.evaluate(mode => {
-            const c = kaitian.controller; c.resetGame(); c.pauseGame(); const core = c.combat;
+            const c = kaitian.controller; c.resetGame(); window.arenaFixture(c); c.pauseGame(); const core = c.combat;
             core.phase = 3; core.remaining = 0; core.enemies = []; core.hazards = []; core.effects = []; core.player.x = 50; core.player.y = 55; core.time = mode === 'idle-b' ? 1 : 0;
             if (mode === 'wide') for (const kind of ['range', 'echo', 'resonance']) for (let i = 0; i < 3; i++) core.upgrade(kind);
             if (['fire', 'water', 'earth'].includes(mode)) core.elements[mode] = 2;
@@ -212,7 +249,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         await click('start'); await click('intro-enter');
         for (let stage = 1; stage <= 5; stage++) for (const state of ['warning', 'active']) {
           await page.evaluate(({ stage, state }) => {
-            const c = kaitian.controller; c.resetGame(); c.pauseGame();
+            const c = kaitian.controller; c.resetGame(); window.arenaFixture(c); c.pauseGame();
             const core = c.combat; core.enemies = []; core.hazards = []; core.effects = []; core.projectiles = []; core.phase = 3; core.stage = stage; core.player.x = 50; core.player.y = 60;
             const boss = core.spawn('boss'); Object.assign(boss, { x: 73, y: 30, cooldown: 100, castTime: 1.3, recoverTime: 2, phase2: true, visualState: state === 'warning' ? 'cast' : 'release', visualAge: 0.6 });
             core.castPattern(stage, boss, true);
@@ -269,7 +306,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         await page.evaluate(() => kaitian.controller.beginGame());
         for (const state of ['mist-only', 'forming', 'solid', 'hit', 'unstable', 'mist', 'return']) {
           await page.evaluate(state => {
-            const c = kaitian.controller; c.resetGame(); c.pauseGame();
+            const c = kaitian.controller; c.resetGame(); window.arenaFixture(c); c.pauseGame();
             const core = c.combat; core.phase = 3; core.enemies = []; core.hazards = []; core.effects = []; core.remnants = [];
             const list = ['wraith', 'ranged', 'charger', 'elite', 'boss', 'boss', 'boss', 'boss', 'boss'];
             list.forEach((kind, i) => {
@@ -302,7 +339,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         await page.evaluate(() => kaitian.controller.beginGame());
         for (const phase of ['warning', 'sprouting', 'spreading', 'grown', 'bound']) {
           await page.evaluate(phase => {
-            const c = kaitian.controller; c.resetGame(); c.pauseGame(); const core = c.combat;
+            const c = kaitian.controller; c.resetGame(); window.arenaFixture(c); c.pauseGame(); const core = c.combat;
             core.enemies = []; core.hazards = []; core.effects = []; core.phase = 3; core.stage = 1; core.player.x = 50; core.player.y = 58;
             const boss = core.spawn('boss'); Object.assign(boss, { x: 79, y: 27, cooldown: 100, castTime: 1, visualState: 'cast' });
             core.circle({ x: phase === 'bound' ? 50 : 40, y: 58 }, 100, 1.05, 2.1, '藤', 'root', 9, boss.id);
@@ -326,7 +363,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         await page.evaluate(() => kaitian.controller.beginGame());
         for (const phase of ['warning', 'falling', 'impact', 'burning', 'fading']) {
           await page.evaluate(phase => {
-            const c = kaitian.controller; c.resetGame(); c.pauseGame(); const core = c.combat;
+            const c = kaitian.controller; c.resetGame(); window.arenaFixture(c); c.pauseGame(); const core = c.combat;
             core.enemies = []; core.hazards = []; core.effects = []; core.phase = 3; core.stage = 3; core.player.x = 37; core.player.y = 62;
             const boss = core.spawn('boss'); Object.assign(boss, { x: 80, y: 28, cooldown: 100, castTime: 1.3, visualState: phase === 'warning' || phase === 'falling' ? 'cast' : 'release' });
             core.castPattern(3, boss, false);
