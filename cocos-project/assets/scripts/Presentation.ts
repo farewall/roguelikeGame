@@ -248,8 +248,9 @@ export class CocosPresentation {
     if (weaponDetail) this.text(hud, 'build-blades', weaponDetail, buildX + 15, buildY + (d.pathName ? 118 : 96), 19, GOLD);
     if (!d.ended) {
       this.skillControl(hud);
-      g.lineStyle(2, 0xc8cdb8, 0.28); g.beginFill(0x142c30, 0.18); g.drawCircle(joy.x + 100, joy.y + 100, 100); g.endFill();
-      g.lineStyle(2, GOLD, 0.45); g.beginFill(0xbacabb, 0.12); g.drawCircle(joy.x + 100 + d.joystick.x, joy.y + 100 + d.joystick.y, 38); g.endFill();
+      const controls = hud.g;
+      controls.lineStyle(2, 0xc8cdb8, 0.28); controls.beginFill(0x142c30, 0.18); controls.drawCircle(joy.x + 100, joy.y + 100, 100); controls.endFill();
+      controls.lineStyle(2, GOLD, 0.45); controls.beginFill(0xbacabb, 0.12); controls.drawCircle(joy.x + 100 + d.joystick.x, joy.y + 100 + d.joystick.y, 38); controls.endFill();
     }
     if (d.message) {
       const tw = Math.min(900, a.width * 0.66), tx = a.x + (a.width - tw) / 2;
