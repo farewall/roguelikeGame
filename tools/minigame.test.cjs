@@ -31,6 +31,29 @@ test('safe-area margins, canvas arena and joystick share physical/UI coordinates
   c.resize({ windowWidth: 667, windowHeight: 320 }); assert.equal(c.rpxScale, 320 / 750); assert.ok(Math.abs(c.combat.width - c.layout.arena.width) < 1e-7);
   assert.equal(c.joystickRect.left, c.layout.joystick.x * c.rpxScale);
 });
+test('portrait safe-area data cannot shrink a landscape battle to half the screen for any weapon', () => {
+  for (const weapon of ['bell', 'banner', 'swords']) {
+    const raw = { windowWidth: 844, windowHeight: 390, safeArea: { left: 0, top: 47, right: 390, bottom: 810, width: 390, height: 763 }, menuButton: { left: 296, right: 383, top: 10, bottom: 42 } };
+    const original = structuredClone(raw), h = setup({ weapon, exploration: true, nativeLayout: true, windowInfo: raw }), c = h.game, a = c.arenaRect, s = c.rpxScale;
+    assert.ok(a.width > raw.windowWidth * 0.85, JSON.stringify(a));
+    assert.ok(a.left >= 47 && a.left + a.width <= raw.windowWidth - 47);
+    assert.ok(c.layout.skill.x * s > raw.windowWidth * 0.75);
+    assert.equal(c.viewport.menuButton, null); assert.deepEqual(raw, original);
+    const world = c.combat.world, player = { ...c.player };
+    c.resize({ windowWidth: 844, windowHeight: 390, safeArea: { left: 34, top: 0, right: 797, bottom: 390 } });
+    assert.equal(c.combat.world, world); assert.deepEqual(c.player, player); assert.ok(c.arenaRect.width > 730);
+    c.resize(raw); assert.ok(c.arenaRect.width > 730); assert.equal(c.combat.world, world); h.game.onUnload();
+  }
+});
+test('a banner joystick and aimed skill remain independently usable on both sides with stale phone insets', () => {
+  const h = setup({ weapon: 'banner', exploration: true, nativeLayout: true, windowInfo: { windowWidth: 844, windowHeight: 390, safeArea: { left: 0, top: 47, right: 390, bottom: 810 } } }), c = h.game;
+  const skill = { id: 'skill', type: 'skill', ...c.layout.skill }, input = new NativeInput(h.api, c, fakeView(h, [skill]));
+  const joy = pointFor(h, c.layout.joystick.x + 164, c.layout.joystick.y + 100, 0), press = pointFor(h, skill.x + skill.width / 2, skill.y + 100, 1), aim = { ...press, clientX: press.clientX - 70 };
+  assert.ok(press.clientX > 844 * 0.8);
+  input.start(event(joy, [joy])); input.start(event(press, [joy, press])); input.move(event(aim, [joy, aim]));
+  const before = c.player.x; h.frame(50); assert.ok(c.player.x > before); assert.ok(c.data.skillAim.x < -.99);
+  input.end(event(aim, [joy])); assert.equal(c.combat.skillUses, 1); assert.equal(input.joyId, 0); input.end(event(joy)); assert.equal(c.data.joystick.active, false); input.destroy(); c.onUnload();
+});
 test('native joystick accepts identifier zero, recenters, and ignores touches outside its region', () => {
   const h = setup({ nativeLayout: true }), c = h.game, view = fakeView(h), input = new NativeInput(h.api, c, view), r = c.layout.joystick;
   const center = pointFor(h, r.x + 100, r.y + 100), right = pointFor(h, r.x + 164, r.y + 100);

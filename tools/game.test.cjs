@@ -143,7 +143,7 @@ test('crowd impacts play one throttled hit cue and still respect the sound switc
 });
 test('short-edge scaling survives resize and the Mini Game remains landscape without dash controls', () => {
   const { game, windowInfo } = setup({ windowInfo: { windowWidth: 844, windowHeight: 390 } });
-  closeTo(game.data.uiScale, 390 / 750); windowInfo.windowWidth = 390; windowInfo.windowHeight = 844; game.onResize(); closeTo(game.data.uiScale, 390 / 750);
+  closeTo(game.data.uiScale, 390 / 750); game.resize({ ...windowInfo, windowWidth: 390, windowHeight: 844 }); closeTo(game.data.uiScale, 390 / 750); closeTo(game.layout.w * game.rpxScale, 390);
   const app = JSON.parse(fs.readFileSync(path.join(__dirname, '../cocos-project/build-config/wechatgame.json'))); assert.equal(app.packages.wechatgame.orientation, 'landscape'); assert.equal(game.dash, undefined);
 });
 test('runtime assets fit the 4 MiB Mini Game budget, preserve animation transparency and contain valid local audio', () => {

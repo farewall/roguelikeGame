@@ -3,6 +3,7 @@ const { PanguAnimation } = require('../core/pangu-animation');
 const { GameAudio } = require('../core/game-audio');
 const { Combat, WEAPONS, PLAYER_SPEED, ENEMIES } = require('../core/combat');
 const { SWORDS } = require('../core/swords');
+const { normalizeViewport } = require('./viewport');
 const { MEMORIES, readArchive, saveArchive, runView } = require('../core/chronicle');
 const SETTINGS_KEY = 'pangu.settings.v1';
 const ACTOR_SHEETS = ['idle', 'move', 'attack', 'hurt', 'awaken', 'death'];
@@ -328,7 +329,7 @@ const definition = {
     this.renderActor(dt);
   }
 };
-  const controller = { ...definition, data: JSON.parse(JSON.stringify(definition.data)), viewport: options.viewport || wx.getWindowInfo() };
+  const controller = { ...definition, data: JSON.parse(JSON.stringify(definition.data)), viewport: normalizeViewport(options.viewport || wx.getWindowInfo()) };
   controller.setData = function(patch, callback) {
     const phaseBoundary = Object.prototype.hasOwnProperty.call(patch, 'bossTransition') && (patch.bossTransition && patch.bossTransition.owner) !== (this.data.bossTransition && this.data.bossTransition.owner);
     const boundary = phaseBoundary || INPUT_BOUNDARIES.some(key => Object.prototype.hasOwnProperty.call(patch, key) && patch[key] !== this.data[key]);
@@ -336,7 +337,7 @@ const definition = {
     this.version = (this.version || 0) + 1; if (callback) callback();
   };
   controller.frame = function(dt) { this.moveFrame(dt); this.tick(dt); };
-  controller.resize = function(viewport) { this.viewport = viewport; this.onResize(); };
+  controller.resize = function(viewport) { this.viewport = normalizeViewport(viewport); this.onResize(); };
   controller.scrollArchive = function(delta) { this.setData({ archiveScroll: Math.max(0, Math.min(this.archiveMaxScroll || 0, (this.data.archiveScroll || 0) + delta)) }); };
   controller.onLoad();
   return controller;

@@ -83,6 +83,41 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         await click('ending-home'); await click('archive'); await click('archive-runs'); assert.ok(await page.evaluate(() => kaitian.controller.data.archiveRuns.length > 0)); await click('archive-close');
         assert.deepEqual(errors, [], prefix); console.log('PASS Cocos Creator ' + prefix + ': native nodes, joystick, skill, pause/background, upgrades, stage progression, trial, ending, archive');
       }
+      for (const viewport of [{ width:844,height:390 },{ width:667,height:320 }]) for (const weapon of ['bell','banner','swords']) {
+        await page.setViewportSize(viewport); await page.waitForFunction(w=>kaitian.controller.viewport.windowWidth===w,viewport.width);
+        await click('start'); await click('weapon-'+weapon); await click('intro-enter');
+        await page.evaluate(() => {
+          const c=kaitian.controller, {windowWidth:w,windowHeight:h}=c.viewport, inset=w>800?47:20;
+          c.resize({...c.viewport,safeArea:{left:0,top:inset,right:h,bottom:w-20},menuButton:{left:h-94,right:h-7,top:10,bottom:42}});
+          c.stopLoops(); c.combat.phase=3; c.combat.remaining=0; c.combat.enemies=[]; c.combat.hazards=[]; c.combat.invulnerable=1000; c.setData({message:''}); c.syncCombat();
+        });
+        await page.waitForTimeout(80);
+        assert.ok(await page.evaluate(()=>{
+          const c=kaitian.controller, s=c.rpxScale, a=c.arenaRect, w=c.viewport.windowWidth, skill=c.layout.skill;
+          const mask=kaitian.presentation.worldClip.getComponent('cc.UITransform').contentSize;
+          return a.width>w*.85 && Math.abs(mask.width*s-a.width)<.01 && skill.x*s>w*.75 && c.viewport.menuButton===null;
+        }),'A portrait safe area must not cut the landscape battle, mask or skill region in half: '+weapon+' '+viewport.width);
+        const joy=await page.evaluate(()=>{const r=kaitian.controller.joystickRect;return{x:r.left+r.width/2,y:r.top+r.height/2};});
+        const skill=await page.evaluate(()=>{const c=kaitian.controller,r=c.layout.skill,s=c.rpxScale;return{x:(r.x+r.width/2)*s,y:(r.y+r.height/2)*s};});
+        const before=await page.evaluate(()=>kaitian.controller.player.x), session=await page.context().newCDPSession(page), moving={x:joy.x+25,y:joy.y,id:1};
+        await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{...joy,id:1}]});
+        await session.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[moving]});
+        await page.waitForFunction(x=>kaitian.controller.player.x>x,before);
+        await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[moving,{...skill,id:2}]});
+        if(weapon==='banner'){
+          await session.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[moving,{x:skill.x-65,y:skill.y,id:2}]});
+          await page.waitForFunction(()=>kaitian.controller.data.skillAim&&kaitian.controller.data.skillAim.x<-.99);
+        }
+        await page.screenshot({path:output+'/landscape-insets-'+viewport.width+'-'+weapon+'.png'});
+        // CDP names the lifted contacts here; keep the joystick finger down.
+        await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[{x:weapon==='banner'?skill.x-65:skill.x,y:skill.y,id:2}]});
+        await page.waitForFunction(()=>kaitian.controller.combat.skillUses===1);
+        assert.equal(await page.evaluate(()=>kaitian.controller.data.joystick.active),true);
+        await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]}); await session.detach();
+        assert.equal(await page.evaluate(()=>kaitian.controller.data.joystick.active),false);
+        await page.evaluate(()=>{const c=kaitian.controller;c.resize(kaitian.api.getWindowInfo());c.exitToHome();});
+        assert.deepEqual(errors,[]); console.log('PASS Creator landscape safe area '+weapon+' '+viewport.width+': full battle width, native mask, right skill, simultaneous two-finger move/aim/release');
+      }
       for (const viewport of [{ width:844,height:390 },{ width:667,height:320 }]) {
         await page.setViewportSize(viewport);await page.waitForFunction(w=>kaitian.controller.viewport.windowWidth===w,viewport.width);
         await click('start');await click('weapon-swords');await click('intro-enter');
