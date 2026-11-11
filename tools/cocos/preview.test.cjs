@@ -90,6 +90,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
           const c=kaitian.controller, {windowWidth:w,windowHeight:h}=c.viewport, inset=w>800?47:20;
           c.resize({...c.viewport,safeArea:{left:0,top:inset,right:h,bottom:w-20},menuButton:{left:h-94,right:h-7,top:10,bottom:42}});
           c.stopLoops(); c.combat.phase=3; c.combat.remaining=0; c.combat.enemies=[]; c.combat.hazards=[]; c.combat.invulnerable=1000; c.setData({message:''}); c.syncCombat();
+          if(c.combat.weapon==='swords'){const core=c.combat,e=core.spawn('ranged');Object.assign(e,{x:core.player.x+200/core.width*100,y:core.player.y,hp:1000,maxHp:1000,speed:0,cooldown:100,spawnTime:0});}
         });
         await page.waitForTimeout(80);
         assert.ok(await page.evaluate(()=>{
@@ -155,18 +156,26 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
       for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
         await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);
         await click('start'); await click('weapon-swords'); await click('intro-enter');
-        for (const mode of ['idle-a', 'idle-b', 'slash', 'skill', 'left', 'right', 'top', 'bottom']) {
+        for (const mode of ['idle-a', 'idle-b', 'windup', 'chase', 'cleave', 'return', 'skill-crowd', 'skill-single', 'left', 'right', 'top', 'bottom']) {
           await page.evaluate(mode => {
             const c = kaitian.controller; c.resetGame(); window.arenaFixture(c); c.pauseGame(); const core = c.combat;
             core.phase = 3; core.remaining = 0; core.enemies = []; core.hazards = []; core.effects = []; core.invulnerable = 1000; core.player.x = 48; core.player.y = 54;
-            if (mode === 'idle-b') core.updateArtifacts(0.7);
             if (['left', 'right', 'top', 'bottom'].includes(mode)) {
               const b = c.playerBounds(); if (mode === 'left') core.player.x = b.xMin; if (mode === 'right') core.player.x = b.xMax; if (mode === 'top') core.player.y = b.yMin; if (mode === 'bottom') core.player.y = b.yMax;
             }
-            if (mode === 'slash') { core.strike({ direction: { x: 1, y: 0 } }); for (let i = 0; i < 5; i++) core.updateArtifacts(0.025); }
-            if (mode === 'skill' || ['left', 'right', 'top', 'bottom'].includes(mode)) {
-              core.useSkill(); core.updateFollowups(0.12); for (let i = 0; i < 14; i++) core.updateArtifacts(0.025);
+            core.resetSwords();
+            if(!mode.startsWith('idle')){
+              const edge=['left','right','top','bottom'].includes(mode),dx=edge?(core.player.x<50?200:-200):250,dy=edge?(core.player.y<50?120:-120):0;
+              const enemy=(x,y)=>{const e=core.spawn('ranged');Object.assign(e,{x:core.player.x+x/core.width*100,y:core.player.y+y/core.height*100,hp:1000,maxHp:1000,speed:0,cooldown:100,spawnTime:0});};
+              enemy(dx,dy);if(mode==='skill-crowd')for(const [x,y]of [[dx-50,-70],[dx+60,-30],[dx-40,60],[dx+60,90]])enemy(x,y);
             }
+            if(['windup','chase','cleave','return'].includes(mode)){
+              core.strike({direction:{x:1,y:0}});const times={windup:.05,chase:.3,cleave:.5,return:.85};for(let t=0;t<times[mode]-1e-7;t+=.01)core.updateArtifacts(.01);
+            }
+            if (mode.startsWith('skill-') || ['left', 'right', 'top', 'bottom'].includes(mode)) {
+              core.useSkill();for(let i=0;i<100&&!core.flyingSwords.some(f=>f.state==='skill-cut');i++)core.updateArtifacts(.01);for(let i=0;i<12;i++)core.updateArtifacts(.01);
+            }
+            if(mode==='idle-b')core.updateArtifacts(.7);
             c.setData({ message: '' }); c.syncCombat(); kaitian.presentation.render();
           }, mode);
           await page.waitForTimeout(80);
@@ -179,9 +188,9 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
               // Dynamic atlas packing moves UVs and changes the texture after rendering.
               const expected = v.assets.frames.swords[pose.index];
               if (s.color.a !== 255 || s.spriteFrame !== expected || expected.originalSize.width !== 256 || expected.originalSize.height !== 256) return false;
-              if ((n.getSiblingIndex() > hero.getSiblingIndex()) !== (pose.depth >= 0) || Math.abs(ui.contentSize.width - pose.size) > 0.01 || Math.abs(n.angle - pose.angle) > 0.01) return false;
-              const half = pose.size / 2 * (Math.abs(Math.cos(pose.angle * Math.PI / 180)) + Math.abs(Math.sin(pose.angle * Math.PI / 180)));
-              return n.position.x - half >= a.x - 0.01 && n.position.x + half <= a.x + a.width + 0.01 && -n.position.y - half >= a.y - 0.01 && -n.position.y + half <= a.y + a.height + 0.01;
+              if ((n.getSiblingIndex() > hero.getSiblingIndex()) !== (pose.depth >= 0) || Math.abs(ui.contentSize.width - pose.width) > 0.01 || Math.abs(ui.contentSize.height - pose.height) > 0.01 || Math.abs(n.angle - pose.angle) > 0.01) return false;
+              const angle=pose.angle*Math.PI/180,hx=Math.abs(Math.cos(angle))*pose.width/2+Math.abs(Math.sin(angle))*pose.height/2,hy=Math.abs(Math.sin(angle))*pose.width/2+Math.abs(Math.cos(angle))*pose.height/2;
+              return n.position.x - hx >= a.x - 0.01 && n.position.x + hx <= a.x + a.width + 0.01 && -n.position.y - hy >= a.y - 0.01 && -n.position.y + hy <= a.y + a.height + 0.01;
             });
           }), 'Four opaque, individually textured swords must follow depth and remain in view: ' + mode);
           const before = await page.evaluate(() => JSON.stringify(kaitian.controller.combat.swordPoses())); await page.waitForTimeout(80);
@@ -189,7 +198,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
           await page.screenshot({ path: output + '/swords-orbit-' + viewport.width + '-' + mode + '.png' });
         }
         await page.evaluate(() => kaitian.controller.exitToHome());
-        console.log('PASS Creator four swords ' + viewport.width + ': four distinct physical models, orbit, front/back order, slash/skill, frozen poses, edge bounds');
+        console.log('PASS Creator four flying swords ' + viewport.width + ': upright hover, staggered chase/cleave/return, crowd/single skills, depth, frozen poses, edge bounds');
       }
       for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
         await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);

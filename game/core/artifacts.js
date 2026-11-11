@@ -21,6 +21,7 @@ class ArtifactCombat extends SwordCombat {
   }
   useSkill(direction) {
     if (this.ended || this.cleared || this.enrage || this.energy < 100 || this.skillCooldown > 0) return false;
+    if (this.weapon === 'swords' && !this.beginSwordSkill()) return false;
     direction = this.skillDirection(direction);
     this.energy = 0; this.skillCooldown = 1; this.skillUses++; this.pendingAttack = null; this.attackCd = Math.max(0.5, this.attackCd);
     this.lastAimDirection = direction;
@@ -30,8 +31,7 @@ class ArtifactCombat extends SwordCombat {
       this.effect('bell-summon', origin, 110, { life: 0.75 });
       this.followups.push({ kind: 'dominion', center: origin, remaining: 0.12, damage: damage * 2.8 });
     } else if (this.weapon === 'swords') {
-      this.invulnerable = Math.max(this.invulnerable, 0.45); this.swordStrike = null;
-      this.followups.push({ kind: 'sword-storm', direction, remaining: 0.12, damage: damage * 3.5 });
+      this.invulnerable = Math.max(this.invulnerable, 0.55);
     } else {
       const start = this.point(origin), end = this.percent({ x: start.x + direction.x * 650, y: start.y + direction.y * 650 });
       this.followups.push({ kind: 'rift', center: origin, end, width: 100, remaining: 0.22, damage: damage * 5 });

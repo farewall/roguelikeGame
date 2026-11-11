@@ -377,14 +377,18 @@ export class CocosPresentation {
     const swords = c.combat.swordPoses().sort((a, b) => a.depth - b.depth), bodies = [];
     for (const sword of swords) {
       const x = a.x + sword.x / 100 * c.combat.width, y = a.y + sword.y / 100 * c.combat.height;
-      const body = this.image(layer, 'zhuxian-sword-' + sword.index, this.assets.frames.swords[sword.index], x, y, sword.size, sword.size);
+      const body = this.image(layer, 'zhuxian-sword-' + sword.index, this.assets.frames.swords[sword.index], x, y, sword.width, sword.height);
       body.node.getComponent(UITransform).setAnchorPoint(0.5, 0.5); body.node.setPosition(x, -y); body.node.angle = sword.angle;
       bodies.push({ node: body.node, depth: sword.depth });
-      if (c.combat.swordStrike) {
-        const tip = sword.blade.tip, base = sword.blade.base;
-        const tx = a.x + tip.x, ty = a.y + tip.y, bx = a.x + base.x, by = a.y + base.y;
-        layer.g.lineStyle(c.combat.swordStrike.skill ? 3 : 1.5, [0xd6a17f, 0xc9a36f, 0x9cc8d6, 0xa9cbb2][sword.index], 0.45);
-        layer.g.moveTo(bx, by); layer.g.lineTo(tx, ty);
+      if (!['idle', 'waiting', 'settle'].includes(sword.state)) {
+        const base = sword.blade.base, tip = sword.blade.tip, dx = tip.x - base.x, dy = tip.y - base.y, length = Math.hypot(dx, dy) || 1;
+        layer.g.lineStyle(sword.skill ? 1.8 : 1, 0xe2ebdc, sword.state === 'windup' ? 0.6 : 0.32);
+        layer.g.moveTo(a.x + tip.x - dx / length * 18, a.y + tip.y - dy / length * 18); layer.g.lineTo(a.x + tip.x, a.y + tip.y);
+      }
+      for (let i = 1; i < sword.trail.length; i++) {
+        const previous = sword.trail[i - 1], next = sword.trail[i];
+        layer.g.lineStyle(sword.skill ? 2.5 : 1.5, [0xd6a17f, 0xc9a36f, 0x9cc8d6, 0xa9cbb2][sword.index], next.alpha * (sword.state === 'return' ? 0.28 : 0.5));
+        layer.g.moveTo(a.x + previous.x, a.y + previous.y); layer.g.lineTo(a.x + next.x, a.y + next.y);
       }
     }
     // Reorder the whole group so a sword changing sides never covers the wrong half of the hero.
@@ -404,7 +408,7 @@ export class CocosPresentation {
     if (ready) { g.lineStyle(1.5, color, 0.3 + Math.sin(c.combat.time * 4) * 0.14); g.drawCircle(x, y, 92); }
     this.text(layer, 'skill-name', d.skillName, x, y - 13, 35, color, { center: true, serif: true, bold: true });
     this.text(layer, 'skill-charge', ready ? '释放' : d.energy + '%', x, y + 29, 22, ready ? LIGHT : MUTE, { center: true });
-    this.text(layer, 'skill-help', d.weaponId === 'banner' && ready ? '拖动瞄准 · 松手释放' : d.weaponId === 'swords' && ready ? '点击展开 · 四剑回旋' : ready ? '点击震退 · 打断施法' : '命中与击破蓄能', x, r.y + 193, 17, MUTE, { center: true });
+    this.text(layer, 'skill-help', d.weaponId === 'banner' && ready ? '拖动瞄准 · 松手释放' : d.weaponId === 'swords' && ready ? '点击御剑 · 清场围杀' : ready ? '点击震退 · 打断施法' : '命中与击破蓄能', x, r.y + 193, 17, MUTE, { center: true });
     this.regions.push({ id: 'skill', type: 'skill', ...r, enabled: ready });
   }
   upgrades() {

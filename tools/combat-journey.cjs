@@ -15,7 +15,7 @@ function run(weapon, seed, path = weapon === 'bell' ? 'echo' : 'sweep') {
     if (c.xp >= c.xpNeed) { const pick = upgrade(c, c.choices()); c.upgrade(pick.kind); c.xp -= c.xpNeed; c.level++; c.xpNeed = c.nextXpNeed(); upgradeTimes.push(Number(c.time.toFixed(1))); }
     if (c.phase === 3 && bossStart === null) bossStart = c.time;
     maxEnemies = Math.max(maxEnemies, c.enemies.length);
-    const targets = c.enemies.filter(e => e.hp > 0 && !e.spawnTime && c.distance(c.player, e) <= (weapon === 'bell' ? 330 : 650));
+    const targets = c.enemies.filter(e => e.hp > 0 && !e.spawnTime && c.distance(c.player, e) <= (weapon === 'bell' ? 330 : weapon === 'swords' ? 500 : 650));
     if (c.energy >= 100 && c.skillCooldown <= 0 && targets.length && (targets.some(e => e.boss) || targets.length >= 4 || c.hp < 55 || c.rootTime > 0)) c.useSkill();
     c.move(c.player, movement(c), PLAYER_SPEED * 0.05); c.player.x = Math.min(94, Math.max(6, c.player.x)); c.player.y = Math.min(82, Math.max(20, c.player.y));
     c.update(0.05); c.drainEvents();

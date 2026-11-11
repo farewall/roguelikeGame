@@ -16,7 +16,7 @@ const PLAYER_SPEED = 300; // Short-edge UI units per second on every device.
 const WEAPONS = {
   bell: { name: '混沌钟', range: BELL.range, interval: BELL.interval, damage: 3, desc: '扩散钟鸣 · 外缘共鸣增伤，居中回响追击' },
   banner: { name: '盘古幡', range: 360, interval: 1.8, damage: 3.6, desc: '贯穿飞刃 · 远距御敌，拖动裂天定向爆发' },
-  swords: { name: '诛仙剑', range: SWORDS.range, interval: SWORDS.interval, damage: SWORDS.damage, desc: '诛戮陷绝 · 四剑环绕，近身回旋斩击' }
+  swords: { name: '诛仙剑', range: SWORDS.range, interval: SWORDS.interval, damage: SWORDS.damage, desc: '自动御剑 · 追敌掠斩，弧线回剑补漏' }
 };
 const PATHS = {
   echo: { id: 'echo', weapon: 'bell', name: '万壑回声', desc: '减少回响触发计数，从自身中心释放更强更远的回响', change: '触发计数减少一次 · 回响范围额外扩大20%' },
@@ -62,7 +62,6 @@ class Combat extends ArtifactCombat {
     if (width > 0 && height > 0 && scale > 0) {
       this.viewWidth = width / scale; this.viewHeight = height / scale;
       if (!this.world) { this.width = this.viewWidth; this.height = this.viewHeight; }
-      this.swordPrevious = null;
     }
   }
   camera() { return this.world ? this.world.camera(this.point(this.player), this.viewWidth, this.viewHeight) : {x:0,y:0,width:this.width,height:this.height}; }
@@ -99,7 +98,7 @@ class Combat extends ArtifactCombat {
     this.phase = -1; this.phaseTime = 0; this.stageTime = 0;
     this.bossPending=false;
     this.enemies = []; this.hazards = []; this.effects = []; this.remnants = []; this.projectiles = []; this.bellWaves = []; this.pendingAttack = null; this.followups = [];
-    this.swordStrike = null; this.swordPrevious = null;
+    this.resetSwords();
     this.cleared = false; this.attackCd = 0; this.nextWave();
     if (this.trialPending) { const e = this.spawn('elite', true); if (e) e.trial = true; this.trialPending = false; }
   }
@@ -214,8 +213,8 @@ class Combat extends ArtifactCombat {
     }
     this.collectDeaths();
     if (this.cleared) return;
-    if (!this.pendingAttack && canAttack && this.attackLock <= 0 && this.attackCd <= 0 && this.enemies.length) {
-      const reachable = this.enemies.filter(e => e.hp > 0 && !e.spawnTime && this.distance(this.player, e) <= this.attackRange() + 1e-6);
+    if (!this.pendingAttack && canAttack && this.attackLock <= 0 && this.attackCd <= 0 && this.enemies.length && (this.weapon !== 'swords' || this.swordCanLaunch())) {
+      const reachable = this.weapon === 'swords' ? this.swordTargets() : this.enemies.filter(e => e.hp > 0 && !e.spawnTime && this.distance(this.player, e) <= this.attackRange() + 1e-6);
       if (reachable.length) {
         const target = this.nearest(reachable);
         const direction = this.vector(this.player, target);
@@ -402,19 +401,19 @@ class Combat extends ArtifactCombat {
   strike(attack) {
     const weapon = WEAPONS[this.weapon], origin = { ...this.player }, damage = this.damage();
     if (this.weapon === 'banner') { this.launchBlades(attack, origin, weapon.range); return; }
-    if (this.weapon === 'swords') { this.launchSwordSweep(attack); return; }
+    if (this.weapon === 'swords') { return this.launchSwordRound(attack); }
     this.lastAimDirection = this.skillDirection(attack.direction);
     this.launchBellWave(origin, { targetId: attack.targetId });
   }
   applyStrike(attack, targets, origin) {
-    const weapon = WEAPONS[this.weapon], damage = attack.bellWave || attack.bannerVolley || attack.swordSweep ? attack.damage : this.damage(), firstImpact = !attack.registered;
+    const weapon = WEAPONS[this.weapon], damage = attack.bellWave || attack.bannerVolley || attack.swordVolley ? attack.damage : this.damage(), firstImpact = !attack.registered;
     if (firstImpact) { attack.registered = true; this.strikeCount++; this.gainEnergy(12); this.emit('hit', { weapon: this.weapon }); }
-    const levels = attack.bellWave || attack.bannerVolley || attack.swordSweep ? attack.elements : this.elements;
+    const levels = attack.bellWave || attack.bannerVolley || attack.swordVolley ? attack.elements : this.elements;
     const primary = attack.bellWave ? this.nearest(targets, origin) : targets.find(e => e.id === attack.targetId) || this.nearest(targets, origin);
     const center = { x: primary.x, y: primary.y };
     for (const e of targets) {
       const resonance = attack.bellWave && this.distance(origin, e) >= attack.range * (attack.resonanceStart ?? BELL.resonanceStart);
-      this.deal(e, damage * (resonance ? (attack.resonanceMultiplier ?? BELL.resonanceMultiplier) : 1), resonance ? 'resonance' : attack.split ? 'split' : 'direct'); this.effect(resonance ? 'resonance' : 'impact', e, resonance ? 38 : 25);
+      this.deal(e, damage * (resonance ? (attack.resonanceMultiplier ?? BELL.resonanceMultiplier) : 1), resonance ? 'resonance' : attack.split ? 'split' : attack.swordReturn ? 'sword-return' : 'direct'); this.effect(resonance ? 'resonance' : 'impact', e, resonance ? 38 : 25);
       if (attack.bellWave) {
         if (!e.boss) this.move(e, this.vector(origin, e), Math.min(14, Math.max(0, attack.range - this.distance(origin, e) - 3)));
         this.applyBellElements(e, damage * (resonance ? (attack.resonanceMultiplier ?? BELL.resonanceMultiplier) : 1), attack.elements);
@@ -463,7 +462,6 @@ class Combat extends ArtifactCombat {
       if (f.kind === 'dominion') { this.releaseDominion(f); continue; }
       if (f.kind === 'bell-echo') { this.launchBellWave(this.player, { kind: 'echo', range: f.radius, damage: f.damage, elements: f.elements }); continue; }
       if (f.kind === 'rift') { this.resolveRift(f); continue; }
-      if (f.kind === 'sword-storm') { this.launchSwordSweep(f, true); continue; }
       for (const e of this.enemies) if (e.hp > 0 && !e.spawnTime && this.distance(f.center, e) <= f.radius) {
         this.deal(e, f.damage, f.kind);
         if (f.freeze) e.freezeTime = Math.max(e.freezeTime, e.boss ? 0.2 : 0.55);
@@ -515,7 +513,7 @@ class Combat extends ArtifactCombat {
     }
     if (dead.some(e => e.boss)) {
       for (const e of this.enemies) this.leaveRemnant(e);
-      this.cleared = true; this.enrage = null; this.rootTime = 0; this.rootSourceId = null; this.enemies = []; this.hazards = []; this.projectiles = []; this.bellWaves = []; this.swordStrike = null; this.swordPrevious = null; this.pendingAttack = null; this.followups = [];
+      this.cleared = true; this.enrage = null; this.rootTime = 0; this.rootSourceId = null; this.enemies = []; this.hazards = []; this.projectiles = []; this.bellWaves = []; this.resetSwords(); this.pendingAttack = null; this.followups = [];
       this.emit('stage-clear', { stage: this.stage });
     }
   }
@@ -596,9 +594,9 @@ class Combat extends ArtifactCombat {
     return choices;
   }
   elementLabel() { const names = this.weapon === 'bell' ? { fire: '焚音', water: '潮鸣', earth: '裂岳' } : ELEMENTS; return Object.keys(ELEMENTS).filter(k => this.elements[k]).map(k => names[k] + this.elements[k] + '重').join(' · ') || '未附魔'; }
-  buildLabel() { const weapon = this.weapon === 'bell' ? this.bellLabel() : this.weapon === 'banner' ? this.bannerLabel() : '诛戮陷绝 · 四剑环绕'; return (this.path ? PATHS[this.path].name + ' · ' : '') + (weapon ? weapon + ' · ' : '') + this.elementLabel(); }
+  buildLabel() { const weapon = this.weapon === 'bell' ? this.bellLabel() : this.weapon === 'banner' ? this.bannerLabel() : '诛戮陷绝 · 自动御剑'; return (this.path ? PATHS[this.path].name + ' · ' : '') + (weapon ? weapon + ' · ' : '') + this.elementLabel(); }
   battleReport() {
-    const names = { resonance: '外缘共鸣', direct: '直击', split: '裂刃', burn: '灼烧', field: '区域', earth: '震荡', steam: '蒸腾', tide: '潮涌', echo: '回响', aftershock: '余震', ignite: '爆燃', skill: this.weapon === 'bell' ? '镇界' : this.weapon === 'swords' ? '诛仙' : '裂天' };
+    const names = { 'sword-return': '回剑', resonance: '外缘共鸣', direct: '直击', split: '裂刃', burn: '灼烧', field: '区域', earth: '震荡', steam: '蒸腾', tide: '潮涌', echo: '回响', aftershock: '余震', ignite: '爆燃', skill: this.weapon === 'bell' ? '镇界' : this.weapon === 'swords' ? '诛仙' : '裂天' };
     const total = Object.values(this.damageBySource).reduce((a, b) => a + b, 0);
     const top = Object.entries(this.damageBySource).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([key, damage]) => names[key] + ' ' + Math.round(damage / (total || 1) * 100) + '%').join(' · ');
     const cause = Object.entries(this.damageByCause).sort((a, b) => b[1] - a[1])[0];
@@ -630,7 +628,7 @@ class Combat extends ArtifactCombat {
       boss: boss ? { name: boss.name, hpPct: round(Math.max(0, boss.hp / boss.maxHp * 100)), phase: boss.phase2 ? '暴怒' : '一阶段', state: this.enrage ? '法相暴怒' : boss.shielded ? '缩甲聚海 · 绕侧开甲' : exposed ? '扑空破绽 · 易伤35%' : boss.castTime > 0 ? boss.attackName || '正在蓄势' : boss.recoverTime > 0 ? '收招 · 输出机会' : '游走', hint } : null,
       weaponName: WEAPONS[this.weapon].name, weaponId: this.weapon, attackRange: this.attackRange(), bellUpgradeLabel: this.bellLabel(),
       bannerUpgradeLabel: this.weapon === 'banner' ? this.bannerLabel() : '', bladeCount: this.weapon === 'banner' ? this.bladeCount() : 0, splitCount: this.weapon === 'banner' ? this.splitStats().count : 0,
-      swordLabel: this.weapon === 'swords' ? '诛 · 戮 · 陷 · 绝  四剑环绕' : '',
+      swordLabel: this.weapon === 'swords' ? '诛 · 戮 · 陷 · 绝  ' + (this.swordSkill ? this.swordSkill.mode === 'single' ? '四向围杀' : '交错清场' : '自动御剑') : '',
       elementName: this.elementLabel(), combatStats: `范围 ${Math.round(this.attackRange())} · 伤害 ${round(this.damage())} · ${this.interval().toFixed(2)}秒`, pathName: this.path ? PATHS[this.path].name : '', warded: this.wardTime > 0,
       comboName: this.elements.fire && this.elements.water && this.elements.earth ? '蒸腾 + 熔沼' : this.elements.fire && this.elements.water ? '水火 · 蒸腾' : this.elements.earth && this.elements.fire ? '地火 · 熔流' : this.elements.earth && this.elements.water ? '地水 · 泥沼' : '',
       bellMarks: this.strikeCount % this.bellThreshold(), bellThreshold: this.bellThreshold(),

@@ -80,7 +80,7 @@ test('boss attacks keep local physical distances in a large world and tiger poun
 test('all three weapons retain real hit distances under the following camera',()=>{
   for(const weapon of ['bell','banner','swords']){
     const c=fresh(weapon),p=c.point(c.player),e=c.spawn('ranged');Object.assign(e,c.percent({x:p.x+100,y:p.y}),{hp:1000,maxHp:1000,speed:0,cooldown:100,spawnTime:0});
-    c.strike({direction:{x:1,y:0},targetId:e.id});advance(c,.6);near(e.hp,1000-c.damage());assert.equal(c.strikeCount,1);
+    c.strike({direction:{x:1,y:0},targetId:e.id});advance(c,weapon==='swords'?1.8:.6);near(e.hp,1000-c.damage()*(weapon==='swords'?2.05:1));assert.equal(c.strikeCount,1);
   }
 });
 test('unseen creatures approach before starting an attack, so wind-ups remain visible with the camera',()=>{
