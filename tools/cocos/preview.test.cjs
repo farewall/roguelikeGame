@@ -153,6 +153,26 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         }
         await page.evaluate(()=>kaitian.controller.exitToHome());console.log('PASS Creator large worlds '+viewport.width+': five layouts, real terrain, travel across screens, following camera, loot sites, map pause, four swords, bounded nodes');
       }
+      for (let stage = 1; stage <= 5; stage++) {
+        await page.evaluate(stage => {
+          const c = kaitian.controller; c.beginGame(); c.pauseGame(); const core = c.combat;
+          core.stage = stage; core.startStage(); core.invulnerable = 1000;
+          for (let i = 0; i < 240; i++) core.update(.025, false);
+          if (!core.world.bossNav.ready) throw new Error('ordinary waves must prepare boss navigation');
+          const nav = core.world.bossNav;
+          nav.prepare = () => { throw new Error('boss arrival must not rebuild navigation'); };
+          core.enemies = []; core.phase = 2; core.nextWave();
+          if (core.bossPending || core.world.bossNav !== nav) throw new Error('boss must use the prepared field');
+          c.setData({ message: '' }); c.syncCombat(); kaitian.presentation.render();
+        }, stage);
+        assert.ok(await page.evaluate(() => {
+          const core = kaitian.controller.combat, v = kaitian.presentation, boss = core.enemies.find(e => e.boss);
+          return !!boss && boss.spawnTime > 0 && v.layers.hud.nodes.get('boss-name').active && v.layers.world.used.has('enemy-' + boss.id);
+        }), 'prepared boss arrival must still show formation and its health bar');
+        await page.screenshot({ path: output + '/boss-arrival-' + stage + '.png' });
+        await page.evaluate(() => kaitian.controller.exitToHome());
+      }
+      console.log('PASS Creator boss arrival: five maps warm navigation during ordinary waves, reuse it on arrival, and show forming bosses and health bars');
       for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
         await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);
         await click('start'); await click('weapon-swords'); await click('intro-enter');
@@ -328,6 +348,8 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
           await page.evaluate(stage => {
             const c = kaitian.controller; c.beginGame(); const core = c.combat;
             core.stage = stage; core.phase = 3; core.remaining = 0; core.enemies = []; core.hazards = []; core.invulnerable = 100;
+            // This cinematic fixture skips ordinary waves and their nav warmup.
+            core.world.prepareNavigation(Infinity);
             const e = core.spawn('boss'); Object.assign(e, { x: 60, y: 45, speed: 0, cooldown: 100 }); e.hp = e.maxHp * 0.49;
           }, stage);
           await page.waitForFunction(() => kaitian.controller.data.bossTransition && kaitian.controller.data.bossTransition.age > 0.3);

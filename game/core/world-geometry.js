@@ -43,16 +43,43 @@ function clipSegment(world, from, end, radius = 12, coverOnly = false) {
   return { ...end };
 }
 class FlowField {
-  constructor(world, cell = 64, radius = 24) {
+  constructor(world, cell = 64, radius = 24, deferred = false) {
     this.world = world; this.cell = cell; this.cols = Math.ceil(world.width / cell); this.rows = Math.ceil(world.height / cell);
     this.radius=radius;
     this.blocked = new Uint8Array(this.cols * this.rows); this.cost = new Int32Array(this.blocked.length); this.target = -1;
-    for (let i = 0; i < this.blocked.length; i++) this.blocked[i] = isFree(world, this.point(i), radius) ? 0 : 1;
-    const links=Array.from({length:this.blocked.length},()=>[]);
-    for(let i=0;i<links.length;i++)if(!this.blocked[i])for(const next of this.neighbors(i))if(next>i){const p=this.point(next),hit=clipSegment(world,this.point(i),p,radius);if(Math.hypot(hit.x-p.x,hit.y-p.y)<1){links[i].push(next);links[next].push(i);}}
-    this.links=links;this.components=new Int32Array(links.length);this.components.fill(-1);this.mainComponent=-1;
-    let component=0,largest=0;
-    for(let i=0;i<links.length;i++)if(!this.blocked[i]&&this.components[i]<0){const queue=[i];this.components[i]=component;for(let q=0;q<queue.length;q++)for(const next of links[queue[q]])if(this.components[next]<0){this.components[next]=component;queue.push(next);}if(queue.length>largest){largest=queue.length;this.mainComponent=component;}component++;}
+    this.cost.fill(-1); this.queue = new Int32Array(this.cost.length);
+    this.ready = false; this.builder = this.buildTopology();
+    if (!deferred) this.prepare(Infinity);
+  }
+  // A work item is one cell, one collision-tested edge, or one flood-fill cell.
+  // Boss topology is warmed during ordinary waves, never on its arrival frame.
+  prepare(work = 64) {
+    if (this.ready) return true;
+    for (let i = 0; i < work; i++) if (this.builder.next().done) { this.builder = null; return true; }
+    return this.ready;
+  }
+  *buildTopology() {
+    const { world, radius } = this, links = [];
+    for (let i = 0; i < this.blocked.length; i++) { this.blocked[i] = isFree(world, this.point(i), radius) ? 0 : 1; links.push([]); yield; }
+    for (let i = 0; i < links.length; i++) if (!this.blocked[i]) {
+      for (const next of this.neighbors(i)) if (next > i) {
+        const p = this.point(next), hit = clipSegment(world, this.point(i), p, radius);
+        if (Math.hypot(hit.x - p.x, hit.y - p.y) < 1) { links[i].push(next); links[next].push(i); }
+        yield;
+      }
+    }
+    this.links = links; this.components = new Int32Array(links.length); this.components.fill(-1); this.mainComponent = -1;
+    let component = 0, largest = 0;
+    for (let i = 0; i < links.length; i++) if (!this.blocked[i] && this.components[i] < 0) {
+      const queue = this.queue; let read = 0, write = 1; queue[0] = i; this.components[i] = component;
+      while (read < write) {
+        for (const next of links[queue[read++]]) if (this.components[next] < 0) { this.components[next] = component; queue[write++] = next; }
+        yield;
+      }
+      if (write > largest) { largest = write; this.mainComponent = component; }
+      component++;
+    }
+    this.ready = true;
   }
   point(index) { return { x: (index % this.cols + 0.5) * this.cell, y: (Math.floor(index / this.cols) + 0.5) * this.cell }; }
   index(p) { return clamp(Math.floor(p.y / this.cell), 0, this.rows - 1) * this.cols + clamp(Math.floor(p.x / this.cell), 0, this.cols - 1); }
@@ -68,6 +95,7 @@ class FlowField {
     return list;
   }
   update(goal) {
+    if (!this.ready) return;
     let target = this.index(goal);
     if (this.blocked[target] || this.components[target]!==this.mainComponent) {
       let best = Infinity;
@@ -75,11 +103,12 @@ class FlowField {
     }
     if (this.target === target) return;
     this.target = target; this.cost.fill(-1); this.cost[target] = 0;
-    const queue = new Int32Array(this.cost.length); let read = 0, write = 1; queue[0] = target;
+    const queue = this.queue; let read = 0, write = 1; queue[0] = target;
     while (read < write) for (const next of this.neighbors(queue[read++])) if (this.cost[next] < 0) { this.cost[next] = this.cost[queue[read - 1]] + 1; queue[write++] = next; }
   }
-  canJoin(from,radius=this.radius) { return [this.index(from),...this.neighbors(this.index(from))].some(i=>{if(this.cost[i]<0)return false;const p=this.point(i),hit=clipSegment(this.world,from,p,radius);return Math.hypot(hit.x-p.x,hit.y-p.y)<1;}); }
+  canJoin(from,radius=this.radius) { return this.ready && [this.index(from),...this.neighbors(this.index(from))].some(i=>{if(this.cost[i]<0)return false;const p=this.point(i),hit=clipSegment(this.world,from,p,radius);return Math.hypot(hit.x-p.x,hit.y-p.y)<1;}); }
   direction(from, goal, radius = 20) {
+    if (!this.ready) return { x: 0, y: 0 };
     this.update(goal);
     const direct = { x: goal.x - from.x, y: goal.y - from.y }, distance = Math.hypot(direct.x, direct.y);
     if (distance < 220) { const p = clipSegment(this.world, from, goal, radius); if (Math.hypot(p.x - goal.x, p.y - goal.y) < 2) return { x: direct.x / (distance || 1), y: direct.y / (distance || 1) }; }

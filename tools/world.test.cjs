@@ -5,7 +5,7 @@ const {WorldState}=require('../game/core/world');
 const {isFree,segmentDistance,FlowField}=require('../game/core/world-geometry');
 const {setup,touch}=require('./game-harness.cjs');
 const near=(a,b,e=1e-6)=>assert.ok(Math.abs(a-b)<e,`${a} != ${b}`);
-function fresh(weapon='bell',stage=1){const c=new Combat(weapon,()=>0.5,{exploration:true});c.configureArena(1550,606,1);c.stage=stage;c.startStage();c.enemies=[];c.phase=3;c.remaining=0;c.drainEvents();return c;}
+function fresh(weapon='bell',stage=1){const c=new Combat(weapon,()=>0.5,{exploration:true});c.configureArena(1550,606,1);c.stage=stage;c.startStage();while(!c.world.prepareNavigation(256)){}c.enemies=[];c.phase=3;c.remaining=0;c.drainEvents();return c;}
 function advance(c,seconds){for(let t=0;t<seconds-1e-7;t+=.025)c.update(.025,false);}
 
 test('each region has its own large layout, terrain family, connected landmarks and safe entrance',()=>{
@@ -51,6 +51,34 @@ test('local spawning stays reachable, clear of props, and outside player safety 
     const c=fresh('bell',stage);for(let i=0;i<20;i++)c.spawn('ranged',true);
     assert.ok(c.enemies.length>=12,`stage ${stage}: ${c.enemies.length}`);
     for(const e of c.enemies){assert.ok(c.distance(c.player,e)>=180);assert.ok(c.distance(c.player,e)<=710);assert.ok(isFree(c.world,c.groundPoint(e),28));assert.ok(e.spawnTime>0);}
+  }
+});
+test('boss navigation warms in bounded slices and preserves the complete collision graph on every map',()=>{
+  for(let stage=1;stage<=5;stage++){
+    const w=new WorldState(stage),nav=w.bossNav,solids=w.solids;let queries=0,slices=0;
+    Object.defineProperty(w,'solids',{get(){queries++;return solids;}});
+    assert.equal(nav.ready,false);assert.ok(nav.cost.every(n=>n===-1));
+    while(!nav.ready){queries=0;w.prepareNavigation(16);assert.ok(queries<=16*11,`stage ${stage}: ${queries} collision queries in a slice`);assert.ok(++slices<1000);}
+    assert.ok(slices>100);const full=new FlowField(w,64,36);full.update(w.entry);nav.update(w.entry);
+    assert.deepEqual(nav.blocked,full.blocked);assert.deepEqual(nav.links,full.links);assert.deepEqual(nav.components,full.components);assert.deepEqual(nav.cost,full.cost);
+  }
+});
+test('normal waves prepare boss navigation before arrival and spawning never rebuilds it',()=>{
+  for(let stage=1;stage<=5;stage++){
+    const c=new Combat('bell',()=>.5,{exploration:true});c.stage=stage;c.startStage();c.invulnerable=1000;
+    const nav=c.world.bossNav;advance(c,6);assert.equal(nav.ready,true,`stage ${stage}`);
+    // Arrival may only query the finished navigation, even on the first boss.
+    nav.prepare=()=>{throw new Error('boss arrival must not rebuild navigation');};
+    c.enemies=[];c.phase=2;c.nextWave();assert.equal(c.world.bossNav,nav);assert.equal(c.bossPending,false);
+    const boss=c.enemies.find(e=>e.boss);assert.ok(boss);assert.ok(isFree(c.world,c.groundPoint(boss),34));assert.ok(c.distance(c.player,boss)>=180);
+  }
+});
+test('an early boss wave waits for navigation without blocking or losing its single spawn',()=>{
+  for(let stage=1;stage<=5;stage++){
+    const c=new Combat('bell',()=>.5,{exploration:true});c.stage=stage;c.startStage();c.phase=2;c.remaining=0;c.invulnerable=1000;
+    c.nextWave();assert.equal(c.bossPending,true);assert.equal(c.enemies.length,0);assert.equal(c.world.bossNav.ready,false);
+    advance(c,6);assert.equal(c.bossPending,false);assert.equal(c.enemies.filter(e=>e.boss).length,1);
+    assert.equal(c.drainEvents().filter(e=>e.type==='boss').length,1);advance(c,1);assert.equal(c.enemies.filter(e=>e.boss).length,1);
   }
 });
 test('distant ordinary enemies reform near the player without new identities, rewards, or stale owned hazards',()=>{

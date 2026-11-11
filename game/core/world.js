@@ -38,18 +38,19 @@ class WorldState {
         bounds:{left:p.x-radius,right:p.x+radius,top:p.y-radius,bottom:p.y+radius}};
       this.props.push(prop);this.solids.push(prop);
     }
-    this.nav = new FlowField(this); this.bossNav=null; this.explored = 0;
+    this.nav = new FlowField(this); this.bossNav = new FlowField(this,64,36,true); this.explored = 0;
   }
   camera(player, width, height) { return {x:clamp(player.x-width/2,0,Math.max(0,this.width-width)),y:clamp(player.y-height/2,0,Math.max(0,this.height-height)),width,height}; }
   footOffset(entity) { return entity.boss?72:entity.fodder?24:({wraith:40,ranged:46,charger:48,elite:56}[entity.kind]||54); }
   regionAt(p) { return this.regions.reduce((a,b)=>Math.hypot(p.x-b.x,p.y-b.y)<Math.hypot(p.x-a.x,p.y-a.y)?b:a).name; }
   move(p,dx,dy,radius=20,limits) { return slideMove(this,p,dx,dy,radius,limits); }
   clip(from,to,radius=12,coverOnly=false) { return clipSegment(this,from,to,radius,coverOnly); }
-  steer(from,to,radius=20) { if(radius>24&&!this.bossNav)this.bossNav=new FlowField(this,64,36);return (radius>24?this.bossNav:this.nav).direction(from,to,radius); }
+  prepareNavigation(work=64) { return this.bossNav.prepare(work); }
+  steer(from,to,radius=20) { return (radius>24?this.bossNav:this.nav).direction(from,to,radius); }
   spawnPoint(c,kind,fodder=false) {
     const player=c.point(c.player), boss=kind==='boss', min=boss?350:300, max=boss?520:700, margin=boss?118:70,offset=this.footOffset({kind,boss,fodder});
     let best=null,bestOpen=-1;
-    if(boss&&!this.bossNav)this.bossNav=new FlowField(this,64,36);const nav=boss?this.bossNav:this.nav;nav.update(c.groundPoint(c.player));
+    const nav=boss?this.bossNav:this.nav;if(!nav.ready)return null;nav.update(c.groundPoint(c.player));
     for(let i=0;i<40;i++) {
       const a=c.random()*Math.PI*2+i*2.399963, r=min+((c.random()+i*0.17)%1)*(max-min), p={x:clamp(player.x+Math.cos(a)*r,margin,this.width-margin),y:clamp(player.y+Math.sin(a)*r,margin,this.height-margin)};
       const foot={x:p.x,y:p.y+offset};
@@ -72,6 +73,7 @@ class WorldState {
     return best;
   }
   update(c) {
+    this.prepareNavigation();
     const p=c.groundPoint(c.player);
     for(const site of this.sites) {
       const d=Math.hypot(p.x-site.x,p.y-site.y);
