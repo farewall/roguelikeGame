@@ -43,6 +43,10 @@ function movement(c, bounds = { xMin: 6, xMax: 94, yMin: 20, yMax: 82 }) {
   return { x: best.x, y: best.y };
 }
 function upgrade(c, offers, build = 'balanced') {
+  if(c.weapon==='swords'&&c.hp>=55){
+    const reach=offers.find(u=>u.kind==='sword-reach');if(reach&&!c.swordUpgrades.reach)return reach;
+    if(c.level%4===0){const mechanic=offers.find(u=>u.kind.startsWith('sword-')&&c.swordUpgrades[u.kind.slice(6)]<1);if(mechanic)return mechanic;}
+  }
   if (c.weapon === 'banner' && c.hp >= 55) {
     const mechanic = offers.find(u => ['blades', 'split'].includes(u.kind) && !c.bannerUpgrades[u.kind]);
     if (mechanic) return mechanic;
@@ -56,7 +60,7 @@ function upgrade(c, offers, build = 'balanced') {
     }
   }
   const desired = c.hp < 55 ? 'health' : !c.elements.fire && build === 'balanced' ? 'fire' : !c.elements.water && build === 'balanced' ? 'water' : build !== 'balanced' && c.elements[build] < 4 ? build : c.level % 3 === 0 ? 'haste' : 'power';
-  return offers.find(u => u.kind === desired) || offers.find(u => u.kind === 'power') || offers[0];
+  return offers.find(u => u.kind === desired) || offers.find(u => u.kind === 'power') || (c.weapon==='swords'&&offers.find(u=>u.kind==='haste')) || offers[0];
 }
 function random(seed) { let state = seed; return () => ((state = (Math.imul(state, 1664525) + 1013904223) >>> 0) / 4294967296); }
 module.exports = { movement, upgrade, random };

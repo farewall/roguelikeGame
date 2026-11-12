@@ -73,7 +73,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         await page.waitForFunction(() => kaitian.presentation.regions.some(r => r.id.startsWith('upgrade-'))); await page.screenshot({ path: output + '/' + prefix + '-upgrade.png' });
         await click(await page.evaluate(() => kaitian.presentation.regions.find(r => r.id.startsWith('upgrade-')).id)); assert.equal(await page.evaluate(() => kaitian.controller.data.level), 2);
         await page.evaluate(() => { const c = kaitian.controller; c.stopLoops(); c.upgradePending = false; c.combat.xp = 0; c.combat.cleared = true; c.combat.stage = 1; c.completeStage(); });
-        const route = weapon === 'bell' ? 'echo' : weapon === 'banner' ? 'sweep' : '';
+        const route = weapon === 'bell' ? 'echo' : weapon === 'banner' ? 'sweep' : 'sword-roam';
         if (route) await click('reward-' + route);
         await click('memory-continue'); assert.equal(await page.evaluate(() => kaitian.controller.combat.path), route);
         await page.evaluate(() => { const c = kaitian.controller; c.stopLoops(); c.combat.cleared = true; c.combat.stage = 2; c.combat.random = () => 0.9; c.completeStage(); });
@@ -173,6 +173,61 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         await page.evaluate(() => kaitian.controller.exitToHome());
       }
       console.log('PASS Creator boss arrival: five maps warm navigation during ordinary waves, reuse it on arrival, and show forming bosses and health bars');
+      for (const viewport of [{width:844,height:390},{width:667,height:320}]) {
+        await page.setViewportSize(viewport);await page.waitForFunction(w=>kaitian.controller.viewport.windowWidth===w,viewport.width);
+        await page.evaluate(()=>{
+          const c=kaitian.controller;c.beginGame();const core=c.combat;core.enemies=[];core.phase=0;core.remaining=17;core.hp=60;core.world.relic.variant='offering';Object.assign(core.player,core.percent(core.world.relic));core.world.update(core);c.setData({message:''});c.syncCombat();
+        });
+        await click('relic-open');
+        assert.ok(await page.evaluate(()=>kaitian.controller.data.showRelic&&kaitian.controller.data.paused));
+        const frozen=await page.evaluate(()=>kaitian.controller.combat.time);await page.waitForTimeout(80);assert.equal(await page.evaluate(()=>kaitian.controller.combat.time),frozen);
+        await page.screenshot({path:output+'/relic-offering-'+viewport.width+'.png'});
+        await click('relic-offering');
+        assert.ok(await page.evaluate(()=>kaitian.controller.combat.world.bossBoon&&kaitian.controller.combat.hp===48&&kaitian.controller.combat.world.relic.status==='complete'));
+        await click('build-open');await page.screenshot({path:output+'/build-details-'+viewport.width+'.png'});
+        assert.ok(await page.evaluate(()=>kaitian.controller.data.showBuildDetails&&kaitian.controller.data.paused&&kaitian.presentation.layers.overlay.nodes.get('build-relic').active));
+        await click('build-close');
+        await page.evaluate(()=>{
+          const c=kaitian.controller;c.stopLoops();c.combat.enemies=[];c.combat.cleared=true;c.combat.stage=1;c.completeStage();
+        });
+        assert.equal(await page.evaluate(()=>kaitian.controller.data.rewardChoices.length),3);
+        await page.waitForFunction(()=>kaitian.presentation.regions.filter(r=>r.id.startsWith('reward-sword-')).length===3);
+        assert.ok(await page.evaluate(()=>{
+          const v=kaitian.presentation,c=kaitian.controller,rs=v.regions.filter(r=>r.id.startsWith('reward-'));
+          return rs.length===3&&rs.every(r=>r.x>=0&&r.y>=0&&r.x+r.width<=c.layout.w&&r.y+r.height<=c.layout.h)&&rs[2].y>rs[0].y+rs[0].height;
+        }),'three sword routes must remain separate readable rows');
+        await page.screenshot({path:output+'/sword-routes-'+viewport.width+'.png'});
+        await click('reward-sword-guard');await click('memory-continue');
+        const saved=await page.evaluate(()=>{const c=kaitian.controller;c.pauseGame();c.combat.hp=67;c.combat.upgrade('sword-return');c.saveRun();return{stage:c.combat.stage,level:c.combat.level,upgrade:c.combat.swordUpgrades.return};});
+        await page.reload({waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.kaitian&&kaitian.presentation.ready,null,{timeout:60000});
+        await page.evaluate(()=>{window.arenaFixture=c=>{const core=new c.combat.constructor(c.data.selectedWeapon);core.configureArena(c.layout.arena.width,c.layout.arena.height,1);c.combat=core;c.player=core.player;return core;};});
+        assert.equal(await page.evaluate(()=>kaitian.controller.data.hasCheckpoint),true);await page.screenshot({path:output+'/resume-home-'+viewport.width+'.png'});await click('resume');
+        assert.ok(await page.evaluate(saved=>{const c=kaitian.controller;return c.combat.stage===saved.stage&&c.combat.level===saved.level&&c.combat.swordUpgrades.return===saved.upgrade&&c.combat.hp===67&&c.combat.path==='sword-guard'&&c.combat.invulnerable>.7;},saved));
+        await page.evaluate(()=>{const c=kaitian.controller;c.finish(false);c.exitToHome();});
+        assert.deepEqual(errors,[]);console.log('PASS Creator exploration and checkpoints '+viewport.width+': voluntary relic, single reward, paused build detail, three readable routes, full reload and safe resume');
+      }
+      await page.evaluate(()=>{
+        const c=kaitian.controller,v=kaitian.presentation;c.beginGame();window.arenaFixture(c);c.pauseGame();const core=c.combat;core.enemies=[];core.phase=3;core.remaining=0;c.setData({message:''});
+        const world=v.layers.world,probe=v.text(world,'fade-probe','12',20,20,24,0xffffff,{alpha:1}),label=probe.label,update=label.updateRenderData;
+        let forced=0;label.updateRenderData=function(force){if(force)forced++;return update.call(this,force);};
+        for(let i=1;i<30;i++)v.text(world,'fade-probe','12',20,20,24,0xffffff,{alpha:1-i/30});
+        if(forced||probe.node.getComponent('cc.UIOpacity').opacity>20)throw Error('fading must change opacity without forcing font rasterization');
+        label.updateRenderData=update;
+        const render=()=>{core.enemies=[];const e=core.spawn('ranged');Object.assign(e,{speed:0,cooldown:100,spawnTime:0});core.effects=[{id:++core.nextId,type:'damage',x:core.player.x,y:core.player.y,radius:0,age:.1,life:.55,amount:3}];c.syncCombat();v.render();};
+        for(let i=0;i<5;i++)render();const make=v.makeNode;let allocations=0;v.makeNode=function(...args){allocations++;return make.apply(this,args);};
+        try{for(let i=0;i<24;i++)render();if(allocations)throw Error('steady transient effects should reuse nodes: '+allocations);}finally{v.makeNode=make;}
+        if(world.pools.sprite.length>112||world.pools.label.length>40)throw Error('display pools must remain bounded');c.exitToHome();
+      });
+      console.log('PASS Creator render reuse: fading changes vertex opacity, repeated enemies/damage labels reuse bounded native nodes');
+      await page.evaluate(()=>{
+        const c=kaitian.controller;c.beginGame();const core=c.combat;core.enemies=[];core.phase=0;core.remaining=17;core.world.relic.variant='trial';Object.assign(core.player,core.percent(core.world.relic));c.syncCombat();
+      });
+      await click('relic-open');await click('relic-challenge');
+      assert.ok(await page.evaluate(()=>kaitian.controller.combat.world.relic.status==='active'&&!kaitian.controller.combat.world.bossBoon));
+      await page.evaluate(()=>{const c=kaitian.controller;c.combat.enemies.find(e=>e.relicTrial).hp=0;c.tick(.025);c.pauseGame();});
+      assert.equal(await page.evaluate(()=>kaitian.controller.combat.world.relic.status),'complete');
+      await page.evaluate(()=>kaitian.controller.exitToHome());
+      console.log('PASS Creator guardian trial: optional native controls, visible guardian, reward only after its actual death');
       for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
         await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);
         await click('start'); await click('weapon-swords'); await click('intro-enter');
@@ -334,7 +389,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
             const sprite = v.layers.world.nodes.get('enemy-' + boss.id).getComponent('cc.Sprite');
             const used = [...v.layers.world.used];
             const attack = used.some(id => id.startsWith('spell-') || id.startsWith('vines-') || id.startsWith('meteor-'));
-            return sprite.spriteFrame.rect.y === (stage - 1) * 192 && sprite.spriteFrame.rect.x === (state === 'warning' ? 2 : 3) * 192 && (state === 'warning' || attack) && !used.some(id => id.startsWith('hazard-'));
+            return sprite.spriteFrame === v.assets.frames.bossMotion[stage-1][state==='warning'?0:1] && sprite.spriteFrame.rect.y===(stage-1)*192 && (state==='warning'||attack) && !used.some(id=>id.startsWith('hazard-'));
           }, { stage, state }), 'Casting bodies and physical attacks must render without ground markers');
           await page.screenshot({ path: output + '/boss-' + stage + '-' + viewport.width + '-' + state + '.png' });
         }

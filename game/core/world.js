@@ -1,5 +1,6 @@
 'use strict';
 const { clamp, segmentDistance, isFree, slideMove, clipSegment, FlowField } = require('./world-geometry');
+const {makeRelic}=require('./world-events');
 const LAYOUTS = [
   { name: '古榕青涧', width: 3600, height: 2400, entry: [1800, 1900], regions: [[900, 950, '古榕林'], [2200, 1700, '青涧石道'], [2200, 550, '青玉遗台']],
     roads: [[[1800,1900],[1800,1300],[700,1300]],[[1800,1300],[1800,550],[2900,600]],[[700,1300],[700,600],[1800,550]],[[1800,1300],[2900,1100]]],
@@ -19,7 +20,7 @@ const LAYOUTS = [
 ];
 function seeded(seed) { let n = seed; return () => ((n = (Math.imul(n, 1664525) + 1013904223) >>> 0) / 4294967296); }
 class WorldState {
-  constructor(stage) {
+  constructor(stage, relicRoll=.5) {
     this.stage = stage; const layout = LAYOUTS[stage - 1]; Object.assign(this, layout);
     this.entry = { x: layout.entry[0], y: layout.entry[1] }; this.regions = layout.regions.map(([x,y,name]) => ({x,y,name}));
     this.roads = layout.roads.map(path => path.map(([x,y]) => ({x,y})));
@@ -39,8 +40,9 @@ class WorldState {
       this.props.push(prop);this.solids.push(prop);
     }
     this.nav = new FlowField(this); this.bossNav = new FlowField(this,64,36,true); this.explored = 0;
+    this.relicRoll=relicRoll;this.relic=makeRelic(this,relicRoll);this.bossBoon=false;this.cameraBias={x:0,y:0};
   }
-  camera(player, width, height) { return {x:clamp(player.x-width/2,0,Math.max(0,this.width-width)),y:clamp(player.y-height/2,0,Math.max(0,this.height-height)),width,height}; }
+  camera(player, width, height) { return {x:clamp(player.x+this.cameraBias.x-width/2,0,Math.max(0,this.width-width)),y:clamp(player.y+this.cameraBias.y-height/2,0,Math.max(0,this.height-height)),width,height}; }
   footOffset(entity) { return entity.boss?72:entity.fodder?24:({wraith:40,ranged:46,charger:48,elite:56}[entity.kind]||54); }
   regionAt(p) { return this.regions.reduce((a,b)=>Math.hypot(p.x-b.x,p.y-b.y)<Math.hypot(p.x-a.x,p.y-a.y)?b:a).name; }
   move(p,dx,dy,radius=20,limits) { return slideMove(this,p,dx,dy,radius,limits); }
@@ -72,9 +74,13 @@ class WorldState {
     }
     return best;
   }
-  update(c) {
+  update(c,dt=.025) {
     this.prepareNavigation();
     const p=c.groundPoint(c.player);
+    const boss=c.enemies.find(e=>e.boss&&e.hp>0),target=boss&&c.distance(c.player,boss)<900?c.point(boss):c.point(c.player),player=c.point(c.player),blend=1-Math.exp(-dt*3);
+    this.cameraBias.x+=(clamp((target.x-player.x)*.22,-120,120)-this.cameraBias.x)*blend;
+    this.cameraBias.y+=(clamp((target.y-player.y)*.22,-65,65)-this.cameraBias.y)*blend;
+    if(Math.hypot(p.x-this.relic.x,p.y-this.relic.y)<340)this.relic.visited=true;
     for(const site of this.sites) {
       const d=Math.hypot(p.x-site.x,p.y-site.y);
       if(d<420 && !site.visited) { site.visited=true; this.explored++; }

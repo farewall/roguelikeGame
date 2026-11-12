@@ -2,13 +2,13 @@
 // Deterministic ordinary-HP core simulation, with actual movement speed and choices.
 const { Combat, PLAYER_SPEED } = require('../game/core/combat');
 const { movement, upgrade, random } = require('./journey-policy.cjs');
-function run(weapon, seed, path = weapon === 'bell' ? 'echo' : 'sweep') {
+function run(weapon, seed, path = weapon === 'bell' ? 'echo' : weapon==='swords'?'sword-roam':'sweep') {
   const c = new Combat(weapon, random(seed)); c.configureArena(800, 280, 0.52); const stages = [], details = [], upgradeTimes = []; let bossStart = null, maxEnemies = 0;
   for (let frame = 0; frame < 24000 && !c.ended; frame++) {
     if (c.cleared) {
       stages.push(Number(c.time.toFixed(1))); details.push({ stage: c.stage, bossSeconds: Number((c.time - bossStart).toFixed(1)), level: c.level, damage: Number(c.damage().toFixed(1)), interval: Number(c.interval().toFixed(2)), upgrades: { ...(weapon === 'bell' ? c.bellUpgrades : c.bannerUpgrades) } }); bossStart = null;
       if (c.stage === 5) return { weapon, seed, won: true, seconds: Math.round(c.time), hp: c.hp, kills: c.kills, stages, details, upgradeTimes, maxEnemies, level: c.level, path: c.path, skills: c.skillUses };
-      if (c.stage === 1) c.choosePath(path);
+      if (c.stage === 1) c.choosePath(c.pathChoices().some(p=>p.id===path)?path:c.pathChoices()[0].id);
       if (c.stage === 2) { const e = c.createEncounter(); c.resolveEncounter(e.choices.some(o => o.id === 'rest') ? 'rest' : 'insight'); }
       c.advanceStage();
     }

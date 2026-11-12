@@ -1,6 +1,13 @@
 import { UITransform } from 'cc';
 const clamp = (n: number, a = 0, b = 1) => Math.max(a, Math.min(b, n));
 const COLORS = [0x92d5a1, 0xf2dfb7, 0xffa16b, 0x9ddde5, 0xd9c7fa];
+export function bossMotionFrame(v,e) {
+  const poses=v.assets.frames.bossMotion?.[e.bossType-1];if(!poses||e.spawnTime>0)return null;
+  if(e.staggerVisual>0||e.shellBrokenTime>0)return poses[1];
+  if(e.visualState==='cast'&&e.visualAge>=.38)return poses[0];
+  if(e.visualState==='recover'&&e.visualAge<.42||e.visualState==='release'&&e.visualAge>.11)return poses[1];
+  return null;
+}
 
 // Pose changes carry the wind-up. Hit flashes must not hide a casting pose.
 export function creatureMotion(e: any, time: number) {
@@ -8,16 +15,18 @@ export function creatureMotion(e: any, time: number) {
   const pulse = Math.sin((e.visualAge || 0) * 8), boss = e.bossType || 0;
   let sx = 1, sy = 1, dy = 0, angle = 0;
   if (cast) {
-    if (e.kind === 'charger' || boss === 2) { sx = 1.12; sy = 0.78; dy = 15; }
+    const load=clamp((e.visualAge||0)/.75),settle=load*load*(3-2*load);
+    if (e.kind === 'charger' || boss === 2) { sx=1+settle*.11;sy=1-settle*.19;dy=settle*13;angle=-settle*2; }
     else if (e.kind === 'ranged') { sx = 1.05 + pulse * 0.025; sy = 1.08; dy = -4; }
     else if (e.kind === 'elite') { sx = 0.94; sy = 1.12; dy = -9; }
     else if (boss === 1) { sx = e.attackType === 'tail' ? 1.16 : 0.91; sy = e.attackType === 'tail' ? 0.9 : 1.08; angle = (e.attackType === 'tail' ? 8 : 0) + pulse * 2; }
     else if (boss === 3) { sx = e.attackType === 'fire' ? 1.28 : 1.16; sy = e.attackType === 'fire' ? 0.94 : 1.08; dy = -14 - pulse * 3; }
     else if (boss === 4) { sx = 1.07; sy = 0.84; dy = 12; }
     else if (boss === 5) { sy = 1.06; dy = -11; }
-  } else if (dash) { sx = 1.2; sy = 0.83; dy = -12; }
-  else if (release) { sx = boss === 3 ? 1.2 : 1.08; sy = 1.08; dy = -5; }
-  else if (recover) { sy = 0.92; dy = 8; angle = (boss === 2 ? -7 : -2) + pulse * 1.2; }
+  } else if(dash){const t=clamp((e.visualAge||0)/.4);sx=1.08+Math.sin(t*Math.PI)*.1;sy=.91;dy=-Math.sin(t*Math.PI)*24;angle=-4;}
+  else if(release){const t=clamp((e.visualAge||0)/.24);sx=1.12-t*.06;sy=1.08-t*.13;dy=-7+14*t;}
+  else if(recover){const age=e.visualAge||0,bounce=Math.sin(age*14)*Math.exp(-age*7);sy=1-bounce*.055;dy=5+bounce*5;angle=(boss===2?-3:-1)*Math.exp(-age*3);}
+  if(e.staggerVisual>0){angle+=Math.sin(e.staggerVisual*24)*e.staggerVisual*8;dy+=4;}
   if (e.phase2) { sx *= 1.035; sy *= 1.035; }
   return { sx, sy, dy, angle };
 }
@@ -95,7 +104,7 @@ export function drawEnrage(v: any) {
     g.moveTo(x + Math.cos(a) * inner, y + Math.sin(a) * inner * 0.65);
     g.lineTo(x + Math.cos(a + 0.035) * outer, y + Math.sin(a + 0.035) * outer * 0.65);
   }
-  const frame = t < 0.28 ? 2 : rage.pose, texture = v.assets.frames.bosses[rage.bossType - 1][frame];
+  const frame=t<.28?2:rage.pose,texture=t<.28&&v.assets.frames.bossMotion?v.assets.frames.bossMotion[rage.bossType-1][0]:v.assets.frames.bosses[rage.bossType-1][frame];
   const sprite = v.image(layer, 'enrage-boss', texture, x - size / 2, y - size / 2, size, size, entry * exit);
   sprite.tint = burst > 0.5 ? 0xffeddf : 0xffffff;
   if (rage.bossType === 3) for (let i = 0; i < 7; i++) {

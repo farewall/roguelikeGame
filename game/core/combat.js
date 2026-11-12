@@ -9,6 +9,9 @@ const { VINES, vineRadius } = require('./vines');
 const { METEOR, meteorPhase } = require('./meteor');
 const { experienceNeed, waveQuota, enemyProfile } = require('./progression');
 const { advanceEnemyAnimation } = require('./enemy-animation');
+const {canCast,tacticDirection}=require('./enemy-tactics');
+const {relicView,chooseRelic,relicDeaths}=require('./world-events');
+const {registerPressure}=require('./boss-counterplay');
 const { beginBossPattern, advanceBossPattern, startEnrage, advanceEnrage, attackLine, waveBand, sectorAngle, inAngleGap, angleDelta, shellMultiplier } = require('./boss-patterns');
 const STAGES = ['东方·初生之野', '西方·白骨战场', '南方·焚天熔界', '北方·归墟寒海', '天道之庭'];
 const BOSSES = ['青龙法相', '白虎法相', '朱雀法相', '玄武法相', '天道化身'];
@@ -22,7 +25,10 @@ const PATHS = {
   echo: { id: 'echo', weapon: 'bell', name: '万壑回声', desc: '减少回响触发计数，从自身中心释放更强更远的回响', change: '触发计数减少一次 · 回响范围额外扩大20%' },
   ward: { id: 'ward', weapon: 'bell', name: '玄钟护念', desc: '每三次有效钟鸣获得护体，抵伤后震退身边普通敌人', change: '抵伤40% · 护体持续5秒 · 触发震退' },
   sweep: { id: 'sweep', weapon: 'banner', name: '横扫八荒', desc: '基础五道飞刃，刃阵每重再加两道，覆盖更宽的敌群', change: '基础三道 → 五道 · 展开至80° · 保留刃阵加成' },
-  rend: { id: 'rend', weapon: 'banner', name: '破劫裂空', desc: '基础飞刃凝为一道窄束，刃阵可增发，对精英与首领增伤', change: '窄束贯穿 · 精英/首领伤害+30% · 保留刃阵与分裂' }
+  rend: { id: 'rend', weapon: 'banner', name: '破劫裂空', desc: '基础飞刃凝为一道窄束，刃阵可增发，对精英与首领增伤', change: '窄束贯穿 · 精英/首领伤害+30% · 保留刃阵与分裂' },
+  'sword-roam': { id:'sword-roam',weapon:'swords',name:'游龙御剑',desc:'扩大掠斩弧线，优先穿过密集敌群；单体直击降低14%',change:'掠斩弧度+35% · 旁击增强 · 擅长清群' },
+  'sword-hunt': { id:'sword-hunt',weapon:'swords',name:'追魂剑意',desc:'优先追击精英与首领，同轮追击衰减减轻；旁击与覆盖缩小',change:'重复命中35% → 62% · 射程+40 · 直击降低10%' },
+  'sword-guard': { id:'sword-guard',weapon:'swords',name:'归锋护身',desc:'回剑从身边穿行，有效剑轮归位后短暂护身；直击降低15%',change:'归位护身1.1秒 · 抵挡一次伤害的35%' }
 };
 const ELEMENTS = { fire: '离火', water: '坎水', earth: '厚土' };
 const ENEMIES = [
@@ -86,13 +92,13 @@ class Combat extends ArtifactCombat {
     this.effects.push({ id: ++this.nextId, type, x: point.x, y: point.y, radius, age: 0, life: 0.5, ...extra });
     if (this.effects.length > 40) this.effects.shift();
   }
-  attackRange() { return this.weapon === 'bell' ? this.bellRange() : WEAPONS[this.weapon].range; }
+  attackRange() { return this.weapon === 'bell' ? this.bellRange() : this.weapon==='swords'?this.swordRange():WEAPONS[this.weapon].range; }
   nextXpNeed() { return experienceNeed(this.level); }
   enemyStats(kind) { return enemyProfile(this.stage, this.phase, this.stageTime, kind); }
   damage() { return WEAPONS[this.weapon].damage * this.power; }
   interval() { return Math.max(0.52, WEAPONS[this.weapon].interval * this.haste); }
   startStage() {
-    if (this.exploration) { this.world = new WorldState(this.stage); this.width = this.world.width; this.height = this.world.height; Object.assign(this.player, this.percent(this.world.entry)); }
+    if (this.exploration) { this.world = new WorldState(this.stage,this.random()); this.width = this.world.width; this.height = this.world.height; Object.assign(this.player, this.percent(this.world.entry)); }
     this.enrage = null;
     this.rootTime = 0; this.rootImmunity = 0; this.rootSourceId = null;
     this.phase = -1; this.phaseTime = 0; this.stageTime = 0;
@@ -109,6 +115,7 @@ class Combat extends ArtifactCombat {
     if (this.phase === 3) { const boss=this.spawn('boss',true);this.bossPending=!boss;this.spawnCd=.3;if(boss)this.emit('boss',{name:BOSSES[this.stage-1]}); }
   }
   phaseLabel() { return ['一 · 初劫', '二 · 群劫', '三 · 精英', '四 · 守关'][this.phase]; }
+  chooseRelic(id) { return chooseRelic(this,id); }
   nearest(enemies, origin = this.player) {
     return enemies.reduce((a, b) => !a || this.distance(origin, b) < this.distance(origin, a) - 1e-6 || (Math.abs(this.distance(origin, a) - this.distance(origin, b)) < 1e-6 && b.id < a.id) ? b : a, null);
   }
@@ -199,7 +206,7 @@ class Combat extends ArtifactCombat {
     this.wardTime = Math.max(0, this.wardTime - dt);
     this.attackCd = Math.max(0, this.attackCd - dt);
     this.effects.forEach(f => { f.age += dt; }); this.effects = this.effects.filter(f => f.age < f.life);
-    if (this.world) this.world.update(this);
+    if (this.world) this.world.update(this,dt);
     this.advanceWaves(dt);
     for (const e of this.enemies) { this.updateEnemy(e, dt); if (this.enrage) return; }
     this.collectDeaths(); if (this.cleared) return;
@@ -253,9 +260,10 @@ class Combat extends ArtifactCombat {
   updateEnemy(e, dt) {
     if (e.spawnTime > 0) { e.spawnTime = Math.max(0, e.spawnTime - dt); return; }
     e.hitTime = Math.max(0, e.hitTime - dt);
+    e.staggerVisual=Math.max(0,(e.staggerVisual||0)-dt);e.shellBrokenTime=Math.max(0,(e.shellBrokenTime||0)-dt);
     e.fractureTime = Math.max(0, (e.fractureTime || 0) - dt);
     e.castTime = Math.max(0, e.castTime - dt); e.recoverTime = Math.max(0, e.recoverTime - dt);
-    e.shielded = e.bossType === 4 && (Boolean(e.bossPattern) || e.phase2) && e.castTime > 0;
+    e.shielded = e.bossType === 4 && (Boolean(e.bossPattern) || e.phase2) && e.castTime > 0 && !e.shellBrokenTime;
     const slow = e.slowTime > 0 ? Math.max(0.25, 0.65 - this.elements.water * 0.07) : 1;
     if (e.burnTime > 0) this.deal(e, (e.burnDps || 0) * Math.min(dt, e.burnTime), 'burn', false);
     e.burnTime = Math.max(0, e.burnTime - dt); e.slowTime = Math.max(0, e.slowTime - dt);
@@ -268,18 +276,18 @@ class Combat extends ArtifactCombat {
     e.cooldown -= dt;
     const view = this.world && this.camera(), position = this.world && this.point(e), margin = e.boss ? 64 : 24;
     const visible = !view || position.x >= view.x + margin && position.x <= view.x + view.width - margin && position.y >= view.y + margin && position.y <= view.y + view.height - margin;
-    if (visible && e.cooldown <= 0 && !e.castTime && !e.recoverTime) {
+    if (visible && e.cooldown <= 0 && !e.castTime && !e.recoverTime && canCast(this,e)) {
       if (e.boss) { this.castPattern(e.bossType, e, e.phase2); e.cooldown = e.phase2 ? 3.5 : 4.5; }
       else if (e.kind === 'ranged') { this.lineAtPlayer(e, 34, 0.95, 0.24, '息', 'arcane', 7); e.castTime = 1.2; e.recoverTime = 1.7; e.cooldown = 3; this.emit('cast', { name: e.name }); }
       else if (e.kind === 'charger') { this.charge(e, false); e.cooldown = 4.4; }
       else if (e.kind === 'elite') { this.hazard({ shape: 'ring', x: e.x, y: e.y, radius: 150, inner: 120, wave: { from: 20, to: 150, width: 30 }, delay: 1.05, duration: 0.55, label: '震', kind: 'arcane', damage: 9, owner: e.id, shockwave: true }); e.castTime = 1.6; e.recoverTime = 2.1; e.cooldown = 4; this.emit('cast', { name: e.name }); }
     }
     if (!e.castTime && !e.recoverTime && !e.dashing) {
-      const d = this.distance(e, this.player), direction = this.world ? this.world.steer(this.groundPoint(e), this.groundPoint(this.player),e.boss?34:20) : this.vector(e, this.player);
+      const d = this.distance(e, this.player), direction = this.world ? tacticDirection(this,e) : this.vector(e, this.player);
       if (e.kind === 'ranged' && d < 180 + (this.stage - 1) * 15) this.move(e, direction, -e.speed * slow * dt);
       else if (e.kind !== 'ranged' || d > 260) this.move(e, direction, e.speed * slow * dt);
     }
-    e.shielded = e.bossType === 4 && (Boolean(e.bossPattern) || e.phase2) && e.castTime > 0;
+    e.shielded = e.bossType === 4 && (Boolean(e.bossPattern) || e.phase2) && e.castTime > 0 && !e.shellBrokenTime;
   }
   hazard(data) {
     if (this.hazards.length >= 16 && !data.skill) return;
@@ -339,6 +347,7 @@ class Combat extends ArtifactCombat {
     this.emit('cast', { name: e ? e.name : '劫境', pattern: ['藤蔓生长', '扑杀', '陨火坠地', '潮汐扩散', '秩序封锁'][stage - 1] });
   }
   contains(h, point) {
+    if(h.broken)return false;
     if (h.shape === 'line') {
       const line = h.dash && h.active && h.swept ? h.swept : attackLine(h);
       return segmentDistance(this.point(point), this.point(line), this.point(line.end)) <= h.width / 2;
@@ -355,6 +364,7 @@ class Combat extends ArtifactCombat {
   }
   updateHazards(dt) {
     for (const h of this.hazards) {
+      if(h.broken)continue;
       const previousAge = h.age; h.age += dt; h.active = h.age >= h.delay;
       if (h.owner !== null && !this.enemies.some(e => e.id === h.owner && e.hp > 0)) continue;
       if (!h.active) continue;
@@ -386,12 +396,13 @@ class Combat extends ArtifactCombat {
         }
       }
     }
-    this.hazards = this.hazards.filter(h => h.age < h.delay + h.duration && (h.owner === null || this.enemies.some(e => e.id === h.owner && e.hp > 0)));
+    this.hazards = this.hazards.filter(h => !h.broken && h.age < h.delay + h.duration && (h.owner === null || this.enemies.some(e => e.id === h.owner && e.hp > 0)));
     for (const e of this.enemies) e.dashing = this.hazards.some(h => h.dash && h.owner === e.id && h.active);
   }
   hurt(amount, cause) {
     if (this.invulnerable > 0 || this.ended || this.enrage) return;
     if (this.wardTime > 0) { amount *= 0.6; this.wardTime = 0; this.breakBellWard(); }
+    if(this.swordGuardTime>0){amount*=.65;this.swordGuardTime=0;this.effect('sword-ward',this.player,58,{life:.35});}
     amount = Math.min(this.hp, amount);
     this.hp = Math.max(0, this.hp - amount); this.damageTaken += amount; this.lastDamageName = cause;
     this.damageByCause[cause] = (this.damageByCause[cause] || 0) + amount;
@@ -476,6 +487,7 @@ class Combat extends ArtifactCombat {
     const multiplier = shellMultiplier(this, e) * (exposed ? 1.35 : 1) * (this.path === 'rend' && (e.boss || e.kind === 'elite') ? 1.3 : 1);
     const damage = amount * multiplier * (e.fractureTime > 0 ? 1 + e.fractureStrength : 1), effective = Math.min(e.hp, damage);
     e.hp -= damage; e.lastDamageSource = source; this.damageBySource[source] = (this.damageBySource[source] || 0) + effective;
+    if(e.hp>0)registerPressure(this,e,effective,source);
     if (flash) {
       // Continuous burns/fields do not spam numbers or retrigger the hit pose.
       if (e.hitTime <= 0) {
@@ -511,6 +523,7 @@ class Combat extends ArtifactCombat {
       this.leaveRemnant(e);
       this.hazards = this.hazards.filter(h => h.owner !== e.id);
     }
+    if(this.world)relicDeaths(this,dead);
     if (dead.some(e => e.boss)) {
       for (const e of this.enemies) this.leaveRemnant(e);
       this.cleared = true; this.enrage = null; this.rootTime = 0; this.rootSourceId = null; this.enemies = []; this.hazards = []; this.projectiles = []; this.bellWaves = []; this.resetSwords(); this.pendingAttack = null; this.followups = [];
@@ -528,6 +541,9 @@ class Combat extends ArtifactCombat {
     this.invulnerable = 1; this.startStage(); return true;
   }
   upgrade(kind) {
+    if (['sword-reach','sword-edge','sword-return'].includes(kind)) {
+      const key=kind.slice(6);if(this.weapon!=='swords'||this.swordUpgrades[key]>=3)return false;this.swordUpgrades[key]++;return true;
+    }
     if (['blades', 'split'].includes(kind)) {
       if (this.weapon !== 'banner' || this.bannerUpgrades[kind] >= 3) return false;
       this.bannerUpgrades[kind]++; return true;
@@ -547,6 +563,11 @@ class Combat extends ArtifactCombat {
   }
   upgradePool() {
     const damage = this.damage(), interval = this.interval();
+    const swordOptions=this.weapon!=='swords'?[]:[
+      {id:'sword-reach',kind:'sword-reach',iconKind:'haste',name:'御剑通灵',desc:'飞剑追敌更远、更快转入出剑；始终保留四把实体剑',change:`射程 ${this.swordRange()} → ${this.swordRange()+30} · 飞行速度+10%`,tag:'追敌更灵动'},
+      {id:'sword-edge',kind:'sword-edge',iconKind:'power',name:'游刃掠斩',desc:'扩大剑锋实际掠过的弧线，增强旁击，覆盖身侧敌人',change:`掠斩半径 ${42+this.swordUpgrades.edge*7} → ${49+this.swordUpgrades.edge*7} · 旁击+8个百分点`,tag:'扩大实体掠斩'},
+      {id:'sword-return',kind:'sword-return',iconKind:'water',name:'回锋补漏',desc:'强化弧线回剑对沿途漏网敌人的伤害，不重复命中去程目标',change:`回剑倍率 ${Math.round((.5+this.swordUpgrades.return*.15)*100)}% → ${Math.round((.65+this.swordUpgrades.return*.15)*100)}%`,tag:'强化回剑'}
+    ].filter(u=>this.swordUpgrades[u.kind.slice(6)]<3).map(u=>({...u,tag:u.tag+` ${this.swordUpgrades[u.kind.slice(6)]} → ${this.swordUpgrades[u.kind.slice(6)]+1}重`}));
     const bannerOptions = this.weapon !== 'banner' ? [] : [
       { id: 'blades', kind: 'blades', name: '混沌刃阵', iconKind: 'haste', desc: '每轮多发两道母刃，扩大覆盖；同轮母刃对同一敌人只命中一次', change: `发射数量 ${this.bladeCount()} → ${this.bladeCount(this.bannerUpgrades.blades + 1)}道`, tag: '增加刃数' },
       { id: 'split', kind: 'split', name: '裂刃衍生', iconKind: 'power', desc: '每道母刃首次命中实体敌人时分裂，母刃继续贯穿；子刃不再分裂', change: `分裂 ${this.splitStats().count} → ${this.splitStats(this.bannerUpgrades.split + 1).count}道 · 子刃伤害${Math.round(this.splitStats(this.bannerUpgrades.split + 1).multiplier * 100)}%`, tag: '命中分裂' }
@@ -557,7 +578,7 @@ class Combat extends ArtifactCombat {
       { id: 'resonance', kind: 'resonance', name: '洪钟共振', iconKind: 'power', desc: '提高外缘增伤并拓宽共鸣带，保持距离反打', change: `共鸣倍率 ${round(1.3 + this.bellUpgrades.resonance * 0.15)} → ${round(1.45 + this.bellUpgrades.resonance * 0.15)} · 共鸣带加宽5%`, tag: '强化外缘' }
     ].filter(u => this.bellUpgrades[u.kind] < 3).map(u => ({ ...u, tag: u.tag + ` ${this.bellUpgrades[u.kind]} → ${this.bellUpgrades[u.kind] + 1}重` }));
     return [
-      ...bellOptions, ...bannerOptions,
+      ...bellOptions, ...bannerOptions, ...swordOptions,
       { id: 'power', kind: 'power', name: '开天劲', desc: '至宝伤害提升 25%', change: `伤害 ${round(damage)} → ${round(damage * 1.25)}`, tag: '强化输出' },
       { id: 'haste', kind: 'haste', name: '疾风法', desc: '至宝攻击间隔缩短 18%', change: `间隔 ${interval.toFixed(2)} → ${Math.max(0.52, interval * 0.82).toFixed(2)} 秒`, tag: '更快出招' },
       { id: 'health', kind: 'health', name: '玄黄护体', desc: '恢复 25 元气，生命上限增加 20', change: `上限 ${this.maxHp} → ${this.maxHp + 20}`, tag: '生存补给' },
@@ -587,6 +608,7 @@ class Combat extends ArtifactCombat {
     // a growing weapon pool must not squeeze damage/haste/health out of offers.
     if (this.weapon === 'bell') take(pool.filter(u => ['range', 'echo', 'resonance'].includes(u.kind) && (this.level === 1 && !this.bellUpgrades.range ? u.kind === 'range' : true)));
     if (this.weapon === 'banner') take(pool.filter(u => ['blades', 'split'].includes(u.kind) && (this.level === 1 && !this.bannerUpgrades.blades ? u.kind === 'blades' : this.level === 2 && !this.bannerUpgrades.split ? u.kind === 'split' : true)));
+    if (this.weapon === 'swords') take(pool.filter(u=>u.kind.startsWith('sword-')&&(this.level===1&&!this.swordUpgrades.reach?u.kind==='sword-reach':true)));
     take(pool.filter(u => this.hp <= this.maxHp * 0.55 ? u.kind === 'health' : ['power', 'haste'].includes(u.kind) || u.kind === 'health' && this.level % 4 === 0));
     take(pool.filter(u => ELEMENTS[u.kind] && (this.weapon === 'bell' || this.elements[u.kind] === 0)));
     if (this.weapon !== 'bell') take(pool.filter(u => ELEMENTS[u.kind] && this.elements[u.kind] > 0));
@@ -594,7 +616,7 @@ class Combat extends ArtifactCombat {
     return choices;
   }
   elementLabel() { const names = this.weapon === 'bell' ? { fire: '焚音', water: '潮鸣', earth: '裂岳' } : ELEMENTS; return Object.keys(ELEMENTS).filter(k => this.elements[k]).map(k => names[k] + this.elements[k] + '重').join(' · ') || '未附魔'; }
-  buildLabel() { const weapon = this.weapon === 'bell' ? this.bellLabel() : this.weapon === 'banner' ? this.bannerLabel() : '诛戮陷绝 · 自动御剑'; return (this.path ? PATHS[this.path].name + ' · ' : '') + (weapon ? weapon + ' · ' : '') + this.elementLabel(); }
+  buildLabel() { const weapon = this.weapon === 'bell' ? this.bellLabel() : this.weapon === 'banner' ? this.bannerLabel() : this.swordLabel()+' · 自动御剑'; return (this.path ? PATHS[this.path].name + ' · ' : '') + (weapon ? weapon + ' · ' : '') + this.elementLabel(); }
   battleReport() {
     const names = { 'sword-return': '回剑', resonance: '外缘共鸣', direct: '直击', split: '裂刃', burn: '灼烧', field: '区域', earth: '震荡', steam: '蒸腾', tide: '潮涌', echo: '回响', aftershock: '余震', ignite: '爆燃', skill: this.weapon === 'bell' ? '镇界' : this.weapon === 'swords' ? '诛仙' : '裂天' };
     const total = Object.values(this.damageBySource).reduce((a, b) => a + b, 0);
@@ -608,6 +630,7 @@ class Combat extends ArtifactCombat {
     const hint = boss ? ['盘身后根脉分叉 · 甩尾前离开龙首朝向', '伏身后横移 · 落地转向后会再扑', '抬翼陨火 · 从火浪缺口穿行', '缩甲后向外发浪 · 绕向发亮甲片', '结印后敕令落下 · 连招结束时反击'][boss.bossType - 1] : '';
     return {
       world: this.world ? { name:this.world.name, region:this.world.regionAt(this.point(this.player)), explored:this.world.explored, sites:this.world.sites.length, width:this.width, height:this.height } : null,
+      worldRelic:relicView(this),
       bossTransition: this.enrage ? { ...this.enrage } : null,
       rooted: this.rootTime > 0, rootTime: round(this.rootTime), hp: Math.ceil(this.hp), maxHp: this.maxHp, hpPct: this.hp / this.maxHp * 100,
       level: this.level, xp: this.xp, xpNeed: this.xpNeed, xpPct: Math.min(100, this.xp / this.xpNeed * 100),
@@ -625,10 +648,10 @@ class Combat extends ArtifactCombat {
           angle: line ? Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI : 0 };
       }),
       effects: this.effects.map(f => ({ id: f.id, type: f.type, x: f.x, y: f.y, radius: f.radius, angle: f.angle || 0, cone: f.cone || 60 })),
-      boss: boss ? { name: boss.name, hpPct: round(Math.max(0, boss.hp / boss.maxHp * 100)), phase: boss.phase2 ? '暴怒' : '一阶段', state: this.enrage ? '法相暴怒' : boss.shielded ? '缩甲聚海 · 绕侧开甲' : exposed ? '扑空破绽 · 易伤35%' : boss.castTime > 0 ? boss.attackName || '正在蓄势' : boss.recoverTime > 0 ? '收招 · 输出机会' : '游走', hint } : null,
+      boss: boss ? { name: boss.name, hpPct: round(Math.max(0, boss.hp / boss.maxHp * 100)), phase: boss.phase2 ? '暴怒' : '一阶段', state: this.enrage ? '法相暴怒' : boss.shellBrokenTime>0?'甲片崩开 · 输出机会':boss.pressureBroken&&boss.attackType==='roots'?'断根 · 缺口已开':boss.shielded ? '缩甲聚海 · 绕侧开甲' : exposed ? '扑空破绽 · 易伤35%' : boss.castTime > 0 ? boss.attackName || '正在蓄势' : boss.recoverTime > 0 ? '收招 · 输出机会' : '游走', hint } : null,
       weaponName: WEAPONS[this.weapon].name, weaponId: this.weapon, attackRange: this.attackRange(), bellUpgradeLabel: this.bellLabel(),
       bannerUpgradeLabel: this.weapon === 'banner' ? this.bannerLabel() : '', bladeCount: this.weapon === 'banner' ? this.bladeCount() : 0, splitCount: this.weapon === 'banner' ? this.splitStats().count : 0,
-      swordLabel: this.weapon === 'swords' ? '诛 · 戮 · 陷 · 绝  ' + (this.swordSkill ? this.swordSkill.mode === 'single' ? '四向围杀' : '交错清场' : '自动御剑') : '',
+      swordLabel: this.weapon === 'swords' ? this.swordLabel()+' · '+(this.swordGuardTime>0?'回锋护身':this.swordSkill ? this.swordSkill.mode === 'single' ? '四向围杀' : '交错清场' : '自动御剑') : '',
       elementName: this.elementLabel(), combatStats: `范围 ${Math.round(this.attackRange())} · 伤害 ${round(this.damage())} · ${this.interval().toFixed(2)}秒`, pathName: this.path ? PATHS[this.path].name : '', warded: this.wardTime > 0,
       comboName: this.elements.fire && this.elements.water && this.elements.earth ? '蒸腾 + 熔沼' : this.elements.fire && this.elements.water ? '水火 · 蒸腾' : this.elements.earth && this.elements.fire ? '地火 · 熔流' : this.elements.earth && this.elements.water ? '地水 · 泥沼' : '',
       bellMarks: this.strikeCount % this.bellThreshold(), bellThreshold: this.bellThreshold(),

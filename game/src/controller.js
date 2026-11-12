@@ -5,15 +5,16 @@ const { Combat, WEAPONS, PLAYER_SPEED, ENEMIES } = require('../core/combat');
 const { SWORDS } = require('../core/swords');
 const { normalizeViewport } = require('./viewport');
 const { MEMORIES, readArchive, saveArchive, runView } = require('../core/chronicle');
+const {readCheckpoint,saveCheckpoint,clearCheckpoint,restoreCheckpoint}=require('../core/checkpoint');
 const SETTINGS_KEY = 'pangu.settings.v1';
 const ACTOR_SHEETS = ['idle', 'move', 'attack', 'hurt', 'awaken', 'death'];
 const DIRECTION_ROW = { down: 0, up: 1, left: 2, right: 3 };
 const ACTOR_FRAME_SIZE = 192;
 const NativeDate = Date;
-const INPUT_BOUNDARIES = ['view', 'paused', 'ended', 'showSettings', 'confirmExit', 'showArchive', 'archiveTab', 'showIntro', 'showChoice', 'choiceToken', 'showMemory', 'showEnding', 'rewardSelectedId', 'showWorldMap'];
+const INPUT_BOUNDARIES = ['view', 'paused', 'ended', 'showSettings', 'confirmExit', 'showArchive', 'archiveTab', 'showIntro', 'showChoice', 'choiceToken', 'showMemory', 'showEnding', 'rewardSelectedId', 'showWorldMap','showRelic','showBuildDetails'];
 
 
-// Pure controller: Eva.js owns the single frame loop. There is no Page/setData bridge.
+// Pure controller: Cocos owns the single frame loop. There is no Page/setData bridge.
 function createController(wx, options = {}) {
   const clock = options.clock || globalThis;
   const Date = options.Date || NativeDate;
@@ -21,7 +22,7 @@ function createController(wx, options = {}) {
   const clearTimeout = id => clock.clearTimeout(id);
 const definition = {
   data: {
-    view: 'home', showSettings: false, showIntro: false, showArchive: false, archiveTab: 'memories', paused: false, confirmExit: false, showWorldMap:false,
+    view: 'home', showSettings: false, showIntro: false, showArchive: false, archiveTab: 'memories', paused: false, confirmExit: false, showWorldMap:false,showRelic:false,showBuildDetails:false,hasCheckpoint:false,checkpointLabel:'',worldRelic:null,
     uiScale: 0.5, soundOn: true, effectVolume: 60, vibrationOn: true, hintsOn: true,
     hp: 100, maxHp: 100, hpPct: 100, hurt: false, level: 1, xp: 0, xpNeed: 5, xpPct: 0,
     stage: 1, stageName: '', phaseName: '', objective: '', progress: 0, boss: null, kills: 0, combatStats: '', weaponId: 'bell', actorSheets: [], actorFrame: { left: 0, top: 0, action: 'idle' }, pathName: '', warded: false,
@@ -41,10 +42,25 @@ const definition = {
     if (Number.isFinite(saved.effectVolume)) settings.effectVolume = clamp(saved.effectVolume, 0, 100);
     this.setData({ ...settings, view: 'home', showSettings: false, showIntro: false, paused: false });
     this.audio = new GameAudio(wx, this.data); this.archive = readArchive(wx); this.refreshArchive();
+    this.refreshCheckpoint();
   },
   onUnload() { this.stopLoops(); if (this.audio) this.audio.destroy(); },
-  onHide() { this.upgradeTouch = null; this.cancelSkillAim(); this.pauseGame(); this.stopMovement(); if (this.audio) this.audio.stopAll(); },
-  onShow() { if (this.data.paused && !this.data.showSettings && !this.data.showWorldMap) this.resumeGame(); },
+  onHide() { this.saveRun();this.upgradeTouch = null; this.cancelSkillAim(); this.pauseGame(); this.stopMovement(); if (this.audio) this.audio.stopAll(); },
+  onShow() { if (this.data.paused && !this.data.showSettings && !this.data.showWorldMap&&!this.data.showRelic&&!this.data.showBuildDetails) this.resumeGame(); },
+  refreshCheckpoint() {const saved=readCheckpoint(wx);this.setData({hasCheckpoint:Boolean(saved),checkpointLabel:saved?'第'+saved.data.stage+'境 · 境界'+saved.data.level+' · '+WEAPONS[saved.data.weapon].name:''});},
+  saveRun() {if(this.data.view==='game'&&this.combat&&!this.data.ended&&saveCheckpoint(wx,this.combat))this.setData({hasCheckpoint:true,checkpointLabel:'第'+this.combat.stage+'境 · 境界'+this.combat.level+' · '+WEAPONS[this.combat.weapon].name});},
+  resumeRun() {
+    const core=restoreCheckpoint(readCheckpoint(wx));if(!core){this.refreshCheckpoint();return false;}
+    this.stopLoops();this.combat=core;this.player=core.player;this.actor=new PanguAnimation();this.actorFrameKey='';this.upgradePending=false;this.choiceApplying=false;this.stageClearRemaining=0;
+    this.setData({view:'game',selectedWeapon:core.weapon,paused:false,showSettings:false,showIntro:false,showArchive:false,showChoice:false,showEnding:false,ended:false,showMemory:false,showWorldMap:false,showRelic:false,showBuildDetails:false,bossTransition:null,actorSheets:ACTOR_SHEETS});
+    this.updateLayout();this.syncCombat();this.renderActor(0);this.startLoops();
+    if(core.cleared)this.completeStage();else {this.notify('神念续行 · 招式已重整，短暂护身');this.levelUp();}return true;
+  },
+  openBuild() {if(this.isBlocked())return;this.pauseGame();this.setData({showBuildDetails:true});},
+  closeBuild() {this.setData({showBuildDetails:false});this.resumeGame();},
+  openRelic() {const r=this.data.worldRelic;if(this.isBlocked()||!r||!r.nearby||r.status!=='ready')return;this.pauseGame();this.setData({showRelic:true});},
+  closeRelic() {this.setData({showRelic:false});this.resumeGame();},
+  chooseRelic(id) {if(!this.data.showRelic||!this.combat.chooseRelic(id))return false;this.syncCombat();this.closeRelic();this.saveRun();return true;},
   openWorldMap() { if (this.isBlocked() || !this.combat.world) return; this.pauseGame(); this.setData({showWorldMap:true}); },
   closeWorldMap() { this.setData({showWorldMap:false}); this.resumeGame(); },
   onResize() { this.stopMovement(); this.updateLayout(); this.actorFrameKey = ''; if (this.actor) this.renderActor(0); this.measureArena(); },
@@ -57,9 +73,11 @@ const definition = {
   requestExit() { this.setData({ confirmExit: true }); },
   cancelExit() { this.setData({ confirmExit: false }); },
   exitToHome() {
+    this.saveRun();
     this.stopLoops(); if (this.audio) this.audio.stopAll(); this.upgradeTouch = null; this.upgradePending = false;
-    this.setData({ view: 'home', showSettings: false, showIntro: false, confirmExit: false, paused: false, showChoice: false, choices: [], showMemory: false, showEnding: false, ended: false, bossTransition: null, message: '', showWorldMap:false });
+    this.setData({ view: 'home', showSettings: false, showIntro: false, confirmExit: false, paused: false, showChoice: false, choices: [], showMemory: false, showEnding: false, ended: false, bossTransition: null, message: '', showWorldMap:false,showRelic:false,showBuildDetails:false });
     this.refreshArchive();
+    this.refreshCheckpoint();
   },
   stopTap() {},
   toggleSound(e) { this.setData({ soundOn: e.detail.value }); this.saveSettings(); },
@@ -122,22 +140,24 @@ const definition = {
     this.setData({ uiScale: scale });
   },
   resetGame() {
+    clearCheckpoint(wx);
     this.cancelSkillAim();
     this.stopLoops(); if (this.audio) this.audio.stopAll();
     this.combat = new Combat(this.data.selectedWeapon, Math.random, { exploration: options.exploration !== false }); this.player = this.combat.player;
     this.updateLayout(); this.actor = new PanguAnimation(); this.actorFrameKey = '';
-    this.choiceApplying = false; this.upgradePending = false; this.stageClearRemaining = 0; this.upgradeTouch = null; this.setData({showWorldMap:false});
+    this.choiceApplying = false; this.upgradePending = false; this.stageClearRemaining = 0; this.upgradeTouch = null; this.setData({showWorldMap:false,showRelic:false,showBuildDetails:false});
     this.viewCache = {}; this.renderStats = { ticks: 0, calls: 0, bytes: 0, fullBytes: 0, maxBytes: 0 };
-    this.setData({ ...this.combat.snapshot(), paused: false, hurt: false, player: { ...this.player }, message: this.combat.weapon === 'bell' ? '外缘共鸣增伤 · 三次有效钟鸣释放居中回响 · 镇界先护身后震退' : this.combat.weapon === 'swords' ? '四剑自动追敌掠斩 · 弧线回剑补漏 · 点击「诛仙」清场或围杀' : '盘古幡自动发射飞刃 · 拖动右下「裂天」瞄准，松手释放', showChoice: false, choices: [], showMemory: false, ended: false, showEnding: false, won: false, runSummary: null, actorSheets: ACTOR_SHEETS }, () => this.measureArena());
+    this.setData({ ...this.combat.snapshot(), paused: false, hurt: false, player: { ...this.player }, message: this.combat.weapon === 'bell' ? '保持外缘距离 · 点击镇界解围' : this.combat.weapon === 'swords' ? '四剑自动追敌 · 点击诛仙清场围杀' : '自动发刃 · 拖动裂天瞄准后松手', showChoice: false, choices: [], showMemory: false, ended: false, showEnding: false, won: false, showRelic:false,showBuildDetails:false,runSummary: null, actorSheets: ACTOR_SHEETS }, () => this.measureArena());
     this.renderActor(0); this.startLoops();
     this.schedule('toastTimer', () => this.setData({ message: '' }), 2600);
+    this.saveRun();
   },
   stopLoops() {
     for (const name of Object.keys(this.pendingTimers || {})) clearTimeout(this[name]);
     this.pendingTimers = {}; this.stopMovement();
   },
   notify(message) { this.setData({ message }); this.schedule('toastTimer', () => this.setData({ message: '' }), 2300); },
-  isBlocked() { return this.data.view !== 'game' || this.data.paused || this.data.ended || this.data.showChoice || this.data.showMemory || this.data.showWorldMap || this.upgradePending || this.stageClearRemaining > 0 || Boolean(this.combat && this.combat.enrage); },
+  isBlocked() { return this.data.view !== 'game' || this.data.paused || this.data.ended || this.data.showChoice || this.data.showMemory || this.data.showWorldMap || this.data.showRelic || this.data.showBuildDetails || this.upgradePending || this.stageClearRemaining > 0 || Boolean(this.combat && this.combat.enrage); },
   aimSkill(direction) {
     if (this.isBlocked() || !this.combat || !this.combat.snapshot().skillReady || this.combat.weapon !== 'banner') return false;
     this.setData({ skillAim: this.combat.skillDirection(direction) }); return true;
@@ -183,6 +203,9 @@ const definition = {
       }
       if (event.type === 'rooted') this.notify('藤蔓缠足 · 暂时无法移动，仍可使用至宝');
       if (event.type === 'world-loot') { this.notify(event.name + ' · ' + event.reward); if (this.audio) this.audio.play('upgrade'); }
+      if(event.type==='relic-trial')this.notify('守印灵凝形 · 击败后取得遗迹庇护');
+      if(event.type==='relic-complete'){this.notify('遗迹已解印 · 专属提升与本境庇护生效');if(this.audio)this.audio.play('upgrade');this.saveRun();}
+      if(event.type==='boss-break'){this.notify(event.copy);if(this.audio)this.audio.play('echo');}
       if (event.type === 'boss') this.notify(event.name + '现身 · 观察预警后再接近');
       if (event.type === 'boss-phase') { this.stopMovement(); this.cancelSkillAim(); if (this.audio) { this.audio.stopAll(); this.audio.play('dominion'); } this.notify(event.name + ' · 法相暴怒'); }
       if (event.type === 'boss-enraged') this.notify(event.name + ' · 留意新的蓄势动作');
@@ -215,10 +238,11 @@ const definition = {
     if (!combat.upgrade(u.kind)) { this.choiceApplying = false; return; }
     combat.level++; combat.xp -= combat.xpNeed; combat.xpNeed = combat.nextXpNeed();
     this.setData({ showChoice: false, choices: [] }); this.syncCombat();
-    this.notify(u.name + '已生效 · ' + u.change);
+    this.notify(u.name+'已生效');
     this.choiceApplying = false; this.actor.awaken(); this.renderActor(0);
     if (this.audio) this.audio.play('upgrade');
     this.upgradePending = true;
+    this.saveRun();
     this.schedule('upgradeTimer', () => { this.upgradePending = false; if (!this.data.ended) this.levelUp(); }, 1000);
   },
   onUpgradeTouchStart(e) {
@@ -241,24 +265,27 @@ const definition = {
     this.combat.pendingAttack = null;
     const encounter = stage === 2 ? this.combat.createEncounter() : null;
     const rewardChoices = stage === 1 && !this.combat.path ? this.combat.pathChoices() : encounter && !encounter.resolved ? encounter.choices : [];
-    this.setData({ showMemory: true, memory: MEMORIES[stage - 1], rewardChoices, rewardSelectedId: '', rewardKind: stage === 1 ? 'path' : 'event', rewardTitle: stage === 1 ? '至宝悟道 · 本局路线二选一' : encounter ? encounter.title : '', nextStageLabel: stage === 4 ? '进入天道之庭' : '整备 · 前往下一境' });
+    this.setData({ showMemory: true, memory: MEMORIES[stage - 1], rewardChoices, rewardSelectedId: '', rewardKind: stage === 1 ? 'path' : 'event', rewardTitle: stage === 1 ? '至宝悟道 · 选择本局路线' : encounter ? encounter.title : '', nextStageLabel: stage === 4 ? '进入天道之庭' : '整备 · 前往下一境' });
+    this.saveRun();
   },
   selectMemoryReward(e) {
     if (!this.data.showMemory || this.data.paused || this.data.rewardSelectedId) return;
     const id = e.currentTarget.dataset.reward;
     if (!this.data.rewardChoices.some(choice => choice.id === id && !choice.disabled)) return;
     const applied = this.data.rewardKind === 'path' ? this.combat.choosePath(id) : this.combat.resolveEncounter(id);
-    if (applied) { this.setData({ rewardSelectedId: id }); this.syncCombat(); }
+    if (applied) { this.setData({ rewardSelectedId: id }); this.syncCombat();this.saveRun(); }
   },
   continueStage() {
     if (!this.data.showMemory || this.data.paused || (this.data.rewardChoices.length && !this.data.rewardSelectedId) || !this.combat.advanceStage()) return;
     this.setData({ showMemory: false }); this.actor = new PanguAnimation(); this.actorFrameKey = '';
     this.lastTickTime = Date.now(); this.lastMoveTime = Date.now(); this.syncCombat(); this.renderActor(0);
     this.notify('整备完成 · 恢复 15 元气'); this.levelUp();
+    this.saveRun();
   },
   finish(win) {
     if (this.data.ended) return;
     this.stopLoops(); this.combat.ended = true; this.upgradePending = false;
+    clearCheckpoint(wx);this.refreshCheckpoint();
     if (this.audio) { this.audio.stopAll(); this.audio.play(win ? 'victory' : 'death'); }
     if (win) this.actor.awaken(); else this.actor.die();
     this.cancelSkillAim();

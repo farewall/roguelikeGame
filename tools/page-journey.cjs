@@ -11,7 +11,7 @@ function runPage(weapon, seed, path, build = 'balanced', viewport = { windowWidt
     if (game.data.showMemory) {
       stages.push(c.stage);
       if (game.data.rewardChoices.length) {
-        const selected = game.data.rewardKind === 'path' ? path : game.data.rewardChoices.some(o => o.id === 'rest') ? 'rest' : 'insight';
+        const selected = game.data.rewardKind === 'path' ? (game.data.rewardChoices.find(o=>o.id===path)||game.data.rewardChoices[0]).id : game.data.rewardChoices.some(o => o.id === 'rest') ? 'rest' : 'insight';
         game.selectMemoryReward({ currentTarget: { dataset: { reward: selected } } }); rewards++;
       }
       game.continueStage();

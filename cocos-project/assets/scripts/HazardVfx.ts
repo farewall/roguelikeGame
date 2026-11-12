@@ -7,6 +7,7 @@ const clamp = (n: number, a = 0, b = 1) => Math.max(a, Math.min(b, n));
 // Only physical attacks are drawn. Wind-up comes from the caster's body.
 // There are no ground outlines, lanes, arrows or area-of-effect markers.
 export function drawHazard(v: any, layer: any, h: any, point: (p: any) => any) {
+  if(h.broken)return;
   if (h.meteor) { drawMeteor(v, layer, h, point(h), point); return; }
   if (h.kind === 'root') { drawRootHazard(v, layer, h, point(h), point); return; }
   if (h.age < h.delay) return;
@@ -53,11 +54,11 @@ export function drawHazard(v: any, layer: any, h: any, point: (p: any) => any) {
     return;
   }
   if (h.shape === 'ring') {
-    const { radius, inner } = waveBand(h), r = (radius + inner) / 2, count = Math.max(10, Math.ceil(r * Math.PI * 2 / 34));
+    const { radius, inner } = waveBand(h), r = (radius + inner) / 2, count = Math.min(48,Math.max(10,Math.ceil(r*Math.PI*2/34)));
     if (h.kind === 'tide') {
       // A rolling body of water, with an uneven foam lip and a fading wake.
       // This is the damaging crest itself; no predictive boundary is drawn.
-      const samples = Math.max(24, Math.ceil(radius * Math.PI * 2 / 18)), step = Math.PI * 2 / samples;
+      const samples = Math.min(96,Math.max(24,Math.ceil(radius*Math.PI*2/18))), step = Math.PI * 2 / samples;
       for (let i = 0; i < samples; i++) {
         const a = i * step, b = a + step;
         if (inAngleGap(h, Math.cos(a), Math.sin(a)) || inAngleGap(h, Math.cos(b), Math.sin(b))) continue;
@@ -75,7 +76,7 @@ export function drawHazard(v: any, layer: any, h: any, point: (p: any) => any) {
       // Overlapping foam textures form a thick, irregular physical wavefront.
       const crest = h.kind === 'tide' ? radius - 8 + Math.sin(i * 1.7 + age * 7) * 3 : r;
       tile('water-' + i, h.shockwave ? 5 : 4, p.x + dx * crest, p.y + dy * crest, 56 + Math.sin(i * 2.1) * 9, Math.max(37, radius - inner + 8), 0.8, a * 180 / Math.PI + 90);
-      if (h.kind === 'tide' && i % 2 === 0) tile('spray-' + i, 4, p.x + dx * (r + 13), p.y + dy * (r + 13) - Math.sin(age * 9 + i) * 5, 27, 18, 0.35, a * 180 / Math.PI + 90);
+      if (h.kind === 'tide' && i % 3 === 0) tile('spray-' + i, 4, p.x + dx * (r + 13), p.y + dy * (r + 13) - Math.sin(age * 9 + i) * 5, 27, 18, 0.35, a * 180 / Math.PI + 90);
     }
     return;
   }

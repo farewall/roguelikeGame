@@ -10,6 +10,9 @@ export function drawWorld(v, ground, terrain, actors, point) {
     const sprite=v.image(ground,'ground-'+x+'-'+y,v.assets.frames.worldGround[world.stage-1],a.x+wx,a.y+wy,w,h,0.95);
     sprite.node.setScale(flipX?-1:1,flipY?-1:1,1);sprite.node.setPosition(a.x+wx+(flipX?w:0),-(a.y+wy+(flipY?h:0)));
   }
+  // Flatten fine floor detail while keeping the real terrain and bodies crisp.
+  g.lineStyle(0);g.beginFill([0x324538,0x4b453b,0x353435,0x30454d,0x3c4144][world.stage-1],.23);
+  g.drawRect(a.x+cam.x,a.y+cam.y,cam.width,cam.height);g.endFill();
   for(const road of world.roads)for(let j=1;j<road.length;j++){
     const from=road[j-1],to=road[j],dx=to.x-from.x,dy=to.y-from.y,length=Math.hypot(dx,dy)||1,nx=-dy/length,ny=dx/length,sideA=[],sideB=[],count=Math.max(2,Math.ceil(length/60));
     if(Math.max(from.x,to.x)<cam.x-70||Math.min(from.x,to.x)>cam.x+cam.width+70||Math.max(from.y,to.y)<cam.y-70||Math.min(from.y,to.y)>cam.y+cam.height+70)continue;
@@ -25,6 +28,7 @@ export function drawWorld(v, ground, terrain, actors, point) {
   for(const prop of world.props) {
     if(!visible(prop.x,prop.y,prop.size)) continue;
     const sprite=v.image(actors,'terrain-'+prop.id,v.assets.frames.worldProps[prop.sprite],a.x+prop.x-prop.size/2,a.y+prop.y-prop.size*0.87,prop.size,prop.size);
+    sprite.tint=0xd2d5c7;(sprite.node as any).worldDepth=a.y+prop.y;
     if(prop.flip) { sprite.node.setScale(-1,1,1);sprite.node.setPosition(a.x+prop.x+prop.size/2,-(a.y+prop.y-prop.size*0.87)); }
     else sprite.node.setScale(1,1,1);
     sprite.node.setSiblingIndex(0);
@@ -32,13 +36,20 @@ export function drawWorld(v, ground, terrain, actors, point) {
   for(const site of world.sites) {
     if(!visible(site.x,site.y,160)) continue;
     const size=site.kind==='xp'?120:145, sprite=site.kind==='xp'?15:site.kind==='health'?1:14;
-    v.image(actors,'site-'+site.id,v.assets.frames.worldProps[sprite],a.x+site.x-size/2,a.y+site.y-size*0.85,size,size,site.used?0.55:1).node.setSiblingIndex(0);
+    const body=v.image(actors,'site-'+site.id,v.assets.frames.worldProps[sprite],a.x+site.x-size/2,a.y+site.y-size*0.85,size,size,site.used?0.55:1);(body.node as any).worldDepth=a.y+site.y;
     if(site.visited) v.text(actors,'site-label-'+site.id,site.name+(site.used?' · 已取':''),a.x+site.x,a.y+site.y+22,19,site.used?0x8c9c93:THEMES[world.stage-1],{center:true});
     if(!site.used) {
       const x=a.x+site.x,y=a.y+site.y-56;
       g.lineStyle(2,site.kind==='health'?0x9bd8b1:site.kind==='energy'?0xb6d7ed:0xe3c88b,0.65);
       for(let j=0;j<3;j++){const yy=y-((core.time*26+j*14)%43);g.moveTo(x+(j-1)*10,yy);g.lineTo(x+(j-1)*10,yy-6);}
     }
+  }
+  const relic=world.relic;
+  if(relic&&visible(relic.x,relic.y,180)){
+    const complete=['complete','claimed'].includes(relic.status),body=v.image(actors,'world-relic',v.assets.frames.worldProps[15],a.x+relic.x-72,a.y+relic.y-125,144,144,complete?.5:1);
+    (body.node as any).worldDepth=a.y+relic.y;
+    if(relic.visited)v.text(actors,'world-relic-name',relic.name+(complete?' · 已解':' · 查看'),a.x+relic.x,a.y+relic.y+28,22,complete?0x92a395:0xe6c88b,{center:true});
+    if(!complete){for(let i=0;i<3;i++){const yy=a.y+relic.y-90-(core.time*19+i*19)%54;g.lineStyle(2,0xe4c686,.55);g.moveTo(a.x+relic.x-12+i*12,yy);g.lineTo(a.x+relic.x-9+i*12,yy-9);}}
   }
   // The world border is distant geography; it never follows the camera.
   g.lineStyle(24,0x172529,0.9);g.moveTo(a.x,a.y);g.lineTo(a.x+world.width,a.y);g.lineTo(a.x+world.width,a.y+world.height);g.lineTo(a.x,a.y+world.height);g.lineTo(a.x,a.y);
@@ -51,6 +62,7 @@ export function drawMap(v, layer, x, y, width, height, expanded=false) {
   for(const road of world.roads){g.lineStyle(expanded?4:1.5,THEMES[world.stage-1],0.38);for(let i=0;i<road.length;i++){const p=road[i];if(!i)g.moveTo(x+p.x*scale,y+p.y*scale);else g.lineTo(x+p.x*scale,y+p.y*scale);}}
   const cam=core.camera();g.lineStyle(1,0xb7d5d1,0.55);g.drawRect(x+cam.x*scale,y+cam.y*scale,Math.min(cam.width,world.width)*scale,Math.min(cam.height,world.height)*scale);
   for(const site of world.sites){const px=x+site.x*scale,py=y+site.y*scale;g.lineStyle(0);g.beginFill(site.used?0x657969:site.visited?0xe6c27d:0x89938e,1);g.drawPolygon([px,py-4,px+4,py,px,py+4,px-4,py]);g.endFill();if(expanded)v.text(layer,'map-site-'+site.id,site.visited?site.name:'未探明地点',px+12,py-9,18,site.used?0x82968d:0xc9d8c4);}
+  const r=world.relic;if(r){const px=x+r.x*scale,py=y+r.y*scale,done=['complete','claimed'].includes(r.status);g.lineStyle(1,done?0x7e9282:0xf0d49b);g.beginFill(done?0x586d60:0xc79546);g.drawPolygon([px,py-7,px+3,py-3,px+7,py,px+3,py+3,px,py+7,px-3,py+3,px-7,py,px-3,py-3]);g.endFill();if(expanded)v.text(layer,'map-relic',r.visited?r.name:'异动遗迹',px+14,py+12,21,done?0x82968d:0xe9c98b);}
   const boss=core.enemies.find(e=>e.boss&&e.hp>0);
   if(boss){const p=core.point(boss);g.lineStyle(0);g.beginFill(0xe8a17a);g.drawPolygon([x+p.x*scale,y+p.y*scale-6,x+p.x*scale+6,y+p.y*scale,x+p.x*scale,y+p.y*scale+6,x+p.x*scale-6,y+p.y*scale]);g.endFill();}
   const player=core.point(core.player),px=x+player.x*scale,py=y+player.y*scale;g.lineStyle(1,0x172e30);g.beginFill(0xe4f4cf);g.drawCircle(px,py,expanded?6:4);g.endFill();

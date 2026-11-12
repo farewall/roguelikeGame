@@ -1,12 +1,13 @@
-import { Color, Graphics, HorizontalTextAlignment, Label, Layers, Mask, Node, Rect, Sprite, SpriteFrame, UITransform, VerticalTextAlignment } from 'cc';
+import { Color, Graphics, HorizontalTextAlignment, Label, Layers, Mask, Node, Rect, Sprite, SpriteFrame, UIOpacity, UITransform, VerticalTextAlignment } from 'cc';
 import { DrawList, rgba } from './DrawList';
 import { frame } from './GameAssets';
 import { enemyFrame, bossFrame } from './generated/game-core';
 import { drawHazard } from './HazardVfx';
 import { drawPlayerBind } from './VineVfx';
 import { creatureSize, drawCondensation, drawRemnant, condensationOpacity } from './CreatureVfx';
-import { creatureMotion, drawCreatureTell, drawEnrage } from './BossVfx';
+import { creatureMotion, bossMotionFrame, drawCreatureTell, drawEnrage } from './BossVfx';
 import { drawWorld, drawMap, drawWorldHud } from './WorldVfx';
+import {drawBuildPanel,drawRelicPanel} from './HudPanels';
 const GOLD = 0xe3c88b, INK = 0x14262d, LIGHT = 0xe4e2ce, MUTE = 0x9fb8ac;
 const ROWS = { down: 0, up: 1, left: 2, right: 3 };
 const clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
@@ -19,7 +20,7 @@ export class CocosPresentation {
       const node = this.makeNode(name);
       if (['ground','terrain','world'].includes(name)) { if (!this.worldClip) { this.worldClip = this.makeNode('ArenaClip'); this.root.addChild(this.worldClip); this.worldClip.addComponent(Mask).type = Mask.Type.GRAPHICS_RECT; } this.worldClip.addChild(node); }
       else this.root.addChild(node);
-      this.layers[name] = { node, g: new DrawList(node.addComponent(Graphics)), nodes: new Map(), used: new Set() };
+      this.layers[name] = { node, g: new DrawList(node.addComponent(Graphics)), nodes: new Map(), used: new Set(), pools:{sprite:[],label:[]} };
     }
   }
   finishLayers() {
@@ -31,8 +32,13 @@ export class CocosPresentation {
   begin(name: string) {
     const layer = this.layers[name]; layer.g.clear(); layer.used.clear(); return layer;
   }
-  use(layer: any, id: string, make: () => Node) {
-    let node = layer.nodes.get(id); if (!node) { node = make(); node.name = id; layer.nodes.set(id, node); layer.node.addChild(node); }
+  use(layer: any, id: string, make: () => Node,kind='') {
+    let node = layer.nodes.get(id); if (!node) {
+      node=layer===this.layers.world&&kind?layer.pools[kind]?.pop():null;
+      if(node){node.setScale(1,1,1);node.angle=0;node.getComponent(UITransform).setAnchorPoint(0,1);node.styleKey=null;node.worldDepth=undefined;}
+      else node=make();
+      node.recycleKind=kind;node.name = id; layer.nodes.set(id, node); if(node.parent!==layer.node)layer.node.addChild(node);
+    }
     node.active = true; layer.used.add(id); return node;
   }
   place(layer: any, node: Node, x: number, y: number, mask?: Node) {
@@ -44,8 +50,8 @@ export class CocosPresentation {
     const g = layer.g; g.lineStyle(border === null ? 0 : 1.5, border === null ? 0 : border, 0.8); g.beginFill(fill, alpha); g.drawRoundedRect(x, y, Math.max(0.01, w), Math.max(0.01, h), radius); g.endFill();
   }
   text(layer: any, id: string, value: any, x: number, y: number, size = 24, color = LIGHT, options: any = {}) {
-    const node = this.use(layer, id, () => { const n = this.makeNode(id); n.addComponent(Label); return n; });
-    const label = node.getComponent(Label), ui = node.getComponent(UITransform), key = JSON.stringify([size, color, options.serif, options.bold, options.center, options.wrap, options.leading, options.alpha]);
+    const node = this.use(layer, id, () => { const n = this.makeNode(id); n.addComponent(Label);n.addComponent(UIOpacity); return n; },'label');
+    const label = node.getComponent(Label), ui = node.getComponent(UITransform), key = JSON.stringify([size, color, options.serif, options.bold, options.center, options.wrap, options.leading]);
     let dirty = false;
     if ((node as any).styleKey !== key) {
       dirty = true;
@@ -53,9 +59,10 @@ export class CocosPresentation {
       label.horizontalAlign = options.center ? HorizontalTextAlignment.CENTER : HorizontalTextAlignment.LEFT; label.verticalAlign = options.center ? VerticalTextAlignment.CENTER : VerticalTextAlignment.TOP;
       label.overflow = options.wrap ? Label.Overflow.RESIZE_HEIGHT : Label.Overflow.NONE; label.enableWrapText = Boolean(options.wrap);
       ui.setAnchorPoint(options.center ? 0.5 : 0, options.center ? 0.5 : 1); if (options.wrap) ui.setContentSize(options.wrap, size * 2);
-      label.color = rgba(color, options.alpha === undefined ? 1 : options.alpha); (node as any).styleKey = key;
+      label.color = rgba(color); (node as any).styleKey = key;
     }
     const content = String(value === undefined || value === null ? '' : value); if (label.string !== content) { label.string = content; dirty = true; }
+    node.getComponent(UIOpacity).opacity=Math.round(255*clamp(options.alpha===undefined?1:options.alpha,0,1));
     this.place(layer, node, x, y, options.mask); if (dirty) label.updateRenderData(true);
     return { height: ui.contentSize.height, node, label };
   }
@@ -68,7 +75,7 @@ export class CocosPresentation {
     const node = this.use(layer, id, () => {
       const n = this.makeNode(id), sprite: any = n.addComponent(Sprite); sprite.sizeMode = Sprite.SizeMode.CUSTOM; sprite.type = Sprite.Type.SIMPLE;
       Object.defineProperty(sprite, 'tint', { get: () => (n as any).tint || 0xffffff, set: value => { (n as any).tint = value; sprite.color = rgba(value, (n as any).imageAlpha); } }); return n;
-    });
+    },'sprite');
     const sprite: any = node.getComponent(Sprite); (node as any).imageAlpha = alpha;
     if (cover) {
       const key = texture.uuid + ':' + w + ':' + h;
@@ -118,12 +125,18 @@ export class CocosPresentation {
     if (d.showEnding) this.ending();
     if (d.showArchive) this.archive();
     if (d.showWorldMap && c.combat.world) this.worldMap();
+    if(d.showBuildDetails)drawBuildPanel(this);
+    if(d.showRelic)drawRelicPanel(this);
     if (d.bossTransition) drawEnrage(this);
     if (d.showSettings) this.settings();
     this.finishLayers();
-    // Entity-specific display nodes are destroyed after leaving the arena, preventing run-length growth.
+    // Reuse a bounded set of transient displays; repeated attacks must not
+    // allocate and destroy every sprite and floating label on the main thread.
     const world = this.layers.world;
-    for (const [id, node] of world.nodes) if (!world.used.has(id)) { node.destroy(); world.nodes.delete(id); }
+    for (const [id, node] of world.nodes) if (!world.used.has(id)) {
+      const pool=world.pools[node.recycleKind],limit=node.recycleKind==='label'?40:112;
+      if(pool&&pool.length<limit)pool.push(node);else node.destroy();world.nodes.delete(id);
+    }
   }
   home() {
     const { w, h } = this.c.layout, bg = this.layers.background, layer = this.layers.hud, c = this.c;
@@ -137,11 +150,13 @@ export class CocosPresentation {
     this.text(layer, 'home-subtitle', '一念开天 · 万物新生', x, y + 83, 25, LIGHT, { center: true });
     this.text(layer, 'home-story', '一道神念于混沌中苏醒。循四象遗迹，找回失落的记忆。', w * 0.095, y + 165, 24, LIGHT, { wrap: w * 0.45 });
     const bx = w * 0.66, bw = w * 0.265;
-    this.rect(layer, bx - 28, h * 0.28 - 28, bw + 56, 354, INK, 0.8, 0x4f665b);
-    this.button(layer, 'start', '踏入混沌', bx, h * 0.28, bw, 76, () => c.openIntro(), { primary: true, size: 29 });
-    this.button(layer, 'archive', '山河手记 · ' + c.data.memoryCount + ' / 4', bx, h * 0.28 + 98, bw, 66, () => { c.setData({ archiveScroll: 0 }); c.openArchive(); });
-    this.button(layer, 'home-settings', '设置', bx, h * 0.28 + 186, bw, 66, () => c.openSettings());
-    this.text(layer, 'home-version', '御宝战斗 · 新版试玩', bx + bw / 2, h * 0.28 + 289, 19, MUTE, { center: true });
+    const top=h*.22,shift=c.data.hasCheckpoint?88:0;
+    this.rect(layer,bx-28,top-28,bw+56,354+shift,INK,.8,0x4f665b);
+    if(c.data.hasCheckpoint)this.button(layer,'resume','继续修行',bx,top,bw,70,()=>c.resumeRun(),{primary:true,size:29});
+    this.button(layer, 'start', c.data.hasCheckpoint?'开启新一局':'踏入混沌', bx,top+shift,bw,70,()=>c.openIntro(),{primary:!c.data.hasCheckpoint,size:29});
+    this.button(layer,'archive','山河手记 · '+c.data.memoryCount+' / 4',bx,top+shift+92,bw,60,()=>{c.setData({archiveScroll:0});c.openArchive();});
+    this.button(layer,'home-settings','设置',bx,top+shift+174,bw,60,()=>c.openSettings());
+    this.text(layer,'home-version',c.data.hasCheckpoint?c.data.checkpointLabel:'御宝战斗 · 新版试玩',bx+bw/2,top+shift+270,19,MUTE,{center:true});
   }
   intro() {
     const c = this.c, width = Math.min(c.layout.w - 100, 1220), panel = this.modal(width, 570), { layer, x, y } = panel;
@@ -193,7 +208,7 @@ export class CocosPresentation {
       const hit = clamp(enemy.hitTime / 0.16, 0, 1), punch = Math.sin(hit * Math.PI), direction = enemy.hitDirection || { x: 0, y: 0 };
       const motion = creatureMotion(enemy, c.combat.time);
       const sw = size * (0.85 + solidity * 0.15) * (1 + punch * 0.13) * motion.sx, sh = size * (0.8 + solidity * 0.2) * (1 - punch * 0.1) * motion.sy, recoil = punch * (enemy.boss ? 2 : 8);
-      const texture = enemy.boss ? this.assets.frames.bosses[enemy.bossType - 1][bossFrame(enemy)] : this.assets.frames.enemies[enemyFrame(enemy)];
+      const texture = enemy.boss ? bossMotionFrame(this,enemy)||this.assets.frames.bosses[enemy.bossType - 1][bossFrame(enemy)] : this.assets.frames.enemies[enemyFrame(enemy)];
       // Keep a charging creature facing its locked lane, even if the player
       // crosses behind it during the warning. Only the sprite is mirrored.
       const charging = enemy.kind === 'charger' || enemy.bossType === 2;
@@ -202,10 +217,11 @@ export class CocosPresentation {
       const flipped = enemy.bossType !== 5 && (lane ? lane.end.x - lane.x : facing) > 0;
       const sprite = this.image(world, 'enemy-' + enemy.id, texture, p.x + (flipped ? sw / 2 : -sw / 2) + direction.x * recoil, p.y - sh / 2 + direction.y * recoil + motion.dy, sw, sh, solidity);
       sprite.node.setScale(flipped ? -1 : 1, 1, 1); sprite.node.angle = motion.angle * (flipped ? -1 : 1);
+      (sprite.node as any).worldDepth=p.y+(c.combat.world?c.combat.world.footOffset(enemy):size*.3);
       sprite.tint = hit > 0.5 ? 0xffffff : hit > 0 ? 0xffd39a : enemy.freezeTime > 0 ? 0xb5e4f1 : 0xffffff;
       drawCreatureTell(this, world, enemy, p, size);
       if (!enemy.boss) {
-        if (enemy.kind !== 'wraith') this.text(world, 'role-' + enemy.id, enemy.trial ? '试炼' : enemy.kind === 'ranged' ? '吞灵' : enemy.kind === 'charger' ? '裂界' : '重兽', p.x, p.y - size / 2 - 14, 20, LIGHT, { center: true });
+        if(enemy.trial||enemy.relicTrial||d.hintsOn&&enemy.kind!=='wraith'&&enemy.castTime>0)this.text(world,'role-'+enemy.id,enemy.relicTrial?'守印灵':enemy.trial?'试炼':enemy.kind==='ranged'?'蓄息':enemy.kind==='charger'?'伏身':'抬爪',p.x,p.y-size/2-14,21,LIGHT,{center:true});
         if (enemy.hp < enemy.maxHp) { this.rect(world, p.x - 26, p.y + size / 2 - 1, 52, 5, 0x24322f); this.rect(world, p.x - 26, p.y + size / 2 - 1, 52 * Math.max(0, enemy.hp / enemy.maxHp), 5, 0xd18b60); }
       }
       if (enemy.fractureTime > 0) {
@@ -217,9 +233,11 @@ export class CocosPresentation {
     }
     const frame = d.actorFrame, atlas = d.ended && d.won ? this.assets.frames[frame.action || 'idle'] : this.assets.frames.artifact[frame.action || 'idle'], texture = atlas[(ROWS[frame.direction || 'down'] || 0) * 6 + (frame.index || 0)];
     const hero = this.image(world, 'hero', texture, player.x - 96, player.y - 104, 192, 192, d.ended && !d.won ? Math.max(0, 1 - (frame.index || 0) / 5) : d.hurt ? 0.65 : 1);
+    (hero.node as any).worldDepth=player.y+54;
     if (!d.ended) this.artifact(world, player, d.weaponId, c.combat.time, frame);
     if (!d.ended) drawPlayerBind(this, world, player, c.combat.rootTime, c.combat.time);
     hero.tint = d.hurt ? 0xffd4a8 : 0xffffff;
+    this.sortWorld();
     if (d.warded) for (const side of [-1, 1]) { g.lineStyle(3, 0xbcdfc8, 0.65); g.moveTo(player.x + side * 45, player.y - 32); g.lineTo(player.x + side * 51, player.y + 20); }
     this.text(hud, 'brand', '开天一念', a.x, 22, 31, GOLD, { bold: true });
     this.text(hud, 'phase', d.phaseName, a.x + 200, 16, 23, GOLD);
@@ -239,13 +257,10 @@ export class CocosPresentation {
       this.text(hud, 'boss-state', d.boss.state, bx + bw * 0.49, a.y + 23, 19, MUTE);
       this.rect(hud, bx + 14, a.y + 67, bw - 28, 5, 0x35443d); this.rect(hud, bx + 14, a.y + 67, (bw - 28) * d.boss.hpPct / 100, 5, 0xcd9d71);
     }
-    const buildW = 350, buildX = a.x + a.width - buildW - 240, weaponDetail = d.bannerUpgradeLabel || d.swordLabel, buildExtra = weaponDetail ? 26 : 0, buildY = a.y + a.height - (d.pathName ? 140 : 112) - buildExtra;
-    this.rect(hud, buildX, buildY, buildW, (d.pathName ? 125 : 99) + buildExtra, 0x0c1d25, 0.73);
-    this.text(hud, 'build-weapon', d.weaponName + (d.comboName ? ' · ' + d.comboName : ''), buildX + 15, buildY + 8, 24, GOLD);
-    this.text(hud, 'build-elements', d.elementName, buildX + 15, buildY + (d.pathName ? 64 : 42), 20, LIGHT);
-    if (d.pathName) this.text(hud, 'build-path', d.pathName + (d.warded ? ' · 护体中' : ''), buildX + 15, buildY + 40, 20, MUTE);
-    this.text(hud, 'build-stats', d.combatStats, buildX + 15, buildY + (d.pathName ? 92 : 70), 19, MUTE);
-    if (weaponDetail) this.text(hud, 'build-blades', weaponDetail, buildX + 15, buildY + (d.pathName ? 118 : 96), 19, GOLD);
+    this.button(hud,'build-open','构筑',a.x+a.width-214,a.y+20,88,34,()=>c.openBuild(),{size:21});
+    const relic=d.worldRelic;
+    if(relic?.nearby&&relic.status==='ready')this.button(hud,'relic-open','查看遗迹',a.x+a.width/2-100,a.y+a.height-79,200,52,()=>c.openRelic(),{primary:true,size:25});
+    else if(relic?.status==='active')this.text(hud,'relic-active','守印试炼 · 击败守印灵',a.x+a.width/2,a.y+a.height-34,22,GOLD,{center:true});
     if (!d.ended) {
       this.skillControl(hud);
       const controls = hud.g;
@@ -253,9 +268,9 @@ export class CocosPresentation {
       controls.lineStyle(2, GOLD, 0.45); controls.beginFill(0xbacabb, 0.12); controls.drawCircle(joy.x + 100 + d.joystick.x, joy.y + 100 + d.joystick.y, 38); controls.endFill();
     }
     if (d.message) {
-      const tw = Math.min(900, a.width * 0.66), tx = a.x + (a.width - tw) / 2;
-      this.rect(hud, tx, a.y + 104, tw, 62, 0x0b1d26, 0.9, 0x6a735c); this.text(hud, 'toast', d.message, tx + tw / 2, a.y + 135, 22, GOLD, { center: true });
-    } else if (d.hintsOn) this.text(hud, 'hint', d.boss ? d.boss.hint : d.weaponId === 'bell' ? '让外缘扫过敌群 · 居中回响追击 · 镇界解围' : '左手走位 · 至宝自动攻击 · 右下蓄能技', a.x + a.width / 2, a.y + a.height - 20, 19, MUTE, { center: true });
+      const tw=Math.min(720,a.width*.5),tx=a.x+24;
+      this.rect(hud,tx,a.y+81,tw,64,0x0b1d26,.82);this.text(hud,'toast',d.message,tx+15,a.y+90,23,GOLD,{wrap:tw-30,leading:1.2});
+    } else if(d.hintsOn&&c.combat.time<12&&!d.boss&&!relic?.nearby)this.text(hud,'hint','左手走位 · 至宝自动追敌 · 右下主动技',a.x+a.width/2,a.y+a.height-24,21,MUTE,{center:true});
     this.text(hud, 'xp', '灵气 ' + d.xp + ' / ' + d.xpNeed, a.x, h - 39, 21, MUTE);
     this.rect(hud, a.x + 160, h - 28, a.width - 465, 5, 0x2b3e42); this.rect(hud, a.x + 160, h - 28, (a.width - 465) * d.xpPct / 100, 5, 0xafbf8b);
     this.text(hud, 'kills', '击破 ' + d.kills + '       ' + (d.stage === 5 ? '天道终战' : '四象 ' + d.stage + ' / 4'), a.x + a.width - 280, h - 39, 20, MUTE);
@@ -264,8 +279,19 @@ export class CocosPresentation {
     g.lineStyle(width * 0.28, color, alpha); g.moveTo(p.x, p.y); g.lineTo(q.x, q.y);
     g.lineStyle(width * 0.09, 0xeaffec, Math.min(0.8, alpha * 3)); g.moveTo(p.x, p.y); g.lineTo(q.x, q.y);
   }
+  sortWorld() {
+    const layer=this.layers.world,nodes=[...layer.used].map(id=>layer.nodes.get(id)).filter(Boolean);
+    const depth=node=>node.worldDepth===undefined?(node.recycleKind==='label'?1e9:-1e6):node.worldDepth;
+    nodes.sort((a,b)=>depth(a)-depth(b));
+    const start=layer.node.children.length-nodes.length;
+    nodes.forEach((node,i)=>{if(node.getSiblingIndex()!==start+i)node.setSiblingIndex(start+i);});
+  }
   drawEffect(layer, effect, point) {
     const g = layer.g, p = point(effect), t = clamp(effect.age / effect.life, 0, 1), life = 1 - t;
+    if(effect.type==='boss-break'||effect.type==='sword-ward'){
+      const color=effect.type==='boss-break'?0xffdf9e:0xc5e3db;
+      for(let i=0;i<6;i++){const a=i*Math.PI/3+.2,r=10+t*effect.radius;g.lineStyle(2.5,color,life*.85);g.moveTo(p.x+Math.cos(a)*r,p.y+Math.sin(a)*r*.6);g.lineTo(p.x+Math.cos(a)*(r+12*life),p.y+Math.sin(a)*(r+12*life)*.6-8*life);}return;
+    }
     if(effect.type==='world-loot'){g.lineStyle(2,0xe5d4a1,life);for(let i=0;i<7;i++){const a=i*Math.PI*2/7,r=8+t*30;g.moveTo(p.x+Math.cos(a)*r,p.y+Math.sin(a)*r-t*26);g.lineTo(p.x+Math.cos(a)*(r+7*life),p.y+Math.sin(a)*(r+7*life)-t*26);}return;}
     if (effect.type === 'blade-split' || effect.type === 'banner-cast') {
       const split = effect.type === 'blade-split', size = split ? 45 + t * 48 : 48 + t * 24;
@@ -369,6 +395,7 @@ export class CocosPresentation {
       const x = clamp(player.x + 98, a.x + 88, a.x + a.width - 88), y = clamp(player.y - 52 + Math.sin(time * 2.5) * 3, a.y + 96, a.y + a.height - 96);
       const banner = this.image(layer, 'pangu-banner', this.assets.frames.banner[castFrame >= 0 ? castFrame : idleFrame], x, y, 176, 192);
       banner.node.getComponent(UITransform).setAnchorPoint(0.5, 0.5); banner.node.setPosition(x, -y);
+      (banner.node as any).worldDepth=player.y+55;
       banner.node.setSiblingIndex(layer.node.children.length - 1);
     }
   }
@@ -379,15 +406,16 @@ export class CocosPresentation {
       const x = a.x + sword.x / 100 * c.combat.width, y = a.y + sword.y / 100 * c.combat.height;
       const body = this.image(layer, 'zhuxian-sword-' + sword.index, this.assets.frames.swords[sword.index], x, y, sword.width, sword.height);
       body.node.getComponent(UITransform).setAnchorPoint(0.5, 0.5); body.node.setPosition(x, -y); body.node.angle = sword.angle;
+      (body.node as any).worldDepth=(hero as any).worldDepth+sword.depth*65;
       bodies.push({ node: body.node, depth: sword.depth });
       if (!['idle', 'waiting', 'settle'].includes(sword.state)) {
         const base = sword.blade.base, tip = sword.blade.tip, dx = tip.x - base.x, dy = tip.y - base.y, length = Math.hypot(dx, dy) || 1;
-        layer.g.lineStyle(sword.skill ? 1.8 : 1, 0xe2ebdc, sword.state === 'windup' ? 0.6 : 0.32);
+        layer.g.lineStyle(sword.skill ? 2.2 : 1.5, 0xf1edcf, sword.state === 'windup' ? 0.72 : 0.48);
         layer.g.moveTo(a.x + tip.x - dx / length * 18, a.y + tip.y - dy / length * 18); layer.g.lineTo(a.x + tip.x, a.y + tip.y);
       }
       for (let i = 1; i < sword.trail.length; i++) {
         const previous = sword.trail[i - 1], next = sword.trail[i];
-        layer.g.lineStyle(sword.skill ? 2.5 : 1.5, [0xd6a17f, 0xc9a36f, 0x9cc8d6, 0xa9cbb2][sword.index], next.alpha * (sword.state === 'return' ? 0.28 : 0.5));
+        layer.g.lineStyle(sword.skill ? 2.8 : 1.8, [0xd6a17f, 0xc9a36f, 0x9cc8d6, 0xa9cbb2][sword.index], next.alpha * (sword.state === 'return' ? 0.35 : 0.58));
         layer.g.moveTo(a.x + previous.x, a.y + previous.y); layer.g.lineTo(a.x + next.x, a.y + next.y);
       }
     }
@@ -428,25 +456,25 @@ export class CocosPresentation {
     });
   }
   memory() {
-    const c = this.c, d = c.data, width = Math.min(c.layout.w - 100, 1420), { layer, x, y, height } = this.modal(width, 650), artW = width * 0.29, bx = x + artW + 30, bw = width - artW - 60;
+    const c = this.c, d = c.data,three=d.rewardChoices.length>2,width = Math.min(c.layout.w - 100, 1420), { layer, x, y, height } = this.modal(width,three?700:650), artW = width * 0.29, bx = x + artW + 30, bw = width - artW - 60;
     this.image(layer, 'story-art', this.assets.textures['arena' + d.memory.id], x + 2, y + 2, artW - 2, height - 4, 0.87, true);
     this.text(layer, 'memory-art-title', '山\n河\n旧\n忆', x + 45, y + 350, 46, GOLD, { serif: true });
     this.text(layer, 'memory-kicker', d.memory.scene + ' · 记忆已收录', bx, y + 30, 21, MUTE);
     this.text(layer, 'memory-title', d.memory.title, bx, y + 70, 39, GOLD, { serif: true });
     this.text(layer, 'memory-copy', d.memory.copy, bx, y + 141, 24, LIGHT, { wrap: bw, leading: 1.65 });
     if (d.rewardChoices.length) {
-      this.text(layer, 'reward-title', d.rewardTitle, bx, y + 328, 23, GOLD);
+      this.text(layer,'reward-title',d.rewardTitle,bx,y+(three?271:328),23,GOLD);
       d.rewardChoices.forEach((choice, i) => {
-        const rw = (bw - 18) / 2, rx = bx + i * (rw + 18), ry = y + 371, selected = d.rewardSelectedId === choice.id;
-        this.rect(layer, rx, ry, rw, 156, selected ? 0x354d3e : 0x1a3035, 1, selected ? GOLD : 0x6b8270);
-        this.text(layer, 'reward-name-' + i, choice.name, rx + 15, ry + 12, 25, GOLD);
-        this.text(layer, 'reward-desc-' + i, choice.desc, rx + 15, ry + 51, 20, LIGHT, { wrap: rw - 30 });
-        this.text(layer, 'reward-change-' + i, choice.change, rx + 15, ry + 110, 18, MUTE, { wrap: rw - 30 });
-        this.regions.push({ id: 'reward-' + choice.id, x: rx, y: ry, width: rw, height: 156, enabled: !choice.disabled && !d.rewardSelectedId, action: () => c.selectMemoryReward({ currentTarget: { dataset: { reward: choice.id } } }) });
+        const rw=three?bw:(bw-18)/2,rx=three?bx:bx+i*(rw+18),ry=y+(three?304+i*100:371),rh=three?94:156,selected=d.rewardSelectedId===choice.id;
+        this.rect(layer,rx,ry,rw,rh,selected?0x354d3e:0x1a3035,1,selected?GOLD:0x6b8270);
+        this.text(layer,'reward-name-'+i,choice.name,rx+15,ry+14,three?27:25,GOLD);
+        this.text(layer,'reward-desc-'+i,choice.desc,rx+(three?236:15),ry+(three?12:51),three?23:20,LIGHT,{wrap:rw-(three?253:30),leading:1.25});
+        if(!three)this.text(layer,'reward-change-'+i,choice.change,rx+15,ry+110,18,MUTE,{wrap:rw-30});
+        this.regions.push({id:'reward-'+choice.id,x:rx,y:ry,width:rw,height:rh,enabled:!choice.disabled&&!d.rewardSelectedId,action:()=>c.selectMemoryReward({currentTarget:{dataset:{reward:choice.id}}})});
       });
     }
-    this.text(layer, 'memory-note', d.rewardChoices.length && !d.rewardSelectedId ? '选择一项，再前往下一境' : '记忆可回看 · 下一境恢复 15 元气', bx, y + 548, 20, MUTE);
-    this.button(layer, 'memory-continue', d.nextStageLabel, bx, y + 590, bw, 44, () => c.continueStage(), { primary: true, size: 24, enabled: !d.rewardChoices.length || Boolean(d.rewardSelectedId) });
+    this.text(layer,'memory-note',d.rewardChoices.length&&!d.rewardSelectedId?'选择一项，再前往下一境':'记忆可回看 · 下一境恢复 15 元气',bx,y+(three?609:548),20,MUTE);
+    this.button(layer,'memory-continue',d.nextStageLabel,bx,y+(three?643:590),bw,44,()=>c.continueStage(),{primary:true,size:24,enabled:!d.rewardChoices.length||Boolean(d.rewardSelectedId)});
   }
   ending() {
     const c = this.c, d = c.data, width = Math.min(c.layout.w - 100, 1380), { layer, x, y, height } = this.modal(width, 610), artW = width * 0.29, bx = x + artW + 30, bw = width - artW - 60;
@@ -484,9 +512,9 @@ export class CocosPresentation {
     const c = this.c, d = c.data, { layer, x, y } = this.modal(680, d.confirmExit ? 360 : 600);
     this.text(layer, 'settings-title', d.view === 'game' ? '暂停 · 游戏设置' : '游戏设置', x + 340, y + 52, 34, GOLD, { center: true, serif: true });
     if (d.confirmExit) {
-      this.text(layer, 'exit-copy', '退出会结束当前这局，并返回主菜单。\n已收录的手记会保留。', x + 40, y + 123, 26, LIGHT, { wrap: 600 });
+      this.text(layer,'exit-copy','保存当前进度并返回主菜单。\n再次进入时可从「继续修行」续玩。',x+40,y+123,26,LIGHT,{wrap:600});
       this.button(layer, 'exit-cancel', '返回设置', x + 40, y + 257, 285, 65, () => c.cancelExit());
-      this.button(layer, 'exit-confirm', '确认退出', x + 355, y + 257, 285, 65, () => c.exitToHome(), { primary: true }); return;
+      this.button(layer,'exit-confirm','保存并返回',x+355,y+257,285,65,()=>c.exitToHome(),{primary:true});return;
     }
     [['音效', 'soundOn', 'toggleSound'], ['震动反馈', 'vibrationOn', 'toggleVibration'], ['操作提示', 'hintsOn', 'toggleHints']].forEach(([label, key, fn], i) => {
       this.text(layer, 'setting-label-' + key, label, x + 42, y + 122 + i * 74, 27, LIGHT);
@@ -499,7 +527,7 @@ export class CocosPresentation {
     this.regions.push({ id: 'volume', x: x + 48, y: y + 408, width: 580, height: 56, type: 'volume' });
     if (d.view === 'game') {
       this.button(layer, 'settings-close', '继续游戏', x + 40, y + 505, 285, 64, () => c.closeSettings(), { primary: true });
-      this.button(layer, 'settings-exit', '退出本局', x + 355, y + 505, 285, 64, () => c.requestExit());
+      this.button(layer,'settings-exit','保存并返回',x+355,y+505,285,64,()=>c.requestExit());
     } else this.button(layer, 'settings-close', '完成', x + 40, y + 505, 600, 64, () => c.closeSettings(), { primary: true });
   }
 }
