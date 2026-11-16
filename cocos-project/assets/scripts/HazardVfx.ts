@@ -2,6 +2,7 @@ import { UITransform } from 'cc';
 import { attackLine, waveBand, sectorAngle, inAngleGap, tigerClawSegment } from './generated/game-core';
 import { drawRootHazard } from './VineVfx';
 import { drawMeteor } from './MeteorVfx';
+import {drawSeaWave} from './SeaVfx';
 const clamp = (n: number, a = 0, b = 1) => Math.max(a, Math.min(b, n));
 
 // Only physical attacks are drawn. Wind-up comes from the caster's body.
@@ -67,19 +68,7 @@ export function drawHazard(v: any, layer: any, h: any, point: (p: any) => any) {
   if (h.shape === 'ring') {
     const { radius, inner } = waveBand(h), r = (radius + inner) / 2, count = Math.min(48,Math.max(10,Math.ceil(r*Math.PI*2/34)));
     if (h.kind === 'tide') {
-      // A rolling body of water, with an uneven foam lip and a fading wake.
-      // This is the damaging crest itself; no predictive boundary is drawn.
-      const samples = Math.min(96,Math.max(24,Math.ceil(radius*Math.PI*2/18))), step = Math.PI * 2 / samples;
-      for (let i = 0; i < samples; i++) {
-        const a = i * step, b = a + step;
-        if (inAngleGap(h, Math.cos(a), Math.sin(a)) || inAngleGap(h, Math.cos(b), Math.sin(b))) continue;
-        const wave = angle => Math.sin(angle * 9 + age * 8 + h.id) * 3 + Math.sin(angle * 17 - age * 11) * 1.5;
-        const outerA = radius + wave(a), outerB = radius + wave(b), wakeA = Math.max(0, inner - 12 + wave(a)), wakeB = Math.max(0, inner - 12 + wave(b));
-        g.lineStyle(0); g.beginFill(0x236d82, fade * 0.46);
-        g.drawPolygon([p.x + Math.cos(a) * wakeA, p.y + Math.sin(a) * wakeA, p.x + Math.cos(a) * outerA, p.y + Math.sin(a) * outerA, p.x + Math.cos(b) * outerB, p.y + Math.sin(b) * outerB, p.x + Math.cos(b) * wakeB, p.y + Math.sin(b) * wakeB]); g.endFill();
-        g.beginFill(0x7cc8da, fade * 0.32);
-        g.drawPolygon([p.x + Math.cos(a) * (outerA - 17), p.y + Math.sin(a) * (outerA - 17), p.x + Math.cos(a) * outerA, p.y + Math.sin(a) * outerA, p.x + Math.cos(b) * outerB, p.y + Math.sin(b) * outerB, p.x + Math.cos(b) * (outerB - 17), p.y + Math.sin(b) * (outerB - 17)]); g.endFill();
-      }
+      drawSeaWave(v,layer,h,p,radius,inner,fade);return;
     }
     for (let i = 0; i < count; i++) {
       const a = i * Math.PI * 2 / count, dx = Math.cos(a), dy = Math.sin(a);

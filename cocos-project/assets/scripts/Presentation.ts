@@ -8,6 +8,7 @@ import { creatureSize, drawCondensation, drawRemnant, condensationOpacity } from
 import { creatureMotion, bossMotionFrame, drawCreatureTell, drawEnrage } from './BossVfx';
 import { drawWorld, drawMap, drawWorldHud } from './WorldVfx';
 import {drawBuildPanel,drawRelicPanel} from './HudPanels';
+import {drawGroundContact,bodyGroundShift,HERO_TOP,BELL_HEIGHT} from './ReleaseArt';
 const GOLD = 0xe3c88b, INK = 0x14262d, LIGHT = 0xe4e2ce, MUTE = 0x9fb8ac;
 const ROWS = { down: 0, up: 1, left: 2, right: 3 };
 const clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
@@ -34,7 +35,7 @@ export class CocosPresentation {
   }
   use(layer: any, id: string, make: () => Node,kind='') {
     let node = layer.nodes.get(id); if (!node) {
-      node=layer===this.layers.world&&kind?layer.pools[kind]?.pop():null;
+      node=(layer===this.layers.world||layer===this.layers.terrain)&&kind?layer.pools[kind]?.pop():null;
       if(node){node.setScale(1,1,1);node.angle=0;node.getComponent(UITransform).setAnchorPoint(0,1);node.styleKey=null;node.worldDepth=undefined;}
       else node=make();
       node.recycleKind=kind;node.name = id; layer.nodes.set(id, node); if(node.parent!==layer.node)layer.node.addChild(node);
@@ -132,10 +133,9 @@ export class CocosPresentation {
     this.finishLayers();
     // Reuse a bounded set of transient displays; repeated attacks must not
     // allocate and destroy every sprite and floating label on the main thread.
-    const world = this.layers.world;
-    for (const [id, node] of world.nodes) if (!world.used.has(id)) {
-      const pool=world.pools[node.recycleKind],limit=node.recycleKind==='label'?40:112;
-      if(pool&&pool.length<limit)pool.push(node);else node.destroy();world.nodes.delete(id);
+    for(const layer of [this.layers.world,this.layers.terrain])for (const [id, node] of layer.nodes) if (!layer.used.has(id)) {
+      const pool=layer.pools[node.recycleKind],limit=node.recycleKind==='label'?40:112;
+      if(pool&&pool.length<limit)pool.push(node);else node.destroy();layer.nodes.delete(id);
     }
   }
   home() {
@@ -184,6 +184,7 @@ export class CocosPresentation {
     if (c.combat.world) drawWorld(this,this.layers.ground,this.layers.terrain,world,point);
     for (const hazard of c.combat.hazards) drawHazard(this, world, hazard, point);
     const player = point(d.player);
+    drawGroundContact(this,this.layers.terrain,'hero',player,{},164,54);
     for (const wave of c.combat.bellWaves) this.bellWave(world, wave, point);
     for (const effect of c.combat.effects) this.drawEffect(world, effect, point);
     for (const volley of c.combat.projectiles) for (const [index, bolt] of volley.bolts.entries()) {
@@ -204,8 +205,9 @@ export class CocosPresentation {
       const p = point(enemy), size = creatureSize(enemy);
       if (c.combat.world) { const camera=c.combat.camera();if(p.x<a.x+camera.x-260 || p.x>a.x+camera.x+a.width+260 || p.y<a.y+camera.y-260 || p.y>a.y+camera.y+a.height+260) continue; }
       const forming = enemy.spawnTime > 0, solidity = condensationOpacity(enemy);
+      drawGroundContact(this,this.layers.terrain,String(enemy.id),p,enemy,size,c.combat.world?c.combat.world.footOffset(enemy):size*.3);
       if (forming) drawCondensation(this, world, enemy, p, size);
-      const hit = clamp(enemy.hitTime / 0.16, 0, 1), punch = Math.sin(hit * Math.PI), direction = enemy.hitDirection || { x: 0, y: 0 };
+      const hit = clamp(enemy.hitTime / 0.16, 0, 1), punch = Math.sin(hit * Math.PI)*(enemy.boss&&enemy.castTime>0?.22:1), direction = enemy.hitDirection || { x: 0, y: 0 };
       const motion = creatureMotion(enemy, c.combat.time);
       const sw = size * (0.85 + solidity * 0.15) * (1 + punch * 0.13) * motion.sx, sh = size * (0.8 + solidity * 0.2) * (1 - punch * 0.1) * motion.sy, recoil = punch * (enemy.boss ? 2 : 8);
       const texture = enemy.boss ? bossMotionFrame(this,enemy)||this.assets.frames.bosses[enemy.bossType - 1][bossFrame(enemy)] : this.assets.frames.enemies[enemyFrame(enemy)];
@@ -216,7 +218,7 @@ export class CocosPresentation {
       const facing = (enemy.castTime > 0||enemy.tigerHunt) && enemy.attackAngle !== undefined ? Math.cos(enemy.attackAngle) : c.player.x - enemy.x;
       const frontFlight=enemy.bossType===2&&enemy.tigerPose===6&&Math.sin(enemy.attackAngle||0)>=-.28;
       const flipped = enemy.bossType !== 5 && (frontFlight?(lane ? lane.end.x-lane.x:facing)<0:(lane ? lane.end.x - lane.x : facing)>0);
-      const sprite = this.image(world, 'enemy-' + enemy.id, texture, p.x + (flipped ? sw / 2 : -sw / 2) + direction.x * recoil, p.y - sh / 2 + direction.y * recoil + motion.dy, sw, sh, solidity);
+      const sprite = this.image(world, 'enemy-' + enemy.id, texture, p.x + (flipped ? sw / 2 : -sw / 2) + direction.x * recoil, p.y - sh / 2 + direction.y * recoil + motion.dy+bodyGroundShift(enemy,size), sw, sh, solidity);
       sprite.node.setScale(flipped ? -1 : 1, 1, 1); sprite.node.angle = motion.angle * (flipped ? -1 : 1);
       (sprite.node as any).worldDepth=p.y+(c.combat.world?c.combat.world.footOffset(enemy):size*.3);
       sprite.tint = hit > 0.5 ? 0xffffff : hit > 0 ? 0xffd39a : enemy.freezeTime > 0 ? 0xb5e4f1 : 0xffffff;
@@ -232,8 +234,8 @@ export class CocosPresentation {
       if (enemy.burnTime > 0) this.image(world, 'burn-' + enemy.id, this.assets.frames.meteor[12 + Math.floor(c.combat.time * 8) % 4], p.x - size * 0.24, p.y + size * 0.05, size * 0.48, size * 0.4, 0.4);
       if (enemy.slowTime > 0) for (const side of [-1, 1]) { g.lineStyle(2, 0xa3d5e4, 0.65); g.moveTo(p.x + side * size * 0.25, p.y + size * 0.22); g.lineTo(p.x + side * size * 0.2, p.y + size * 0.36); }
     }
-    const frame = d.actorFrame, atlas = d.ended && d.won ? this.assets.frames[frame.action || 'idle'] : this.assets.frames.artifact[frame.action || 'idle'], texture = atlas[(ROWS[frame.direction || 'down'] || 0) * 6 + (frame.index || 0)];
-    const hero = this.image(world, 'hero', texture, player.x - 96, player.y - 104, 192, 192, d.ended && !d.won ? Math.max(0, 1 - (frame.index || 0) / 5) : d.hurt ? 0.65 : 1);
+    const frame = d.actorFrame, atlas = this.assets.frames.artifact[frame.action || 'idle'], texture = atlas[(ROWS[frame.direction || 'down'] || 0) * 6 + (frame.index || 0)];
+    const hero = this.image(world, 'hero', texture, player.x - 96, player.y - HERO_TOP, 192, 192, d.ended && !d.won ? Math.max(0, 1 - (frame.index || 0) / 5) : d.hurt ? 0.65 : 1);
     (hero.node as any).worldDepth=player.y+54;
     if (!d.ended) this.artifact(world, player, d.weaponId, c.combat.time, frame);
     if (!d.ended) drawPlayerBind(this, world, player, c.combat.rootTime, c.combat.time);
@@ -253,10 +255,10 @@ export class CocosPresentation {
     if (c.combat.world) drawWorldHud(this);
     if (d.boss) {
       const bw = Math.min(630, a.width * 0.43), bx = a.x + a.width / 2 - bw / 2;
-      this.rect(hud, bx, a.y + 13, bw, 72, 0x10232b, 0.94, 0x6f755b);
-      this.text(hud, 'boss-name', d.boss.name + ' · ' + d.boss.phase, bx + 14, a.y + 21, 23, GOLD);
-      this.text(hud, 'boss-state', d.boss.state, bx + bw * 0.49, a.y + 23, 19, MUTE);
-      this.rect(hud, bx + 14, a.y + 67, bw - 28, 5, 0x35443d); this.rect(hud, bx + 14, a.y + 67, (bw - 28) * d.boss.hpPct / 100, 5, 0xcd9d71);
+      this.rect(hud, bx, a.y + 13, bw, 54, 0x142328, 0.8, 0x686951);
+      this.text(hud, 'boss-name', d.boss.name + ' · ' + d.boss.phase, bx + 14, a.y + 18, 22, GOLD);
+      this.text(hud, 'boss-state', d.boss.state, bx + bw * 0.51, a.y + 20, 18, MUTE);
+      this.rect(hud, bx + 14, a.y + 55, bw - 28, 4, 0x35443d); this.rect(hud, bx + 14, a.y + 55, (bw - 28) * d.boss.hpPct / 100, 4, 0xcd9d71);
     }
     this.button(hud,'build-open','构筑',a.x+a.width-214,a.y+20,88,34,()=>c.openBuild(),{size:21});
     const relic=d.worldRelic;
@@ -265,8 +267,8 @@ export class CocosPresentation {
     if (!d.ended) {
       this.skillControl(hud);
       const controls = hud.g;
-      controls.lineStyle(2, 0xc8cdb8, 0.28); controls.beginFill(0x142c30, 0.18); controls.drawCircle(joy.x + 100, joy.y + 100, 100); controls.endFill();
-      controls.lineStyle(2, GOLD, 0.45); controls.beginFill(0xbacabb, 0.12); controls.drawCircle(joy.x + 100 + d.joystick.x, joy.y + 100 + d.joystick.y, 38); controls.endFill();
+      controls.lineStyle(1.5, 0xc8cdb8, 0.25); controls.beginFill(0x142328, 0.13); controls.drawCircle(joy.x + 100, joy.y + 100, 100); controls.endFill();
+      controls.lineStyle(2, GOLD, 0.5); controls.beginFill(0xbacabb, 0.14); controls.drawCircle(joy.x + 100 + d.joystick.x, joy.y + 100 + d.joystick.y, 38); controls.endFill();
     }
     if (d.message) {
       const tw=Math.min(720,a.width*.5),tx=a.x+24;
@@ -398,7 +400,7 @@ export class CocosPresentation {
       const charge = pending ? 1 - Math.min(1, pending.remaining / (2 / 12)) : 0;
       const summon = this.c.combat.effects.find(effect => effect.type === 'bell-summon');
       const pulse = summon ? Math.sin(Math.PI * summon.age / summon.life) * 0.1 : 0;
-      this.bellBody(layer, player.x + Math.sin(time * 65) * charge * 1.5, player.y - 114 + Math.sin(time * 2.2) * 3, 0.7 + pulse, charge, this.c.data.bellMarks || 0, this.c.data.bellThreshold || 3, 1, time * 1.4);
+      this.bellBody(layer, player.x + Math.sin(time * 65) * charge * 1.5, player.y - BELL_HEIGHT + Math.sin(time * 2.2) * 3, 0.64 + pulse, charge, this.c.data.bellMarks || 0, this.c.data.bellThreshold || 3, 1, time * 1.4);
     } else {
       const view = this.c.layout.arena, camera=this.c.combat.camera(), a={...view,x:view.x+camera.x,y:view.y+camera.y}, release = this.c.combat.effects.find(effect => effect.type === 'banner-cast' || effect.type === 'rift-windup' || effect.type === 'rift');
       const castFrame = release ? 8 + Math.min(3, Math.floor(release.age / 0.3 * 4)) : actorFrame.action === 'attack' ? [8, 8, 9, 10, 11, 11][actorFrame.index || 0] : -1;
@@ -442,11 +444,13 @@ export class CocosPresentation {
   }
   skillControl(layer) {
     const c = this.c, d = c.data, r = c.layout.skill, g = layer.g, x = r.x + 96, y = r.y + 92, ready = d.skillReady && !c.isBlocked(), color = d.weaponId === 'bell' ? GOLD : d.weaponId === 'swords' ? 0xddbc96 : 0xb1e4d7;
-    g.lineStyle(2, color, ready ? 0.9 : 0.35); g.beginFill(0x102a31, 0.92); g.drawCircle(x, y, 77); g.endFill();
-    g.lineStyle(7, color, ready ? 0.95 : 0.65); g.arc(x, y, 84, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.001, d.energy / 100));
-    if (ready) { g.lineStyle(1.5, color, 0.3 + Math.sin(c.combat.time * 4) * 0.14); g.drawCircle(x, y, 92); }
-    this.text(layer, 'skill-name', d.skillName, x, y - 13, 35, color, { center: true, serif: true, bold: true });
-    this.text(layer, 'skill-charge', ready ? '释放' : d.energy + '%', x, y + 29, 22, ready ? LIGHT : MUTE, { center: true });
+    g.lineStyle(1.5, color, ready ? 0.8 : 0.35); g.beginFill(0x142328, 0.68); g.drawCircle(x, y, 77); g.endFill();
+    g.lineStyle(4, color, ready ? 0.9 : 0.55); g.arc(x, y, 84, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.001, d.energy / 100));
+    if(d.weaponId==='swords')for(let i=0;i<4;i++){
+      const blade=this.image(layer,'skill-emblem-'+i,this.assets.frames.swords[i],x-34+i*12,y-54,32,67,ready?1:.65);blade.node.angle=-18+i*12;
+    }else this.image(layer,'skill-emblem',d.weaponId==='bell'?this.assets.frames.bell[0]:this.assets.frames.banner[0],x-32,y-62,64,70,ready?1:.65);
+    this.text(layer, 'skill-name', d.skillName, x, y + 28, 24, color, { center: true, serif: true, bold: true });
+    this.text(layer, 'skill-charge', ready ? '释放' : d.energy + '%', x, y + 55, 17, ready ? LIGHT : MUTE, { center: true });
     this.text(layer, 'skill-help', d.weaponId === 'banner' && ready ? '拖动瞄准 · 松手释放' : d.weaponId === 'swords' && ready ? '点击御剑 · 清场围杀' : ready ? '点击震退 · 打断施法' : '命中与击破蓄能', x, r.y + 193, 17, MUTE, { center: true });
     this.regions.push({ id: 'skill', type: 'skill', ...r, enabled: ready });
   }

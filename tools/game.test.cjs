@@ -151,9 +151,8 @@ test('runtime assets fit the 4 MiB Mini Game budget, preserve animation transpar
   const files = fs.readdirSync(root, { recursive: true }).filter(file => fs.statSync(path.join(root, file)).isFile());
   const size = files.reduce((sum, file) => sum + fs.statSync(path.join(root, file)).size, 0); assert.ok(size < 4 * 1024 * 1024, 'Mini Game build exceeds 4 MiB: ' + size);
   assert.ok(size < 3.5 * 1024 * 1024, 'Keep source art/audio within the content subpackage budget');
-  for (const action of ['idle', 'attack', 'hurt', 'awaken', 'death']) {
-    const png = fs.readFileSync(path.join(root, 'images/pangu', action + '.png')); assert.equal(png.readUInt32BE(16), 768); assert.equal(png.readUInt32BE(20), 512); assert.ok(png.includes(Buffer.from('tRNS')));
-  }
+  const hero=fs.readFileSync(path.join(root,'images/pangu/artifact-cast.png'));
+  assert.equal(hero.readUInt32BE(16),768);assert.equal(hero.readUInt32BE(20),512);assert.equal(hero[25],6,'Production hero retains full RGBA precision');
   const banner = fs.readFileSync(path.join(root, 'images/pangu-banner.png'));
   assert.equal(banner.readUInt32BE(16), 768); assert.equal(banner.readUInt32BE(20), 768); assert.ok(banner.includes(Buffer.from('tRNS')));
   const swords = fs.readFileSync(path.join(root, 'images/zhuxian-swords.png'));

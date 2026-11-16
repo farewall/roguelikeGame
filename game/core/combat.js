@@ -659,7 +659,7 @@ class Combat extends ArtifactCombat {
           angle: line ? Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI : 0 };
       }),
       effects: this.effects.map(f => ({ id: f.id, type: f.type, x: f.x, y: f.y, radius: f.radius, angle: f.angle || 0, cone: f.cone || 60 })),
-      boss: boss ? { name: boss.name, hpPct: round(Math.max(0, boss.hp / boss.maxHp * 100)), phase: boss.phase2 ? '暴怒' : '一阶段', state: this.enrage ? '法相暴怒' : boss.shellBrokenTime>0?'甲片崩开 · 输出机会':boss.pressureBroken&&boss.attackType==='roots'?'断根 · 缺口已开':boss.shielded ? '缩甲聚海 · 绕侧开甲' : exposed ? '扑空破绽 · 易伤35%' : boss.castTime > 0 ? boss.attackName || '正在蓄势' : boss.recoverTime > 0 ? '收招 · 输出机会' : '游走', hint } : null,
+      boss: boss ? { name: boss.name, hpPct: round(Math.max(0, boss.hp / boss.maxHp * 100)), phase: boss.phase2 ? '暴怒' : '一阶段', state: this.enrage ? '法相暴怒' : boss.shellBrokenTime>0?'甲片崩开 · 输出机会':boss.pressureBroken&&boss.attackType==='roots'?'断根 · 缺口已开':boss.shielded ? '缩甲聚海 · 绕侧开甲' : exposed ? boss.tigerHunt?.crashed?'撞柱破势 · 易伤35%':'扑空破绽 · 易伤35%' : boss.castTime > 0 ? boss.attackName || '正在蓄势' : boss.recoverTime > 0 ? '收招 · 输出机会' : '游走', hint } : null,
       weaponName: WEAPONS[this.weapon].name, weaponId: this.weapon, attackRange: this.attackRange(), bellUpgradeLabel: this.bellLabel(),
       bannerUpgradeLabel: this.weapon === 'banner' ? this.bannerLabel() : '', bladeCount: this.weapon === 'banner' ? this.bladeCount() : 0, splitCount: this.weapon === 'banner' ? this.splitStats().count : 0,
       swordLabel: this.weapon === 'swords' ? this.swordLabel()+' · '+(this.swordGuardTime>0?'回锋护身':this.swordSkill ? this.swordSkill.mode === 'single' ? '四向围杀' : '交错清场' : '自动御剑') : '',

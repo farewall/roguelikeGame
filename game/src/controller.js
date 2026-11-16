@@ -327,13 +327,13 @@ const definition = {
   },
   playerBounds() {
     if (this.combat && this.combat.world) {
-      const c = this.combat, swords = c.weapon === 'swords', x = swords ? SWORDS.marginX : 96, top = swords ? SWORDS.marginTop : c.weapon === 'bell' ? 176 : 110, bottom = swords ? SWORDS.marginBottom : 100;
+      const c = this.combat, swords = c.weapon === 'swords', x = swords ? SWORDS.marginX : 96, top = swords ? SWORDS.marginTop : c.weapon === 'bell' ? 210 : 126, bottom = swords ? SWORDS.marginBottom : 100;
       return { xMin:x/c.width*100, xMax:100-x/c.width*100, yMin:top/c.height*100, yMax:100-bottom/c.height*100 };
     }
     const size = ACTOR_FRAME_SIZE * this.rpxScale;
     const swords = this.combat && this.combat.weapon === 'swords';
     const xMargin = Math.min(45, Math.max(5, (swords ? SWORDS.marginX * this.rpxScale : size * 0.5) / this.arenaRect.width * 100));
-    const headroom = swords ? SWORDS.marginTop * this.rpxScale : this.combat && this.combat.weapon === 'bell' ? Math.max(size * 0.54, 176 * this.rpxScale) : size * 0.54;
+    const headroom = swords ? SWORDS.marginTop * this.rpxScale : this.combat && this.combat.weapon === 'bell' ? 210 * this.rpxScale : 126 * this.rpxScale;
     const yMin = Math.min(45, Math.max(12, headroom / this.arenaRect.height * 100));
     const yMax = Math.max(55, Math.min(90, 100 - (swords ? SWORDS.marginBottom * this.rpxScale : size * 0.46) / this.arenaRect.height * 100));
     return { xMin: xMargin, xMax: 100 - xMargin, yMin, yMax };

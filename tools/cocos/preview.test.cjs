@@ -52,6 +52,11 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         });
         await page.waitForFunction(() => kaitian.controller.combat.strikeCount > 0);
         assert.ok(await page.evaluate(() => Boolean(kaitian.presentation.layers.world.nodes.get('hero').getComponent('cc.Sprite'))));
+        assert.ok(await page.evaluate(()=>{
+          const v=kaitian.presentation,c=kaitian.controller,hero=v.layers.world.nodes.get('hero').getComponent('cc.Sprite'),shadow=v.layers.terrain.nodes.get('contact-hero')?.getComponent('cc.Sprite');
+          if(hero.spriteFrame.texture!==v.assets.textures.artifact.texture||!shadow||shadow.color.r!==18||shadow.color.g!==23||shadow.color.b!==26)return false;
+          return c.data.weaponId==='swords'?[...v.layers.hud.used].filter(id=>id.startsWith('skill-emblem-')).length===4:v.layers.hud.used.has('skill-emblem');
+        }),'Production hero, physical contact shadow and artifact skill emblems must render in the exported game');
         assert.ok(await page.evaluate(() => {
           const rows = { wraith: 0, ranged: 1, charger: 2, elite: 3 };
           return Object.entries(rows).every(([kind, row]) => {
@@ -140,6 +145,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
             if(!core.world||core.world.stage!==stage||core.width*core.height<8*a.width*a.height)return false;
             if(Math.abs(v.layers.world.node.position.x+a.x+cam.x)>.01||Math.abs(v.layers.world.node.position.y-a.y-cam.y)>.01)return false;
             if(![...v.layers.ground.used].some(id=>v.layers.ground.nodes.get(id).getComponent('cc.Sprite').spriteFrame===v.assets.frames.worldGround[stage-1]))return false;
+            if(mode==='entry'&&![...v.layers.ground.used].some(id=>id.startsWith('landmark-')&&v.layers.ground.nodes.get(id).getComponent('cc.Sprite').spriteFrame===v.assets.frames.worldStyle[stage-1]))return false;
             if([...v.layers.world.used].filter(id=>id.startsWith('zhuxian-sword-')).length!==4)return false;
             if(mode==='roam'&&(Math.hypot(cam.x-core.cameraStart.x,cam.y-core.cameraStart.y)<400||Math.hypot(core.point(core.player).x-core.travelStart.x,core.point(core.player).y-core.travelStart.y)<1100))return false;
             if(mode==='map'&&(!c.data.showWorldMap||!c.data.paused))return false;
@@ -216,7 +222,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         const render=()=>{core.enemies=[];const e=core.spawn('ranged');Object.assign(e,{speed:0,cooldown:100,spawnTime:0});core.effects=[{id:++core.nextId,type:'damage',x:core.player.x,y:core.player.y,radius:0,age:.1,life:.55,amount:3}];c.syncCombat();v.render();};
         for(let i=0;i<5;i++)render();const make=v.makeNode;let allocations=0;v.makeNode=function(...args){allocations++;return make.apply(this,args);};
         try{for(let i=0;i<24;i++)render();if(allocations)throw Error('steady transient effects should reuse nodes: '+allocations);}finally{v.makeNode=make;}
-        if(world.pools.sprite.length>112||world.pools.label.length>40)throw Error('display pools must remain bounded');c.exitToHome();
+        if(world.pools.sprite.length>112||world.pools.label.length>40||v.layers.terrain.pools.sprite.length>112)throw Error('display pools must remain bounded');c.exitToHome();
       });
       console.log('PASS Creator render reuse: fading changes vertex opacity, repeated enemies/damage labels reuse bounded native nodes');
       await page.evaluate(()=>{

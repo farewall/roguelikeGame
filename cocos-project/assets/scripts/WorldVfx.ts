@@ -10,26 +10,37 @@ export function drawWorld(v, ground, terrain, actors, point) {
     const sprite=v.image(ground,'ground-'+x+'-'+y,v.assets.frames.worldGround[world.stage-1],a.x+wx,a.y+wy,w,h,0.95);
     sprite.node.setScale(flipX?-1:1,flipY?-1:1,1);sprite.node.setPosition(a.x+wx+(flipX?w:0),-(a.y+wy+(flipY?h:0)));
   }
+  // Flat, eroded landmarks belong to the traversable ground. Upright objects
+  // and their real collision footprints remain in the actor layer above them.
+  for(const [i,region] of world.regions.entries()){
+    const size=[780,860,760,750,710][world.stage-1];if(!visible(region.x,region.y,size*.6))continue;
+    const mark=v.image(ground,'landmark-'+i,v.assets.frames.worldStyle[world.stage-1],a.x+region.x-size/2,a.y+region.y-size*.36,size,size*.72,[.36,.35,.32,.34,.36][world.stage-1]);mark.tint=0xd2d2c9;
+    if(i%2){mark.node.setScale(-1,1,1);mark.node.setPosition(a.x+region.x+size/2,-(a.y+region.y-size*.36));}else mark.node.setScale(1,1,1);
+  }
   // Flatten fine floor detail while keeping the real terrain and bodies crisp.
-  g.lineStyle(0);g.beginFill([0x324538,0x4b453b,0x353435,0x30454d,0x3c4144][world.stage-1],.23);
+  g.lineStyle(0);g.beginFill([0x23332c,0x332f2a,0x202730,0x22353c,0x29323a][world.stage-1],.12);
   g.drawRect(a.x+cam.x,a.y+cam.y,cam.width,cam.height);g.endFill();
   for(const road of world.roads)for(let j=1;j<road.length;j++){
     const from=road[j-1],to=road[j],dx=to.x-from.x,dy=to.y-from.y,length=Math.hypot(dx,dy)||1,nx=-dy/length,ny=dx/length,sideA=[],sideB=[],count=Math.max(2,Math.ceil(length/60));
     if(Math.max(from.x,to.x)<cam.x-70||Math.min(from.x,to.x)>cam.x+cam.width+70||Math.max(from.y,to.y)<cam.y-70||Math.min(from.y,to.y)>cam.y+cam.height+70)continue;
     for(let i=0;i<=count;i++){const t=i/count,x=from.x+dx*t,y=from.y+dy*t,w=36+Math.sin(i*1.7+j)*8;sideA.push(a.x+x+nx*w,a.y+y+ny*w);sideB.unshift(a.x+x-nx*w,a.y+y-ny*w);}
-    g.lineStyle(0);g.beginFill([0xa1936f,0xd2b38a,0x8e8780,0xb6bfc0,0xc5b58b][world.stage-1],0.18);g.drawPolygon([...sideA,...sideB]);g.endFill();
+    g.lineStyle(0);g.beginFill([0x89927c,0xb4a18a,0x797b7f,0x9cbbc0,0xaaa38d][world.stage-1],0.075);g.drawPolygon([...sideA,...sideB]);g.endFill();
   }
   // Water, molten rock and void are physical terrain. Their visible shore is the collision contour.
   for(const pool of world.pools) {
     if(!visible(pool.x,pool.y,Math.max(pool.rx,pool.ry)+100)) continue;
     const index=pool.kind==='lava'?1:pool.kind==='void'?2:world.stage===1?3:0;
-    v.image(terrain,'pool-'+pool.id,v.assets.frames.worldPools[index],a.x+pool.x-pool.rx*1.2,a.y+pool.y-pool.ry*1.2,pool.rx*2.4,pool.ry*2.4);
+    const color=[0x233c47,0x322c2b,0x171d2a,0x273d33][index];
+    g.lineStyle(0);g.beginFill(color,1);g.drawPolygon(pool.points.flatMap(p=>[a.x+p.x,a.y+p.y]));g.endFill();
+    // The material sits within the real shoreline, whose full surface is
+    // drawn from the same polygon used by movement and obstacle clipping.
+    v.image(terrain,'pool-'+pool.id,v.assets.frames.worldPools[index],a.x+pool.x-pool.rx,a.y+pool.y-pool.ry,pool.rx*2,pool.ry*2);
   }
   for(const prop of world.props) {
     if(!visible(prop.x,prop.y,prop.size)) continue;
     const texture=prop.tigerPillar?v.assets.frames.tigerPillars[prop.broken?1:0]:v.assets.frames.worldProps[prop.sprite];
     const sprite=v.image(actors,'terrain-'+prop.id,texture,a.x+prop.x-prop.size/2,a.y+prop.y-prop.size*(prop.tigerPillar ? .948 : .87),prop.size,prop.size);
-    sprite.tint=prop.tigerPillar?0xffffff:0xd2d5c7;(sprite.node as any).worldDepth=a.y+prop.y;
+    sprite.tint=prop.tigerPillar?0xffffff:0xe1e4dd;(sprite.node as any).worldDepth=a.y+prop.y;
     if(prop.flip) { sprite.node.setScale(-1,1,1);sprite.node.setPosition(a.x+prop.x+prop.size/2,-(a.y+prop.y-prop.size*0.87)); }
     else sprite.node.setScale(1,1,1);
     sprite.node.setSiblingIndex(0);

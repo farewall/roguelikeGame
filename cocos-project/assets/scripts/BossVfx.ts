@@ -19,7 +19,7 @@ export function creatureMotion(e: any, time: number) {
   if(e.bossType===2){
     const p=e.tigerHunt,age=p?.age||0,flight=p?.phase==='pounce-flight',step=p?.phase==='cutoff-step',land=p?.phase==='landing';
     const t=clamp(age/(p?.duration||1)),weight=land?Math.sin(t*Math.PI):0;
-    return {sx:1+weight*.035,sy:1-weight*.06,dy:-52+(flight?-Math.sin((e.tigerAir||0)*Math.PI)*78:step?-Math.sin(t*Math.PI)*14:weight*7),
+    return {sx:1+weight*.035,sy:1-weight*.06,dy:flight?-Math.sin((e.tigerAir||0)*Math.PI)*78:step?-Math.sin(t*Math.PI)*14:weight*7,
       angle:p?.crashed?Math.sin(age*16)*Math.exp(-age*2)*3:Math.sin(time*2+e.id)*.35};
   }
   const cast = e.visualState === 'cast', dash = e.visualState === 'dash', release = e.visualState === 'release', recover = e.visualState === 'recover';
