@@ -15,3 +15,9 @@ export function drawGroundContact(v:any,layer:any,id:string,p:any,entity:any,siz
 export const HERO_TOP=126;
 export const BELL_HEIGHT=160;
 export function bodyGroundShift(entity:any,size:number){return entity.boss?72-size*(181/192-.5):0;}
+export function waveContour(h:any,radius:number,inner:number){
+  const half=h.gapHalf||.001,start=(h.gapAngle||0)+half,span=Math.PI*2-half*2,n=Math.min(96,Math.max(32,Math.ceil(radius*span/18))),points=[];
+  for(let i=0;i<=n;i++){const a=start+span*i/n;points.push({x:Math.cos(a)*radius,y:Math.sin(a)*radius});}
+  for(let i=n;i>=0;i--){const a=start+span*i/n;points.push({x:Math.cos(a)*inner,y:Math.sin(a)*inner});}
+  return points;
+}

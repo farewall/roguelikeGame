@@ -40,6 +40,13 @@ test('the runtime keeps one consistent hero atlas for combat and the ending',()=
   const presentation=fs.readFileSync(path.join(__dirname,'../cocos-project/assets/scripts/Presentation.ts'),'utf8');
   assert.ok(presentation.includes("atlas = this.assets.frames.artifact[frame.action || 'idle']"));
 });
+test('large water surfaces and curled crests retain full color and alpha precision',()=>{
+  for(const [name,w,h] of [['world-pools.png',768,768],['sea-crests.png',512,192]]){
+    const data=fs.readFileSync(path.join(__dirname,'../cocos-project/assets/game-content/images',name));
+    assert.equal(data[25],6);assert.equal(data.readUInt32BE(16),w);assert.equal(data.readUInt32BE(20),h);
+    const image=spriteAlpha(name);assert.equal(image.alpha(0,0),0);
+  }
+});
 test('physical airborne shadows soften and spread without changing an actor or predicting its landing',()=>{
   const bundled=require('esbuild').buildSync({entryPoints:[path.join(__dirname,'../cocos-project/assets/scripts/ReleaseArt.ts')],bundle:true,format:'cjs',write:false,logLevel:'silent'});
   const module={exports:{}};require('node:vm').runInNewContext(bundled.outputFiles[0].text,{module,exports:module.exports});
@@ -47,4 +54,14 @@ test('physical airborne shadows soften and spread without changing an actor or p
   const air=shadowShape(e,302),ground=shadowShape({...e,tigerAir:0},302);assert.ok(air.width>ground.width&&air.alpha<ground.alpha);assert.equal(JSON.stringify(e),before);
   let args;const sprite={tint:0};drawGroundContact({assets:{frames:{worldStyle:Array(6).fill({})}},image(...a){args=a;return sprite;}},{},'boss',{x:200,y:100},e,302,72);
   assert.ok(Math.abs(args[4]+args[6]/2-172)<1e-6,'Shadow remains beneath current body ground contact');assert.equal(sprite.tint,0x12171a);
+});
+test('the painted moving wave mask preserves the real crest, safe interior and open escape lane',()=>{
+  const bundled=require('esbuild').buildSync({entryPoints:[path.join(__dirname,'../cocos-project/assets/scripts/ReleaseArt.ts')],bundle:true,format:'cjs',write:false,logLevel:'silent'});
+  const module={exports:{}};require('node:vm').runInNewContext(bundled.outputFiles[0].text,{module,exports:module.exports});
+  const {Combat}=require('../game/core/combat'),{waveBand}=require('../game/core/boss-patterns'),{polygonContains}=require('../game/core/world-geometry'),c=new Combat();
+  const h={shape:'ring',x:50,y:50,age:1.8,delay:1.15,duration:1.55,wave:{from:66,to:340,width:42},gapAngle:1.2,gapHalf:.48},band=waveBand(h),points=module.exports.waveContour(h,band.radius,band.inner),origin=c.point(h);
+  assert.ok(points.length<=194);for(let i=0;i<120;i++)for(const radius of [band.inner*.5,(band.inner+band.radius)/2,band.radius+10]){
+    const a=i*Math.PI/60,p={x:Math.cos(a)*radius,y:Math.sin(a)*radius};
+    assert.equal(polygonContains(p,points),c.contains(h,c.percent({x:origin.x+p.x,y:origin.y+p.y})),JSON.stringify({a,radius}));
+  }
 });

@@ -6,4 +6,6 @@
 
 `pools.png`: four natural surfaces for sea, lava, void and forest spring, packed at 384 pixels per frame. The visible shore uses the world's physical polygon and the material patch fits inside it.
 
-Pack with `python tools/prepare-release-art.py`. The hero keeps full RGBA; scenery atlases use 256-color RGBA palettes. Source images stay outside the runtime bundle. The prior art remains in the repository history and reference folders.
+`waves.png`: four transparent painted rolling crests, packed into 256×96 frames. The moving body is clipped to the actual wave collision band, with separate curls following its front.
+
+Pack with `python tools/prepare-release-art.py`. The hero, water and wave curls keep full RGBA; scenery atlases use 256-color RGBA palettes. Source images stay outside the runtime bundle. The prior art remains in the repository history and reference folders.

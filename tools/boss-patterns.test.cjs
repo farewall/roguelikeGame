@@ -160,10 +160,11 @@ async function hazardRenderer() {
   return renderer;
 }
 function recorder() {
-  const geometry = [], pictures = [], g = new Proxy({}, { get: (_, name) => (...args) => geometry.push({ name, args }) });
-  const v = { assets: { frames: { spells: Array(6).fill({}), meteor: Array(16).fill({}), chaosMist: Array(6).fill({}) } },
+  const geometry = [], pictures = [], surfaces=[],g = new Proxy({}, { get: (_, name) => (...args) => geometry.push({ name, args }) });
+  const v = { assets: { frames: { spells: Array(6).fill({}), meteor: Array(16).fill({}), chaosMist: Array(6).fill({}),waveRidges:Array(4).fill({}) } },
+    waveSurface(layer,h,p,radius,inner,fade){surfaces.push({h,p,radius,inner,fade});},
     image(layer, id, frame, ...args) { pictures.push({ id, frame, args }); return { node: { angle: 0, getComponent: () => ({ setAnchorPoint() {} }) } }; } };
-  return { v, layer: { g }, geometry, pictures };
+  return { v, layer: { g }, geometry, pictures,surfaces };
 }
 
 test('enemy wind-up does not render ground circles, boxes, lanes or target markers', async () => {
@@ -186,6 +187,6 @@ test('a visible sea wave has a water body and foam sprites, with no range outlin
   const draw = await hazardRenderer(), r = recorder();
   draw(r.v, r.layer, { id: 4, x: 200, y: 150, shape: 'ring', kind: 'tide', age: 1.6, delay: 1.15, duration: 1.55,
     radius: 340, inner: 298, wave: { from: 66, to: 340, width: 42 }, gapAngle: 0, gapHalf: 0.48 }, p => p);
-  assert.ok(r.geometry.some(op => op.name === 'drawPolygon')); assert.ok(r.pictures.length > 6);
+  assert.equal(r.surfaces.length,1);assert.ok(r.surfaces[0].radius>r.surfaces[0].inner);assert.ok(r.pictures.length>6);
   assert.ok(!r.geometry.some(op => ['drawCircle', 'drawEllipse', 'drawRect', 'drawRoundedRect'].includes(op.name)));
 });

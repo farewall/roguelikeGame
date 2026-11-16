@@ -8,7 +8,7 @@ import { creatureSize, drawCondensation, drawRemnant, condensationOpacity } from
 import { creatureMotion, bossMotionFrame, drawCreatureTell, drawEnrage } from './BossVfx';
 import { drawWorld, drawMap, drawWorldHud } from './WorldVfx';
 import {drawBuildPanel,drawRelicPanel} from './HudPanels';
-import {drawGroundContact,bodyGroundShift,HERO_TOP,BELL_HEIGHT} from './ReleaseArt';
+import {drawGroundContact,bodyGroundShift,waveContour,HERO_TOP,BELL_HEIGHT} from './ReleaseArt';
 const GOLD = 0xe3c88b, INK = 0x14262d, LIGHT = 0xe4e2ce, MUTE = 0x9fb8ac;
 const ROWS = { down: 0, up: 1, left: 2, right: 3 };
 const clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
@@ -96,11 +96,14 @@ export class CocosPresentation {
     this.text(layer, id + '-label', label, x + width / 2, y + height / 2, options.size || 26, options.primary ? 0x1d2a29 : GOLD, { center: true, alpha: enabled ? 1 : 0.5 });
     this.regions.push({ id, x, y, width, height, action, enabled });
   }
-  terrainSurface(layer,id,texture,pool,offset){
-    const node=this.use(layer,'surface-'+id,()=>{
+  surfaceGroup(layer,id){
+    return this.use(layer,'surface-'+id,()=>{
       const n=this.makeNode('surface-'+id);n.addComponent(Mask).type=Mask.Type.GRAPHICS_STENCIL;
       const child=this.makeNode('surface-material'),sprite=child.addComponent(Sprite);sprite.sizeMode=Sprite.SizeMode.CUSTOM;sprite.type=Sprite.Type.SIMPLE;child.setParent(n);(n as any).surfaceSprite=sprite;return n;
     },'surface') as any;
+  }
+  terrainSurface(layer,id,texture,pool,offset){
+    const node=this.surfaceGroup(layer,id);
     const w=pool.rx*2.2,h=pool.ry*2.2;
     node.getComponent(UITransform).setContentSize(w,h);node.setPosition(offset.x+pool.x-w/2,-(offset.y+pool.y-h/2));
     if(node.surfacePoints!==pool.points){
@@ -109,6 +112,18 @@ export class CocosPresentation {
     }
     const sprite=node.surfaceSprite,iw=pool.rx*2.65,ih=pool.ry*2.65;sprite.spriteFrame=texture;
     sprite.node.getComponent(UITransform).setContentSize(iw,ih);sprite.node.setPosition((w-iw)/2,-(h-ih)/2);
+    return node;
+  }
+  waveSurface(layer,h,p,radius,inner,fade){
+    const node=this.surfaceGroup(layer,'wave-'+h.id),size=radius*2;
+    node.getComponent(UITransform).setContentSize(size,size);node.setPosition(p.x-radius,-(p.y-radius));
+    if(node.surfaceHazard!==h||node.surfaceAge!==h.age){
+      const shape=node.getComponent(Graphics)||node.addComponent(Graphics);shape.clear();shape.fillColor=rgba(0xffffff,0);
+      waveContour(h,radius,inner).forEach((p,i)=>{const x=radius+p.x,y=-(radius+p.y);if(i)shape.lineTo(x,y);else shape.moveTo(x,y);});
+      shape.close();shape.fill();node.surfaceHazard=h;node.surfaceAge=h.age;
+    }
+    const sprite=node.surfaceSprite,imageSize=radius*2.65;sprite.spriteFrame=this.assets.frames.worldPools[0];sprite.color=rgba(0xffffff,fade*.65);
+    sprite.node.getComponent(UITransform).setContentSize(imageSize,imageSize);sprite.node.setPosition((size-imageSize)/2,-(size-imageSize)/2);node.worldDepth=-1e6;
     return node;
   }
   modal(width, height) {

@@ -1,6 +1,6 @@
 import { assetManager, AssetManager, AudioClip, ImageAsset, Rect, Size, SpriteFrame, Texture2D } from 'cc';
 import { ARTIFACT_COLUMNS } from './generated/game-core';
-const paths: Record<string, string> = { title: 'titile-bg', enemies: 'enemy-actions', bosses: 'chaos-boss-actions', bossMotion:'boss-motion',tiger:'white-tiger',tigerPillars:'tiger-pillars',spellAtlas: 'boss-actions', bell: 'chaos-bell', banner: 'pangu-banner', swords: 'zhuxian-swords', meteor: 'phoenix-meteor', worldGround: 'world-ground', worldProps: 'world-props', worldPools: 'world-pools', worldStyle:'world-style',ending: 'ending-dawn', artifact: 'pangu/artifact-cast' };
+const paths: Record<string, string> = { title: 'titile-bg', enemies: 'enemy-actions', bosses: 'chaos-boss-actions', bossMotion:'boss-motion',tiger:'white-tiger',tigerPillars:'tiger-pillars',spellAtlas: 'boss-actions', bell: 'chaos-bell', banner: 'pangu-banner', swords: 'zhuxian-swords', meteor: 'phoenix-meteor', worldGround: 'world-ground', worldProps: 'world-props', worldPools: 'world-pools', worldStyle:'world-style',waveRidges:'sea-crests',ending: 'ending-dawn', artifact: 'pangu/artifact-cast' };
 for (let i = 1; i <= 5; i++) paths['arena' + i] = 'arena-' + i;
 for (const kind of ['power', 'haste', 'health', 'fire', 'water', 'earth']) paths['upgrade-' + kind] = 'upgrade-' + kind;
 export function frame(texture: Texture2D, rect?: Rect) {
@@ -40,7 +40,7 @@ export async function loadAssets(progress: (value: number) => void = () => {}) {
   for(let i=0;i<6;i++)frames.worldStyle.push(frame(textures.worldStyle.texture,new Rect(i%3*256,Math.floor(i/3)*256,256,256)));
   for (let row = 0; row < 4; row++) for (let column = 0; column < 4; column++) frames.worldProps.push(frame(textures.worldProps.texture, new Rect(column * 192, row * 192, 192, 192)));
   for (let row = 0; row < 2; row++) for (let column = 0; column < 2; column++) frames.worldPools.push(frame(textures.worldPools.texture, new Rect(column * 384, row * 384, 384, 384)));
-  for(const [x,y,w,h] of [[112,24,160,96],[96,28,176,96],[128,24,160,96]])frames.waveRidges.push(frame(textures.worldPools.texture,new Rect(x,y,w,h)));
+  for(let i=0;i<4;i++)frames.waveRidges.push(frame(textures.waveRidges.texture,new Rect(i%2*256,Math.floor(i/2)*96,256,96)));
   for (let row = 0; row < 4; row++) for (let column = 0; column < 4; column++) frames.meteor.push(frame(textures.meteor.texture, new Rect(column * 192, row * 192, 192, 192)));
   return { textures, frames, audio, bundle };
 }

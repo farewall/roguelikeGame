@@ -398,7 +398,8 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
             const used = [...v.layers.world.used];
             const attack = used.some(id => id.startsWith('spell-') || id.startsWith('vines-') || id.startsWith('meteor-'));
             const expected=stage===2?v.assets.frames.tiger[state==='warning'?5:7]:v.assets.frames.bossMotion[stage-1][state==='warning'?0:1];
-            return sprite.spriteFrame === expected && (state==='warning'||attack) && !used.some(id=>id.startsWith('hazard-'));
+            const waterBody=stage!==4||state==='warning'||used.some(id=>id.startsWith('surface-wave-')&&v.layers.world.nodes.get(id).getComponent('cc.Mask').type===2);
+            return sprite.spriteFrame === expected && (state==='warning'||attack) && waterBody&&!used.some(id=>id.startsWith('hazard-'));
           }, { stage, state }), 'Casting bodies and physical attacks must render without ground markers');
           await page.screenshot({ path: output + '/boss-' + stage + '-' + viewport.width + '-' + state + '.png' });
         }
