@@ -26,11 +26,12 @@ test('all 24 production hero poses retain clear gutters, solid bodies and one gr
     for(const x of [0,127])for(let y=0;y<128;y++)assert.equal(alpha(col*128+x,row*128+y),0);
   }
 });
-test('high-resolution pool materials stay inside the physical shoreline rather than covering walkable land',()=>{
+test('high-resolution pool materials have continuous interiors and clean transparent gutters for shoreline clipping',()=>{
   const {alpha,width,height}=spriteAlpha('world-pools.png');assert.equal(width,768);assert.equal(height,768);
   for(let row=0;row<2;row++)for(let col=0;col<2;col++){
     assert.ok(alpha(col*384+192,row*384+192)>=240);
-    for(let y=0;y<384;y++)for(let x=0;x<384;x++)if(alpha(col*384+x,row*384+y)>=128)assert.ok(Math.hypot(x-191.5,y-191.5)<176.64,'Material must fit the minimum physical radius');
+    for(const [x,y] of [[0,0],[0,383],[383,0],[383,383]])assert.equal(alpha(col*384+x,row*384+y),0);
+    for(let y=128;y<256;y++)for(let x=128;x<256;x++)assert.ok(alpha(col*384+x,row*384+y)>=240,'Clipped material must remain solid through the pool interior');
   }
 });
 test('the runtime keeps one consistent hero atlas for combat and the ending',()=>{

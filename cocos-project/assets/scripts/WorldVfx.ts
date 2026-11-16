@@ -30,11 +30,7 @@ export function drawWorld(v, ground, terrain, actors, point) {
   for(const pool of world.pools) {
     if(!visible(pool.x,pool.y,Math.max(pool.rx,pool.ry)+100)) continue;
     const index=pool.kind==='lava'?1:pool.kind==='void'?2:world.stage===1?3:0;
-    const color=[0x233c47,0x322c2b,0x171d2a,0x273d33][index];
-    g.lineStyle(0);g.beginFill(color,1);g.drawPolygon(pool.points.flatMap(p=>[a.x+p.x,a.y+p.y]));g.endFill();
-    // The material sits within the real shoreline, whose full surface is
-    // drawn from the same polygon used by movement and obstacle clipping.
-    v.image(terrain,'pool-'+pool.id,v.assets.frames.worldPools[index],a.x+pool.x-pool.rx,a.y+pool.y-pool.ry,pool.rx*2,pool.ry*2);
+    v.terrainSurface(terrain,pool.id,v.assets.frames.worldPools[index],pool,a);
   }
   for(const prop of world.props) {
     if(!visible(prop.x,prop.y,prop.size)) continue;

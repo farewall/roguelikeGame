@@ -8,7 +8,7 @@ export function frame(texture: Texture2D, rect?: Rect) {
 }
 export async function loadAssets(progress: (value: number) => void = () => {}) {
   const bundle = await new Promise<AssetManager.Bundle>((resolve, reject) => assetManager.loadBundle('game-content', (error, value) => error ? reject(error) : resolve(value)));
-  const textures: Record<string, SpriteFrame> = {}, frames: any = { artifact: {}, enemies: [], bosses: [], bossMotion:[],tiger:[],tigerPillars:[],spells: [], chaosMist: [], bell: [], banner: [], swords: [], meteor: [], worldGround: [], worldProps: [], worldPools: [],worldStyle:[] }, audio: Record<string, AudioClip> = {};
+  const textures: Record<string, SpriteFrame> = {}, frames: any = { artifact: {}, enemies: [], bosses: [], bossMotion:[],tiger:[],tigerPillars:[],spells: [], chaosMist: [], bell: [], banner: [], swords: [], meteor: [], worldGround: [], worldProps: [], worldPools: [],worldStyle:[],waveRidges:[] }, audio: Record<string, AudioClip> = {};
   const sounds = ['attack', 'bell', 'echo', 'banner', 'dominion', 'rift', 'ready', 'warning', 'hurt', 'upgrade', 'victory', 'death'];
   let done = 0; const total = Object.keys(paths).length + sounds.length;
   await Promise.all(Object.entries(paths).map(async ([key, file]) => {
@@ -40,6 +40,7 @@ export async function loadAssets(progress: (value: number) => void = () => {}) {
   for(let i=0;i<6;i++)frames.worldStyle.push(frame(textures.worldStyle.texture,new Rect(i%3*256,Math.floor(i/3)*256,256,256)));
   for (let row = 0; row < 4; row++) for (let column = 0; column < 4; column++) frames.worldProps.push(frame(textures.worldProps.texture, new Rect(column * 192, row * 192, 192, 192)));
   for (let row = 0; row < 2; row++) for (let column = 0; column < 2; column++) frames.worldPools.push(frame(textures.worldPools.texture, new Rect(column * 384, row * 384, 384, 384)));
+  for(const [x,y,w,h] of [[112,24,160,96],[96,28,176,96],[128,24,160,96]])frames.waveRidges.push(frame(textures.worldPools.texture,new Rect(x,y,w,h)));
   for (let row = 0; row < 4; row++) for (let column = 0; column < 4; column++) frames.meteor.push(frame(textures.meteor.texture, new Rect(column * 192, row * 192, 192, 192)));
   return { textures, frames, audio, bundle };
 }

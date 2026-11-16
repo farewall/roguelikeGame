@@ -146,6 +146,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
             if(Math.abs(v.layers.world.node.position.x+a.x+cam.x)>.01||Math.abs(v.layers.world.node.position.y-a.y-cam.y)>.01)return false;
             if(![...v.layers.ground.used].some(id=>v.layers.ground.nodes.get(id).getComponent('cc.Sprite').spriteFrame===v.assets.frames.worldGround[stage-1]))return false;
             if(mode==='entry'&&![...v.layers.ground.used].some(id=>id.startsWith('landmark-')&&v.layers.ground.nodes.get(id).getComponent('cc.Sprite').spriteFrame===v.assets.frames.worldStyle[stage-1]))return false;
+            for(const id of v.layers.terrain.used)if(id.startsWith('surface-')){const n=v.layers.terrain.nodes.get(id);if(n.getComponent('cc.Mask').type!==2||!n.getComponent('cc.Graphics')||n.surfaceSprite.spriteFrame.rect.width!==384||!core.world.pools.some(p=>p.points===n.surfacePoints))return false;}
             if([...v.layers.world.used].filter(id=>id.startsWith('zhuxian-sword-')).length!==4)return false;
             if(mode==='roam'&&(Math.hypot(cam.x-core.cameraStart.x,cam.y-core.cameraStart.y)<400||Math.hypot(core.point(core.player).x-core.travelStart.x,core.point(core.player).y-core.travelStart.y)<1100))return false;
             if(mode==='map'&&(!c.data.showWorldMap||!c.data.paused))return false;
@@ -222,7 +223,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         const render=()=>{core.enemies=[];const e=core.spawn('ranged');Object.assign(e,{speed:0,cooldown:100,spawnTime:0});core.effects=[{id:++core.nextId,type:'damage',x:core.player.x,y:core.player.y,radius:0,age:.1,life:.55,amount:3}];c.syncCombat();v.render();};
         for(let i=0;i<5;i++)render();const make=v.makeNode;let allocations=0;v.makeNode=function(...args){allocations++;return make.apply(this,args);};
         try{for(let i=0;i<24;i++)render();if(allocations)throw Error('steady transient effects should reuse nodes: '+allocations);}finally{v.makeNode=make;}
-        if(world.pools.sprite.length>112||world.pools.label.length>40||v.layers.terrain.pools.sprite.length>112)throw Error('display pools must remain bounded');c.exitToHome();
+        if(world.pools.sprite.length>112||world.pools.label.length>40||v.layers.terrain.pools.sprite.length>112||v.layers.terrain.pools.surface.length>8)throw Error('display pools must remain bounded');c.exitToHome();
       });
       console.log('PASS Creator render reuse: fading changes vertex opacity, repeated enemies/damage labels reuse bounded native nodes');
       await page.evaluate(()=>{

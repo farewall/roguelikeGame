@@ -21,7 +21,7 @@ export class CocosPresentation {
       const node = this.makeNode(name);
       if (['ground','terrain','world'].includes(name)) { if (!this.worldClip) { this.worldClip = this.makeNode('ArenaClip'); this.root.addChild(this.worldClip); this.worldClip.addComponent(Mask).type = Mask.Type.GRAPHICS_RECT; } this.worldClip.addChild(node); }
       else this.root.addChild(node);
-      this.layers[name] = { node, g: new DrawList(node.addComponent(Graphics)), nodes: new Map(), used: new Set(), pools:{sprite:[],label:[]} };
+      this.layers[name] = { node, g: new DrawList(node.addComponent(Graphics)), nodes: new Map(), used: new Set(), pools:{sprite:[],label:[],surface:[]} };
     }
   }
   finishLayers() {
@@ -96,6 +96,21 @@ export class CocosPresentation {
     this.text(layer, id + '-label', label, x + width / 2, y + height / 2, options.size || 26, options.primary ? 0x1d2a29 : GOLD, { center: true, alpha: enabled ? 1 : 0.5 });
     this.regions.push({ id, x, y, width, height, action, enabled });
   }
+  terrainSurface(layer,id,texture,pool,offset){
+    const node=this.use(layer,'surface-'+id,()=>{
+      const n=this.makeNode('surface-'+id);n.addComponent(Mask).type=Mask.Type.GRAPHICS_STENCIL;
+      const child=this.makeNode('surface-material'),sprite=child.addComponent(Sprite);sprite.sizeMode=Sprite.SizeMode.CUSTOM;sprite.type=Sprite.Type.SIMPLE;child.setParent(n);(n as any).surfaceSprite=sprite;return n;
+    },'surface') as any;
+    const w=pool.rx*2.2,h=pool.ry*2.2;
+    node.getComponent(UITransform).setContentSize(w,h);node.setPosition(offset.x+pool.x-w/2,-(offset.y+pool.y-h/2));
+    if(node.surfacePoints!==pool.points){
+      const shape=node.getComponent(Graphics)||node.addComponent(Graphics);shape.clear();shape.fillColor=rgba(0xffffff,0);
+      pool.points.forEach((p,i)=>{const x=p.x-pool.x+w/2,y=-(p.y-pool.y+h/2);if(i)shape.lineTo(x,y);else shape.moveTo(x,y);});shape.close();shape.fill();node.surfacePoints=pool.points;
+    }
+    const sprite=node.surfaceSprite,iw=pool.rx*2.65,ih=pool.ry*2.65;sprite.spriteFrame=texture;
+    sprite.node.getComponent(UITransform).setContentSize(iw,ih);sprite.node.setPosition((w-iw)/2,-(h-ih)/2);
+    return node;
+  }
   modal(width, height) {
     const { w, h } = this.c.layout, layer = this.begin('overlay'); this.regions = [];
     this.rect(layer, 0, 0, w, h, 0x050e14, 0.9, null, 0);
@@ -134,7 +149,7 @@ export class CocosPresentation {
     // Reuse a bounded set of transient displays; repeated attacks must not
     // allocate and destroy every sprite and floating label on the main thread.
     for(const layer of [this.layers.world,this.layers.terrain])for (const [id, node] of layer.nodes) if (!layer.used.has(id)) {
-      const pool=layer.pools[node.recycleKind],limit=node.recycleKind==='label'?40:112;
+      const pool=layer.pools[node.recycleKind],limit=node.recycleKind==='label'?40:node.recycleKind==='surface'?8:112;
       if(pool&&pool.length<limit)pool.push(node);else node.destroy();layer.nodes.delete(id);
     }
   }
