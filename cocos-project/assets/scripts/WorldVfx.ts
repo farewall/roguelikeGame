@@ -27,8 +27,9 @@ export function drawWorld(v, ground, terrain, actors, point) {
   }
   for(const prop of world.props) {
     if(!visible(prop.x,prop.y,prop.size)) continue;
-    const sprite=v.image(actors,'terrain-'+prop.id,v.assets.frames.worldProps[prop.sprite],a.x+prop.x-prop.size/2,a.y+prop.y-prop.size*0.87,prop.size,prop.size);
-    sprite.tint=0xd2d5c7;(sprite.node as any).worldDepth=a.y+prop.y;
+    const texture=prop.tigerPillar?v.assets.frames.tigerPillars[prop.broken?1:0]:v.assets.frames.worldProps[prop.sprite];
+    const sprite=v.image(actors,'terrain-'+prop.id,texture,a.x+prop.x-prop.size/2,a.y+prop.y-prop.size*(prop.tigerPillar ? .948 : .87),prop.size,prop.size);
+    sprite.tint=prop.tigerPillar?0xffffff:0xd2d5c7;(sprite.node as any).worldDepth=a.y+prop.y;
     if(prop.flip) { sprite.node.setScale(-1,1,1);sprite.node.setPosition(a.x+prop.x+prop.size/2,-(a.y+prop.y-prop.size*0.87)); }
     else sprite.node.setScale(1,1,1);
     sprite.node.setSiblingIndex(0);
@@ -60,6 +61,7 @@ export function drawMap(v, layer, x, y, width, height, expanded=false) {
   v.rect(layer,x,y,w,h,0x10252c,expanded?0.92:0.68,0x728579,2);
   for(const pool of world.pools){g.lineStyle(0);g.beginFill(pool.kind==='lava'?0x984b32:pool.kind==='void'?0x050d14:0x295c6b,1);g.drawPolygon(pool.points.flatMap(p=>[x+p.x*scale,y+p.y*scale]));g.endFill();}
   for(const road of world.roads){g.lineStyle(expanded?4:1.5,THEMES[world.stage-1],0.38);for(let i=0;i<road.length;i++){const p=road[i];if(!i)g.moveTo(x+p.x*scale,y+p.y*scale);else g.lineTo(x+p.x*scale,y+p.y*scale);}}
+  if(expanded)for(const pillar of world.tigerPillars||[]){const px=x+pillar.x*scale,py=y+pillar.y*scale;g.lineStyle(pillar.broken?2:4,pillar.broken?0x776c59:0xd6c4a2);g.moveTo(px-3,py+4);g.lineTo(px+2,py-(pillar.broken?1:7));}
   const cam=core.camera();g.lineStyle(1,0xb7d5d1,0.55);g.drawRect(x+cam.x*scale,y+cam.y*scale,Math.min(cam.width,world.width)*scale,Math.min(cam.height,world.height)*scale);
   for(const site of world.sites){const px=x+site.x*scale,py=y+site.y*scale;g.lineStyle(0);g.beginFill(site.used?0x657969:site.visited?0xe6c27d:0x89938e,1);g.drawPolygon([px,py-4,px+4,py,px,py+4,px-4,py]);g.endFill();if(expanded)v.text(layer,'map-site-'+site.id,site.visited?site.name:'未探明地点',px+12,py-9,18,site.used?0x82968d:0xc9d8c4);}
   const r=world.relic;if(r){const px=x+r.x*scale,py=y+r.y*scale,done=['complete','claimed'].includes(r.status);g.lineStyle(1,done?0x7e9282:0xf0d49b);g.beginFill(done?0x586d60:0xc79546);g.drawPolygon([px,py-7,px+3,py-3,px+7,py,px+3,py+3,px,py+7,px-3,py+3,px-7,py,px-3,py-3]);g.endFill();if(expanded)v.text(layer,'map-relic',r.visited?r.name:'异动遗迹',px+14,py+12,21,done?0x82968d:0xe9c98b);}

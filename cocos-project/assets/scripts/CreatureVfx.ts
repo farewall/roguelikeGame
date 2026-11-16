@@ -2,7 +2,7 @@
 const clamp = (v: number, a = 0, b = 1) => Math.max(a, Math.min(b, v));
 const rows = { wraith: 0, ranged: 1, charger: 2, elite: 3 };
 export function creatureSize(e) {
-  return e.boss ? (e.bossType === 5 ? 232 : 228) : e.kind === 'elite' ? 166 : e.kind === 'ranged' ? 122 : e.kind === 'charger' ? 128 : e.fodder ? 80 : 96;
+  return e.boss ? (e.bossType === 2 ? 302 : e.bossType === 5 ? 232 : 228) : e.kind === 'elite' ? 166 : e.kind === 'ranged' ? 122 : e.kind === 'charger' ? 128 : e.fodder ? 80 : 96;
 }
 function smoke(v, layer, id, tile, x, y, w, h, alpha) {
   return v.image(layer, id, v.assets.frames.chaosMist[tile], x - w / 2, y - h / 2, w, h, clamp(alpha));
@@ -25,10 +25,10 @@ export function drawRemnant(v, layer, body, p) {
   // Physical recoil -> unstable silhouette -> mist -> a low eddy -> nothing.
   if (t < 0.64) {
     const column = t < 0.18 ? 4 : 5;
-    const texture = body.boss ? v.assets.frames.bosses[body.bossType - 1][column] : v.assets.frames.enemies[(rows[body.kind] || 0) * 6 + column];
+    const texture = body.bossType===2?v.assets.frames.tiger[11]:body.boss ? v.assets.frames.bosses[body.bossType - 1][column] : v.assets.frames.enemies[(rows[body.kind] || 0) * 6 + column];
     const punch = Math.sin(clamp(t / 0.18) * Math.PI), scale = 1 - t * 0.12;
     const w = size * scale * (1 + punch * 0.12), h = size * scale * (1 - punch * 0.08);
-    const sprite = v.image(layer, 'remnant-body-' + body.id, texture, p.x - w / 2 + direction.x * 10 * clamp(t * 5), p.y - h / 2 + direction.y * 10 * clamp(t * 5), w, h, t < 0.18 ? 1 : clamp((0.64 - t) / 0.46));
+    const sprite = v.image(layer, 'remnant-body-' + body.id, texture, p.x - w / 2 + direction.x * 10 * clamp(t * 5), p.y - h / 2 + direction.y * 10 * clamp(t * 5)-(body.bossType===2?52:0), w, h, t < 0.18 ? 1 : clamp((0.64 - t) / 0.46));
     sprite.tint = t < 0.12 ? 0xffead2 : 0xffffff;
   }
   const fog = clamp((t - 0.12) / 0.2) * clamp((1 - t) / 0.35);

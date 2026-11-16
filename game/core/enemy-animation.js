@@ -4,6 +4,7 @@
 const ENEMY_ROWS = { wraith: 0, ranged: 1, charger: 2, elite: 3 };
 function advanceEnemyAnimation(enemy, dt, releasing = false) {
   if (enemy.freezeTime > 0) return;
+  if(enemy.tigerHunt){enemy.visualAge=enemy.tigerHunt.age;return;}
   let motion=null;
   if(enemy.bossPattern&&Number.isFinite(enemy.actionAge)){
     const age=enemy.actionAge,windup=enemy.actionWindup||1,release=enemy.actionRelease||.28;

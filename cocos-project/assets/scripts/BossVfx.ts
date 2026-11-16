@@ -2,6 +2,11 @@ import { UITransform } from 'cc';
 const clamp = (n: number, a = 0, b = 1) => Math.max(a, Math.min(b, n));
 const COLORS = [0x92d5a1, 0xf2dfb7, 0xffa16b, 0x9ddde5, 0xd9c7fa];
 export function bossMotionFrame(v,e) {
+  if(e.bossType===2){
+    let pose=e.tigerPose||0;
+    if(Math.sin(e.attackAngle||0)<-.28){const rear={0:12,1:12,2:15,3:9,4:15,5:12,6:13,7:14,8:14};pose=rear[pose]??pose;}
+    return v.assets.frames.tiger?.[pose]||null;
+  }
   const poses=v.assets.frames.bossMotion?.[e.bossType-1];if(!poses||e.spawnTime>0)return null;
   if(e.staggerVisual>0||e.shellBrokenTime>0)return poses[1];
   if(e.visualState==='cast'&&e.visualAge>=.38)return poses[0];
@@ -11,6 +16,12 @@ export function bossMotionFrame(v,e) {
 
 // Pose changes carry the wind-up. Hit flashes must not hide a casting pose.
 export function creatureMotion(e: any, time: number) {
+  if(e.bossType===2){
+    const p=e.tigerHunt,age=p?.age||0,flight=p?.phase==='pounce-flight',step=p?.phase==='cutoff-step',land=p?.phase==='landing';
+    const t=clamp(age/(p?.duration||1)),weight=land?Math.sin(t*Math.PI):0;
+    return {sx:1+weight*.035,sy:1-weight*.06,dy:-52+(flight?-Math.sin((e.tigerAir||0)*Math.PI)*78:step?-Math.sin(t*Math.PI)*14:weight*7),
+      angle:p?.crashed?Math.sin(age*16)*Math.exp(-age*2)*3:Math.sin(time*2+e.id)*.35};
+  }
   const cast = e.visualState === 'cast', dash = e.visualState === 'dash', release = e.visualState === 'release', recover = e.visualState === 'recover';
   const pulse = Math.sin((e.visualAge || 0) * 8), boss = e.bossType || 0;
   let sx = 1, sy = 1, dy = 0, angle = 0;
@@ -32,6 +43,7 @@ export function creatureMotion(e: any, time: number) {
 }
 
 export function drawCreatureTell(v: any, layer: any, e: any, p: any, size: number) {
+  if(e.bossType===2)return;
   const casting = e.visualState === 'cast', recovering = e.visualState === 'recover';
   if ((!casting && !recovering && !e.phase2) || e.spawnTime > 0) return;
   const g = layer.g, color = e.boss ? COLORS[e.bossType - 1] : e.kind === 'ranged' ? 0x9bd9e6 : 0xe2c3a1;
@@ -104,7 +116,7 @@ export function drawEnrage(v: any) {
     g.moveTo(x + Math.cos(a) * inner, y + Math.sin(a) * inner * 0.65);
     g.lineTo(x + Math.cos(a + 0.035) * outer, y + Math.sin(a + 0.035) * outer * 0.65);
   }
-  const frame=t<.28?2:rage.pose,texture=t<.28&&v.assets.frames.bossMotion?v.assets.frames.bossMotion[rage.bossType-1][0]:v.assets.frames.bosses[rage.bossType-1][frame];
+  const frame=t<.28?2:rage.pose,texture=rage.bossType===2?v.assets.frames.tiger[t<.28?5:10]:t<.28&&v.assets.frames.bossMotion?v.assets.frames.bossMotion[rage.bossType-1][0]:v.assets.frames.bosses[rage.bossType-1][frame];
   const sprite = v.image(layer, 'enrage-boss', texture, x - size / 2, y - size / 2, size, size, entry * exit);
   sprite.tint = burst > 0.5 ? 0xffeddf : 0xffffff;
   if (rage.bossType === 3) for (let i = 0; i < 7; i++) {

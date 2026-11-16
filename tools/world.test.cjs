@@ -102,7 +102,7 @@ test('boss attacks keep local physical distances in a large world and tiger poun
   const c=fresh('bell',3),boss=c.spawn('boss');boss.bossType=3;boss.speed=0;c.castPattern(3,boss,true);for(let t=0;t<4.1;t+=.025)c.update(.025,false);
   for(const h of c.hazards.filter(h=>h.fireWave)){near(Math.abs(h.moving.x)*c.width/100,780);assert.ok(Math.abs(h.end.y-h.y)*c.height/100<700);near(h.opening*c.height/100,85);}
   assert.ok(c.hazards.some(h=>h.fireWave));
-  const tiger=fresh('bell',2),e=tiger.spawn('boss');e.cooldown=100;tiger.castPattern(2,e,true);const h=tiger.hazards.find(h=>h.pounce);assert.ok(tiger.distance(h,h.end)<=690);
+  const tiger=fresh('bell',2),e=tiger.spawn('boss');e.cooldown=100;e.spawnTime=0;tiger.castPattern(2,e,true);for(let t=0;t<8&&!tiger.hazards.some(h=>h.pounce);t+=.025)tiger.update(.025,false);const h=tiger.hazards.find(h=>h.pounce);assert.ok(h&&tiger.distance(h,h.end)<=690);
   assert.ok(isFree(tiger.world,tiger.groundPoint({...e,...h.end}),39));
 });
 test('all three weapons retain real hit distances under the following camera',()=>{
@@ -153,8 +153,9 @@ test('a tiny isolated navigation pocket never removes the mainland from the purs
 });
 test('charges near a world edge follow their terrain-clipped path without jumping to old arena percentage margins',()=>{
   for(const kind of ['boss','charger']){
-    const c=fresh('bell',2),e=c.spawn(kind);Object.assign(e,c.percent({x:750,y:140}),{spawnTime:0,cooldown:100});Object.assign(c.player,c.percent({x:1100,y:176}));
+    const c=fresh('bell',2),e=c.spawn(kind);Object.assign(e,c.percent({x:750,y:140}),{spawnTime:0,cooldown:100});Object.assign(c.player,c.percent({x:1500,y:176}));
     assert.ok(isFree(c.world,c.groundPoint(e),40));if(kind==='boss')c.castPattern(2,e,false);else c.charge(e,false);
+    if(kind==='boss')for(let t=0;t<8&&!c.hazards.some(h=>h.dash);t+=.025)c.update(.025,false);
     const h=c.hazards.find(h=>h.dash);h.age=h.delay-.025;c.updateHazards(.05);
     near(e.x,h.x+(h.end.x-h.x)*.025/h.duration);near(e.y,h.y+(h.end.y-h.y)*.025/h.duration);assert.ok(isFree(c.world,c.groundPoint(e),33));
   }

@@ -12,9 +12,10 @@ const { advanceEnemyAnimation } = require('./enemy-animation');
 const {canCast,tacticDirection}=require('./enemy-tactics');
 const {relicView,chooseRelic,relicDeaths}=require('./world-events');
 const {registerPressure}=require('./boss-counterplay');
+const {advanceTigerHunt,onTigerPounceLand,tigerClawContact,tigerVulnerable}=require('./white-tiger');
 const { beginBossPattern, advanceBossPattern, startEnrage, advanceEnrage, attackLine, waveBand, sectorAngle, inAngleGap, angleDelta, shellMultiplier } = require('./boss-patterns');
 const STAGES = ['东方·初生之野', '西方·白骨战场', '南方·焚天熔界', '北方·归墟寒海', '天道之庭'];
-const BOSSES = ['青龙法相', '白虎法相', '朱雀法相', '玄武法相', '天道化身'];
+const BOSSES = ['青龙法相', '白虎·庚金猎主', '朱雀法相', '玄武法相', '天道化身'];
 const PLAYER_SPEED = 300; // Short-edge UI units per second on every device.
 const WEAPONS = {
   bell: { name: '混沌钟', range: BELL.range, interval: BELL.interval, damage: 3, desc: '扩散钟鸣 · 外缘共鸣增伤，居中回响追击' },
@@ -37,7 +38,7 @@ const ENEMIES = [
   { id: 'charger', name: '裂界奔兽', hint: '长肢收拢蓄势，再沿锁定路线扑杀。横移躲开，趁落地停顿反击。' },
   { id: 'elite', name: '镇劫重兽', hint: '厚胸巨爪与肩部骨盾，蓄力引发落点震击。远离预警后再近身，击败得更多灵气。' },
   ...BOSSES.map((name, i) => ({ id: 'boss-' + (i + 1), name,
-    hint: ['盘身引出分叉根脉，甩尾前再次蓄势。穿过藤蔓间隙，留意龙身转向。', '伏低身体后扑杀。横移躲开；暴怒后落地重新瞄准，再扑向你的位置。', '振翼后陨火逐次锁定，扇翼推出火浪。沿熄灭的焦痕回转，从火浪缺口穿行。', '缩甲聚水后海浪从本体中心向外推进。穿过浪面缺口，绕向亮起的甲片核心。', '法环聚光后降下敕令，再衔接根脉追扑或陨火重浪。连招结束时法环会暴露。'][i] }))
+    hint: ['盘身引出分叉根脉，甩尾前再次蓄势。穿过藤蔓间隙，留意龙身转向。', '横步截路，低肩横爪后抬爪下劈；伏身时准备横移躲扑。暴怒后回望，远距追扑、近距回身横剪。诱扑撞骨柱可破势。', '振翼后陨火逐次锁定，扇翼推出火浪。沿熄灭的焦痕回转，从火浪缺口穿行。', '缩甲聚水后海浪从本体中心向外推进。穿过浪面缺口，绕向亮起的甲片核心。', '法环聚光后降下敕令，再衔接根脉追扑或陨火重浪。连招结束时法环会暴露。'][i] }))
 ];
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const round = value => Number(value.toFixed(2));
@@ -81,6 +82,7 @@ class Combat extends ArtifactCombat {
   }
   move(entity, direction, distance, bounds) {
     if (entity === this.player && (this.rootTime > 0 || this.enrage)) return;
+    if(entity===this.player&&Math.abs(distance)>.01&&Math.hypot(direction.x,direction.y)>.1){const sign=Math.sign(distance);this.lastMoveDirection={x:direction.x*sign,y:direction.y*sign};this.lastMovedAt=this.time;}
     if (this.world) { const offset=this.world.footOffset(entity),limits=bounds?{left:bounds.xMin*this.width/100,right:bounds.xMax*this.width/100,top:bounds.yMin*this.height/100+offset,bottom:bounds.yMax*this.height/100+offset}:undefined;
       const p = this.world.move(this.groundPoint(entity), direction.x * distance, direction.y * distance, entity.boss ? 34 : 20,limits);p.y-=offset;Object.assign(entity, this.percent(p)); return; }
     entity.x = clamp(entity.x + direction.x * distance / this.width * 100, 4, 96);
@@ -98,6 +100,7 @@ class Combat extends ArtifactCombat {
   damage() { return WEAPONS[this.weapon].damage * this.power; }
   interval() { return Math.max(0.52, WEAPONS[this.weapon].interval * this.haste); }
   startStage() {
+    this.lastMoveDirection=null;this.lastMovedAt=-Infinity;
     if (this.exploration) { this.world = new WorldState(this.stage,this.random()); this.width = this.world.width; this.height = this.world.height; Object.assign(this.player, this.percent(this.world.entry)); }
     this.enrage = null;
     this.rootTime = 0; this.rootImmunity = 0; this.rootSourceId = null;
@@ -231,7 +234,7 @@ class Combat extends ArtifactCombat {
     }
     for (const e of this.enemies) {
       const contact=this.world?Math.hypot(this.groundPoint(this.player).x-this.groundPoint(e).x,this.groundPoint(this.player).y-this.groundPoint(e).y):this.distance(this.player,e);
-      if (e.hp > 0 && !e.spawnTime && contact < (e.boss ? 45 : e.fodder ? 22 : 28)) { this.hurt((e.boss ? 12 : e.kind === 'elite' ? 9 : e.fodder ? 3 : 5) * (e.damageScale || 1), e.name); break; }
+      if (e.bossType!==2 && e.hp > 0 && !e.spawnTime && contact < (e.boss ? 45 : e.fodder ? 22 : 28)) { this.hurt((e.boss ? 12 : e.kind === 'elite' ? 9 : e.fodder ? 3 : 5) * (e.damageScale || 1), e.name); break; }
     }
     // Damage is always announced by a living creature's motion. Ambient level
     // art no longer creates ownerless attacks underneath the player.
@@ -272,6 +275,7 @@ class Combat extends ArtifactCombat {
     if (e.boss && !e.phase2 && e.hp <= e.maxHp * 0.5) {
       startEnrage(this, e); return;
     }
+    if(e.tigerHunt){advanceTigerHunt(this,e,dt);return;}
     advanceBossPattern(this, e, dt);
     e.cooldown -= dt;
     const view = this.world && this.camera(), position = this.world && this.point(e), margin = e.boss ? 64 : 24;
@@ -348,6 +352,7 @@ class Combat extends ArtifactCombat {
   }
   contains(h, point) {
     if(h.broken)return false;
+    if(h.tigerClaw)return tigerClawContact(h,this.point(h),this.point(point));
     if (h.shape === 'line') {
       const line = h.dash && h.active && h.swept ? h.swept : attackLine(h);
       return segmentDistance(this.point(point), this.point(line), this.point(line.end)) <= h.width / 2;
@@ -365,7 +370,11 @@ class Combat extends ArtifactCombat {
   updateHazards(dt) {
     for (const h of this.hazards) {
       if(h.broken)continue;
+      const owner=this.enemies.find(e=>e.id===h.owner);
+      if((h.tigerClaw||h.tigerPounce)&&owner?.freezeTime>0)continue;
+      if(h.tigerClaw&&owner){h.x=owner.x;h.y=owner.y;}
       const previousAge = h.age; h.age += dt; h.active = h.age >= h.delay;
+      if(h.tigerClaw)h.previousAge=previousAge;
       if (h.owner !== null && !this.enemies.some(e => e.id === h.owner && e.hp > 0)) continue;
       if (!h.active) continue;
       if (h.dash) {
@@ -374,6 +383,7 @@ class Combat extends ArtifactCombat {
           if (!this.world) { p.x = clamp(p.x, 4, 96); p.y = clamp(p.y, 8, 92); } return p; };
         const previous = at(previousAge), current = at(h.age); h.swept = { ...previous, end: current };
         if (e) { e.x = current.x; e.y = current.y; e.dashing = h.age < h.delay + h.duration; }
+        if(e&&h.tigerPounce)e.tigerAir=clamp((h.age-h.delay)/h.duration,0,1);
       }
       if (h.age > h.delay + h.duration + 1e-6 && (!h.dash || previousAge >= h.delay + h.duration)) continue;
       if (h.friendly) {
@@ -386,15 +396,16 @@ class Combat extends ArtifactCombat {
           if (h.kind === 'root' && !h.boundPlayer && this.invulnerable <= 0 && this.rootImmunity <= 0) {
             this.rootTime = VINES.bind; this.rootImmunity = VINES.immunity; this.rootSourceId = h.id; h.boundPlayer = true; this.emit('rooted');
           }
-          if (h.dash) { const owner = this.enemies.find(e => e.id === h.owner); if (owner) owner.chargeHit = true; }
+          if (h.dash||h.tigerClaw) { const owner = this.enemies.find(e => e.id === h.owner); if (owner) owner.chargeHit = true; }
           if (h.meteor) {
             if (meteorPhase(h) === 'impact') {
               if (!h.impactHit) { h.impactHit = true; this.hurt(h.damage, '陨火撞击'); }
             } else this.hurt(h.burnDamage, '余烬焚地');
-          } else this.hurt(h.damage, h.label === '息' ? '吞灵吐息' : ({ root: '生息藤蔓', slash: '裂界扑杀', tail: '盘龙扫尾', flame: '天火焚地', tide: '归墟潮汐', order: '敕令裁决', arcane: '镇劫震击' }[h.kind] || '劫境法则'));
+          } else this.hurt(h.damage, h.tigerClaw||h.tigerPounce?h.label:h.label === '息' ? '吞灵吐息' : ({ root: '生息藤蔓', slash: '裂界扑杀', tail: '盘龙扫尾', flame: '天火焚地', tide: '归墟潮汐', order: '敕令裁决', arcane: '镇劫震击' }[h.kind] || '劫境法则'));
           if (h.push) this.move(this.player, this.vector(h, this.player), 85 * dt);
         }
       }
+      if(h.tigerPounce&&owner&&h.age+1e-6>=h.delay+h.duration)onTigerPounceLand(this,owner,h);
     }
     this.hazards = this.hazards.filter(h => !h.broken && h.age < h.delay + h.duration && (h.owner === null || this.enemies.some(e => e.id === h.owner && e.hp > 0)));
     for (const e of this.enemies) e.dashing = this.hazards.some(h => h.dash && h.owner === e.id && h.active);
@@ -483,7 +494,7 @@ class Combat extends ArtifactCombat {
   }
   deal(e, amount, source = 'direct', flash = true) {
     if (amount <= 0 || e.hp <= 0 || e.spawnTime > 0) return;
-    const exposed = e.bossType === 2 && e.castTime <= 0 && e.recoverTime > 0 && !e.chargeHit;
+    const exposed = tigerVulnerable(e);
     const multiplier = shellMultiplier(this, e) * (exposed ? 1.35 : 1) * (this.path === 'rend' && (e.boss || e.kind === 'elite') ? 1.3 : 1);
     const damage = amount * multiplier * (e.fractureTime > 0 ? 1 + e.fractureStrength : 1), effective = Math.min(e.hp, damage);
     e.hp -= damage; e.lastDamageSource = source; this.damageBySource[source] = (this.damageBySource[source] || 0) + effective;
@@ -626,8 +637,8 @@ class Combat extends ArtifactCombat {
   }
   snapshot() {
     const boss = this.enemies.find(e => e.boss);
-    const exposed = boss && boss.bossType === 2 && boss.castTime <= 0 && boss.recoverTime > 0 && !boss.chargeHit;
-    const hint = boss ? ['盘身后根脉分叉 · 甩尾前离开龙首朝向', '伏身后横移 · 落地转向后会再扑', '抬翼陨火 · 从火浪缺口穿行', '缩甲后向外发浪 · 绕向发亮甲片', '结印后敕令落下 · 连招结束时反击'][boss.bossType - 1] : '';
+    const exposed = boss && tigerVulnerable(boss);
+    const hint = boss ? ['盘身后根脉分叉 · 甩尾前离开龙首朝向', '低肩横爪 · 抬爪下劈 · 诱扑撞骨柱破势', '抬翼陨火 · 从火浪缺口穿行', '缩甲后向外发浪 · 绕向发亮甲片', '结印后敕令落下 · 连招结束时反击'][boss.bossType - 1] : '';
     return {
       world: this.world ? { name:this.world.name, region:this.world.regionAt(this.point(this.player)), explored:this.world.explored, sites:this.world.sites.length, width:this.width, height:this.height } : null,
       worldRelic:relicView(this),
@@ -638,7 +649,7 @@ class Combat extends ArtifactCombat {
       objective: this.phase === 3 ? '击败' + BOSSES[this.stage - 1] : `剩余 ${this.enemies.length + this.remaining} 敌 · ${Math.max(0, Math.ceil([18, 22, 22][this.phase] - this.phaseTime))}秒后增援`,
       progress: this.cleared ? 100 : Math.floor(Math.min(95, this.phase * 25 + (this.phase === 3 && boss ? (1 - boss.hp / boss.maxHp) * 25 : Math.min(1, this.phaseTime / [18, 22, 22][this.phase]) * 25))),
       enemies: this.enemies.map(e => ({ id: e.id, kind: e.kind, boss: e.boss, bossType: e.bossType, trial: Boolean(e.trial), x: round(e.x), y: round(e.y), hpPct: round(Math.max(0, e.hp / e.maxHp * 100)),
-        burnTime: e.burnTime > 0 ? 1 : 0, slowTime: e.slowTime > 0 ? 1 : 0, freezeTime: e.freezeTime > 0 ? 1 : 0, hitTime: e.hitTime > 0 ? 1 : 0, casting: e.castTime > 0, recovering: e.castTime <= 0 && e.recoverTime > 0, shielded: Boolean(e.shielded), exposed: e.bossType === 2 && e.castTime <= 0 && e.recoverTime > 0 && !e.chargeHit })),
+        burnTime: e.burnTime > 0 ? 1 : 0, slowTime: e.slowTime > 0 ? 1 : 0, freezeTime: e.freezeTime > 0 ? 1 : 0, hitTime: e.hitTime > 0 ? 1 : 0, casting: e.castTime > 0, recovering: e.castTime <= 0 && e.recoverTime > 0, shielded: Boolean(e.shielded), exposed: tigerVulnerable(e) })),
       hazards: this.hazards.map(h => {
         const line = h.shape === 'line', a = this.point(h), b = line ? this.point(h.end) : a;
         return { id: h.id, x: line ? (h.x + h.end.x) / 2 : h.x, y: line ? (h.y + h.end.y) / 2 : h.y,

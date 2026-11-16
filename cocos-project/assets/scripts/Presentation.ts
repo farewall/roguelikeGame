@@ -213,8 +213,9 @@ export class CocosPresentation {
       // crosses behind it during the warning. Only the sprite is mirrored.
       const charging = enemy.kind === 'charger' || enemy.bossType === 2;
       const lane = charging && c.combat.hazards.find(h => h.dash && h.owner === enemy.id && h.age < h.delay + h.duration);
-      const facing = enemy.castTime > 0 && enemy.attackAngle !== undefined ? Math.cos(enemy.attackAngle) : c.player.x - enemy.x;
-      const flipped = enemy.bossType !== 5 && (lane ? lane.end.x - lane.x : facing) > 0;
+      const facing = (enemy.castTime > 0||enemy.tigerHunt) && enemy.attackAngle !== undefined ? Math.cos(enemy.attackAngle) : c.player.x - enemy.x;
+      const frontFlight=enemy.bossType===2&&enemy.tigerPose===6&&Math.sin(enemy.attackAngle||0)>=-.28;
+      const flipped = enemy.bossType !== 5 && (frontFlight?(lane ? lane.end.x-lane.x:facing)<0:(lane ? lane.end.x - lane.x : facing)>0);
       const sprite = this.image(world, 'enemy-' + enemy.id, texture, p.x + (flipped ? sw / 2 : -sw / 2) + direction.x * recoil, p.y - sh / 2 + direction.y * recoil + motion.dy, sw, sh, solidity);
       sprite.node.setScale(flipped ? -1 : 1, 1, 1); sprite.node.angle = motion.angle * (flipped ? -1 : 1);
       (sprite.node as any).worldDepth=p.y+(c.combat.world?c.combat.world.footOffset(enemy):size*.3);
@@ -288,6 +289,16 @@ export class CocosPresentation {
   }
   drawEffect(layer, effect, point) {
     const g = layer.g, p = point(effect), t = clamp(effect.age / effect.life, 0, 1), life = 1 - t;
+    if(effect.type==='tiger-impact'||effect.type==='tiger-crash'){
+      const crash=effect.type==='tiger-crash';
+      for(let i=0;i<(crash?9:5);i++){
+        const a=i*2.399+effect.id,r=(12+t*effect.radius)*(.65+i%3*.12),x=p.x+Math.cos(a)*r,y=p.y+72+Math.sin(a)*r*.38-Math.sin(t*Math.PI)*(crash?42:18);
+        g.lineStyle(0);g.beginFill(crash?0xe1d0ad:0x9f8e72,life*.8);g.drawPolygon([x,y-4*life,x+6*life,y,x+2*life,y+4*life,x-4*life,y+2*life]);g.endFill();
+      }
+      const size=90+t*80;this.image(layer,'tiger-dust-'+effect.id,this.assets.frames.chaosMist[4],p.x-size/2,p.y+45,size,size*.36,life*.24);
+      if(crash)this.image(layer,'tiger-bones-'+effect.id,this.assets.frames.tigerPillars[2],p.x-90,p.y-70-t*45,180,180,life*.9);
+      return;
+    }
     if(effect.type==='boss-break'||effect.type==='sword-ward'){
       const color=effect.type==='boss-break'?0xffdf9e:0xc5e3db;
       for(let i=0;i<6;i++){const a=i*Math.PI/3+.2,r=10+t*effect.radius;g.lineStyle(2.5,color,life*.85);g.moveTo(p.x+Math.cos(a)*r,p.y+Math.sin(a)*r*.6);g.lineTo(p.x+Math.cos(a)*(r+12*life),p.y+Math.sin(a)*(r+12*life)*.6-8*life);}return;
@@ -425,7 +436,7 @@ export class CocosPresentation {
   worldMap() {
     const c=this.c,width=Math.min(c.layout.w-100,1120),{layer,x,y}=this.modal(width,650),world=c.combat.world;
     this.text(layer,'world-map-title',world.name+' · '+world.regionAt(c.combat.point(c.combat.player)),x+32,y+25,32,GOLD);
-    this.text(layer,'world-map-help','已暂停 · 浅色点为主角，菱形为遗迹与补给，红色为首领',x+32,y+77,20,MUTE);
+    this.text(layer,'world-map-help','已暂停 · 浅色点为主角，菱形为遗迹与补给，红色为首领'+(world.stage===2?' · 骨柱可诱撞':''),x+32,y+77,20,MUTE);
     drawMap(this,layer,x+90,y+122,width-180,425,true);
     this.button(layer,'world-map-close','返回探索',x+32,y+573,width-64,52,()=>c.closeWorldMap(),{primary:true,size:24});
   }

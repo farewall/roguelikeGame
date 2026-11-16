@@ -39,6 +39,11 @@ class WorldState {
         bounds:{left:p.x-radius,right:p.x+radius,top:p.y-radius,bottom:p.y+radius}};
       this.props.push(prop);this.solids.push(prop);
     }
+    this.tigerPillars=[];
+    if(stage===2)for(const region of this.regions){
+      const nearest=this.props.filter(p=>!p.tigerPillar).sort((a,b)=>Math.hypot(a.x-region.x,a.y-region.y)-Math.hypot(b.x-region.x,b.y-region.y));
+      for(const prop of nearest){if(this.tigerPillars.some(p=>Math.hypot(p.x-prop.x,p.y-prop.y)<380))continue;Object.assign(prop,{tigerPillar:true,broken:false,size:240,flip:false});this.tigerPillars.push(prop);if(this.tigerPillars.filter(p=>this.regionAt(p)===region.name).length>=2)break;}
+    }
     this.nav = new FlowField(this); this.bossNav = new FlowField(this,64,36,true); this.explored = 0;
     this.relicRoll=relicRoll;this.relic=makeRelic(this,relicRoll);this.bossBoon=false;this.cameraBias={x:0,y:0};
   }
@@ -79,7 +84,7 @@ class WorldState {
     const p=c.groundPoint(c.player);
     const boss=c.enemies.find(e=>e.boss&&e.hp>0),target=boss&&c.distance(c.player,boss)<900?c.point(boss):c.point(c.player),player=c.point(c.player),blend=1-Math.exp(-dt*3);
     this.cameraBias.x+=(clamp((target.x-player.x)*.22,-120,120)-this.cameraBias.x)*blend;
-    this.cameraBias.y+=(clamp((target.y-player.y)*.22,-65,65)-this.cameraBias.y)*blend;
+    this.cameraBias.y+=(clamp((target.y-player.y)*.22-(boss?.bossType===2?45:0),boss?.bossType===2?-110:-65,65)-this.cameraBias.y)*blend;
     if(Math.hypot(p.x-this.relic.x,p.y-this.relic.y)<340)this.relic.visited=true;
     for(const site of this.sites) {
       const d=Math.hypot(p.x-site.x,p.y-site.y);

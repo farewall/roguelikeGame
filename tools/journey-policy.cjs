@@ -16,6 +16,14 @@ function movement(c, bounds = { xMin: 6, xMax: 94, yMin: 20, yMax: 82 }) {
       score += Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) * 90;
     }
     for (const h of c.hazards) if (!h.friendly) {
+      if(h.tigerClaw){
+        // A low shoulder promises a lateral sweep, a raised paw a straight
+        // chop. Forecast the visible movement using the same contact geometry.
+        for(let j=0;j<4;j++){
+          const at=h.delay+h.duration*(j+1)/4,forecast={...h,width:h.width+12,age:at,previousAge:h.delay+h.duration*j/4};
+          if(h.age<h.delay+h.duration&&c.contains(forecast,future))score+=1100;
+        }
+      }
       if (h.shape === 'circle') score += Math.max(0, h.radius + 70 - c.distance(future, h)) * 5;
       if (h.fireWave && h.age >= h.delay) {
         const t = Math.min(1, (h.age - h.delay) / h.duration), x = h.x + h.moving.x * t;
@@ -28,7 +36,7 @@ function movement(c, bounds = { xMin: 6, xMax: 94, yMin: 20, yMax: 82 }) {
       if (c.contains(danger, future)) score += h.active ? 1500 : 500;
       // Read the direction of an actual moving wave/front, and plan where it
       // will be rather than chasing the empty space directly ahead of it.
-      if (h.wave || h.moving || h.pounce) {
+      if (h.wave || h.moving || h.pounce || h.tigerClaw) {
         const projected = { ...h, age: h.age + 0.3, active: h.age + 0.3 >= h.delay };
         if (h.pounce) {
           const at = age => { const t = Math.max(0, Math.min(1, (age - h.delay) / h.duration)); return { x: h.x + (h.end.x - h.x) * t, y: h.y + (h.end.y - h.y) * t }; };

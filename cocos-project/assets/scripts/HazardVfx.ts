@@ -1,5 +1,5 @@
 import { UITransform } from 'cc';
-import { attackLine, waveBand, sectorAngle, inAngleGap } from './generated/game-core';
+import { attackLine, waveBand, sectorAngle, inAngleGap, tigerClawSegment } from './generated/game-core';
 import { drawRootHazard } from './VineVfx';
 import { drawMeteor } from './MeteorVfx';
 const clamp = (n: number, a = 0, b = 1) => Math.max(a, Math.min(b, n));
@@ -17,6 +17,17 @@ export function drawHazard(v: any, layer: any, h: any, point: (p: any) => any) {
     const sprite = v.image(layer, prefix + id, atlas[index], x, y, w, height, opacity * fade);
     sprite.node.getComponent(UITransform).setAnchorPoint(0.5, 0.5); sprite.node.angle = -angle;
   };
+  if(h.tigerClaw){
+    const paw=tigerClawSegment(h,{x:0,y:0}),dx=paw.end.x-paw.x,dy=paw.end.y-paw.y,len=Math.hypot(dx,dy)||1;
+    for(let i=-1;i<=1;i++){
+      const ox=-dy/len*i*9,oy=dx/len*i*9;
+      const x=p.x+paw.x+ox,y=p.y+paw.y+oy,nx=-dy/len,ny=dx/len;
+      g.lineStyle(5,0xb58b42,fade*.65);g.moveTo(x,y);g.bezierCurveTo(x+dx*.3+nx*14,y+dy*.3+ny*14,x+dx*.8+nx*10,y+dy*.8+ny*10,x+dx,y+dy);
+      g.lineStyle(2,0xfff0cd,fade);g.moveTo(x+dx*.15,y+dy*.15);g.bezierCurveTo(x+dx*.4+nx*13,y+dy*.4+ny*13,x+dx*.8+nx*8,y+dy*.8+ny*8,x+dx,y+dy);
+    }
+    return;
+  }
+  if(h.tigerPounce)return; // The airborne physical tiger carries this attack.
   if (h.shape === 'line') {
     const line = attackLine(h), a = point(line), b = point(line.end);
     const dx = b.x - a.x, dy = b.y - a.y, length = Math.hypot(dx, dy) || 1, angle = Math.atan2(dy, dx) * 180 / Math.PI;

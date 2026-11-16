@@ -13,30 +13,34 @@ function scene(stage) {
   return { c, e };
 }
 function advance(c, seconds) { for (let i = 0; i < Math.ceil(seconds / 0.025); i++) c.update(0.025, false); }
+function until(c,predicate){for(let i=0;i<600&&!predicate();i++)c.update(.025,false);assert.ok(predicate());}
 
 test('tiger waits for its landing, reacquires the current player, and locks a fresh second pounce', () => {
   const { c, e } = scene(2); e.phase2 = true; c.castPattern(2, e, true);
+  until(c,()=>c.hazards.some(h=>h.tigerPounce));
   const first = c.hazards[0], firstEnd = { ...first.end };
   assert.equal(c.hazards.length, 1, 'The second lane must not be precomputed at combo start');
-  c.player.x = 70; c.player.y = 76;
-  advance(c, 1.4); near(e.x, firstEnd.x); near(e.y, firstEnd.y);
+  c.player.x = 90; c.player.y = 76;
+  until(c,()=>e.tigerHunt.phase==='landing');near(e.x, firstEnd.x); near(e.y, firstEnd.y);
   assert.ok(!c.hazards.some(h => h.second));
   const landing = { x: e.x, y: e.y }, target = { ...c.player };
-  advance(c, 0.075);
+  until(c,()=>c.hazards.some(h=>h.second));
   const second = c.hazards.find(h => h.second); assert.ok(second);
   near(second.x, landing.x); near(second.y, landing.y);
   const aimed = c.vector(landing, second.end), expected = c.vector(landing, target);
   near(aimed.x, expected.x); near(aimed.y, expected.y); assert.ok(second.delay >= 0.7);
   const end = { ...second.end }; c.player.x = 15; c.player.y = 20;
   advance(c, 0.6); assert.deepEqual(second.end, end);
-  advance(c, 0.7); assert.ok(!e.dashing); assert.ok(e.castTime <= 0 && e.recoverTime > 0);
+  until(c,()=>e.tigerHunt?.phase==='recovery');assert.ok(!e.dashing); assert.ok(e.castTime <= 0 && e.recoverTime > 0);
 });
 
 test('a tiger cannot hit a distant point on its route before its body reaches that point', () => {
-  const { c, e } = scene(2); e.x = 20; e.y = c.player.y; c.player.x = 60;
+  const { c, e } = scene(2); e.x = 10; e.y = c.player.y; c.player.x = 80;
   c.invulnerable = 0; c.castPattern(2, e, false);
-  advance(c, 0.975); assert.equal(c.hp, 100, 'Only the leading body has moved, not the whole lane');
-  advance(c, 0.4); assert.ok(c.hp < 100); assert.equal(e.chargeHit, true);
+  until(c,()=>c.hazards.some(h=>h.tigerPounce));const h=c.hazards.find(h=>h.tigerPounce);
+  c.player.x=h.x+(h.end.x-h.x)*.8;c.player.y=h.y+(h.end.y-h.y)*.8;
+  advance(c,h.delay+.025);assert.equal(c.hp,100,'Only the leading body has moved, not the whole lane');
+  advance(c,.5); assert.ok(c.hp < 100); assert.equal(e.chargeHit, true);
 });
 
 test('killing a tiger cancels its queued second pounce and removes released claws', () => {
@@ -168,7 +172,8 @@ test('enemy wind-up does not render ground circles, boxes, lanes or target marke
     { shape: 'line', kind: 'slash', end: { x: 400, y: 100 } },
     { shape: 'line', kind: 'arcane', end: { x: 400, y: 100 } },
     { shape: 'line', kind: 'root', end: { x: 400, y: 100 }, growing: true },
-    { shape: 'ring', kind: 'tide', radius: 200, inner: 160 }
+    { shape: 'ring', kind: 'tide', radius: 200, inner: 160 },
+    {shape:'tiger-claw',tigerClaw:true,kind:'slash',angle:0,style:'sweep',width:24}
   ]) {
     const r = recorder(); draw(r.v, r.layer, { x: 100, y: 100, age: 0.6, delay: 1, duration: 1, ...h }, p => p);
     assert.equal(r.geometry.length, 0); assert.equal(r.pictures.length, 0);

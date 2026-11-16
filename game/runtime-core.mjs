@@ -23,3 +23,5 @@ export const attackLine = bossPatterns.attackLine;
 export const waveBand = bossPatterns.waveBand;
 export const sectorAngle = bossPatterns.sectorAngle;
 export const inAngleGap = bossPatterns.inAngleGap;
+import whiteTiger from './core/white-tiger.js';
+export const tigerClawSegment=whiteTiger.tigerClawSegment;

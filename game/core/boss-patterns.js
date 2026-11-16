@@ -1,4 +1,5 @@
 'use strict';
+const {beginTigerHunt}=require('./white-tiger');
 
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 const angleDelta = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
@@ -32,7 +33,7 @@ function shellMultiplier(c, enemy, origin = c.player) {
 
 const ENRAGE = [
   { title: '青龙怒啸', copy: '根脉交生 · 万木争春', color: 0x87d2a1, pose: 3 },
-  { title: '白虎暴怒', copy: '落地转身 · 连扑追猎', color: 0xf2dfb3, pose: 4 },
+  { title: '白虎暴怒', copy: '金煞显形 · 落地追猎', color: 0xf2dfb3, pose: 10 },
   { title: '朱雀焚天', copy: '收翼浴火 · 陨羽连坠', color: 0xffa26b, pose: 3 },
   { title: '玄武震怒', copy: '缩甲聚海 · 重浪迭生', color: 0x8bd5e3, pose: 4 },
   { title: '天道震怒', copy: '法环崩裂 · 四象敕令', color: 0xd9c1ff, pose: 3 }
@@ -132,6 +133,7 @@ function execute(c, e, cue, plan) {
   const attack=c.hazards[before];e.actionWindup=attack?.delay||1;e.actionRelease=cue.type==='pounce' ? .4 : cue.type==='fire' ? .35 : .28;
 }
 function beginBossPattern(c, e, stage, phase2) {
+  if(stage===2&&e.bossType===2){beginTigerHunt(c,e,phase2);return;}
   e.sequence = (e.sequence || 0) + 1; e.chargeHit = false;
   const cue = (at, type, data = {}) => ({ at, type, ...data });
   let cues, castEnd, duration;
@@ -169,6 +171,7 @@ function advanceBossPattern(c, e, dt) {
   if (plan.age >= plan.duration) { e.bossPattern = null; e.attackName = ''; e.shielded = false; }
 }
 function startEnrage(c, e) {
+  e.tigerHunt=null;e.tigerPose=0;e.tigerAir=0;e.tigerExposed=false;
   e.phase2 = true; e.bossPattern = null; e.dashing = false; e.castTime = e.recoverTime = 0; e.shielded = false;
   c.hazards = c.hazards.filter(h => h.owner !== e.id); c.rootTime = 0; c.rootSourceId = null;
   c.pendingAttack = null; c.enrage = { owner: e.id, bossType: e.bossType, name: e.name, age: 0, duration: 1.8, ...ENRAGE[e.bossType - 1] };

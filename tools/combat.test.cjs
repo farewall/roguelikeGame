@@ -110,11 +110,13 @@ test('each boss has a distinct base pattern and second phase adds a meaningful t
   const signatures = [];
   for (let stage = 1; stage <= 5; stage++) {
     const c = fresh(); c.stage = stage; const boss = c.spawn('boss'); boss.cooldown = 0; c.update(0.025, false);
+    if(stage===2)simulate(c,.8,false);
     const first = c.hazards.map(h => h.kind + ':' + h.shape); signatures.push(first.join(','));
-    assert.ok(c.hazards.length); assert.ok(c.hazards.every(h => h.delay >= 0.85)); assert.equal(c.hp, 100);
+    assert.ok(c.hazards.length); assert.ok(c.hazards.every(h => h.delay >= (stage===2?.55:.85))); assert.equal(c.hp, 100);
     c.hazards = []; boss.castTime = boss.recoverTime = boss.cooldown = 0; boss.hp = boss.maxHp * 0.49; c.update(0.025, false);
     assert.ok(c.enrage); assert.equal(c.hazards.length, 0); c.invulnerable = 100;
     simulate(c, 2.6, false);
+    if(stage===2)simulate(c,.8,false);
     assert.equal(boss.phase2, true); assert.ok(c.drainEvents().some(e => e.type === 'boss-phase'));
     assert.ok(c.hazards.length >= first.length);
   }
@@ -258,8 +260,10 @@ test('all five bosses anticipate, release with their actual hazard, and freeze t
     const c = fresh(); c.stage = stage;
     const boss = c.spawn('boss'); boss.cooldown = 0;
     c.update(0.025, false); assert.equal(bossFrame(boss), 2);
-    simulate(c, 0.5, false); assert.equal(bossFrame(boss), 2);
-    simulate(c, 0.75, false); assert.equal(bossFrame(boss), 3, 'release pose follows live hazard for boss ' + stage);
+    if(stage===2){
+      for(let i=0;i<300&&boss.visualState!=='release';i++)c.update(.025,false);
+      assert.equal(bossFrame(boss),3);assert.ok(c.hazards.some(h=>h.tigerClaw||h.tigerPounce));
+    }else{simulate(c, 0.5, false); assert.equal(bossFrame(boss), 2);simulate(c, 0.75, false); assert.equal(bossFrame(boss), 3, 'release pose follows live hazard for boss ' + stage);}
     const age = boss.visualAge, frame = bossFrame(boss);
     boss.freezeTime = 1; simulate(c, 0.2, false);
     assert.equal(boss.visualAge, age); assert.equal(bossFrame(boss), frame);

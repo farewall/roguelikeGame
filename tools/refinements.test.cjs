@@ -102,8 +102,11 @@ test('banner crowd path widens the flying volley while rend specializes against 
 });
 test('tiger exposes a damage window only when its charge misses the player', () => {
   for (const dodge of [true, false]) {
-    const c = fresh(); c.stage = 2; const boss = enemy(c, 75, 55, 'boss'); boss.cooldown = 0; c.update(0.025, false);
-    if (dodge) c.player.y = 80; advance(c, 1.5); assert.equal(boss.chargeHit, !dodge);
+    const c = fresh(); c.stage = 2; const boss = enemy(c, 95, 55, 'boss');c.player.x=10; boss.cooldown = 0; c.update(0.025, false);
+    for(let i=0;i<400&&!c.hazards.some(h=>h.tigerPounce);i++)c.update(.025,false);
+    const pounce=c.hazards.find(h=>h.tigerPounce);assert.ok(pounce);Object.assign(c.player,{x:pounce.x+(pounce.end.x-pounce.x)*.8,y:pounce.y+(pounce.end.y-pounce.y)*.8});if(dodge)c.player.y=80;
+    for(let i=0;i<400&&boss.tigerHunt?.phase!=='recovery';i++)c.update(.025,false);
+    assert.equal(boss.chargeHit,!dodge);
     const hp = boss.hp; c.deal(boss, 10); near(hp - boss.hp, dodge ? 13.5 : 10);
     assert.equal(c.snapshot().boss.state.includes('易伤'), dodge);
   }

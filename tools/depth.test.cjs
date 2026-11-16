@@ -53,9 +53,9 @@ test('safe essence is a separate one-time choice and each relic changes its own 
   const c=world(1,.2);Object.assign(c.player,c.percent(c.world.relic));const xp=c.xp;assert.ok(c.chooseRelic('essence'));assert.equal(c.xp,xp+4);assert.equal(c.world.bossBoon,false);assert.equal(c.chooseRelic('essence'),false);
   for(let stage=1;stage<=5;stage++){
     const plain=world(stage),blessed=world(stage);blessed.world.bossBoon=true;
-    const a=target(plain,'boss'),b=target(blessed,'boss');plain.castPattern(stage,a,false);blessed.castPattern(stage,b,false);
+    const a=target(plain,'boss'),b=target(blessed,'boss');if(stage===2){plain.player.x=70;blessed.player.x=70;}plain.castPattern(stage,a,false);blessed.castPattern(stage,b,false);
     if(stage===1)assert.equal(plain.hazards.length-blessed.hazards.length,1);
-    if(stage===2)assert.ok(blessed.hazards[0].delay>plain.hazards[0].delay);
+    if(stage===2){for(const [c,e] of [[plain,a],[blessed,b]])for(let t=0;t<8&&!c.hazards.some(h=>h.tigerPounce);t+=.025)c.update(.025,false);assert.ok(blessed.hazards.find(h=>h.tigerPounce).delay>plain.hazards.find(h=>h.tigerPounce).delay);}
     if(stage===3)assert.ok(blessed.hazards[0].duration<plain.hazards[0].duration);
     if(stage===4)assert.ok(blessed.hazards[0].gapHalf>plain.hazards[0].gapHalf);
     if(stage===5)assert.ok(blessed.hazards[0].delay>plain.hazards[0].delay);

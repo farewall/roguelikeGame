@@ -381,6 +381,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
               if (h.dash && h.owner === charger.id && state === 'active') { charger.x = h.x + (h.end.x - h.x) * 0.3; charger.y = h.y + (h.end.y - h.y) * 0.3; }
             }
             boss.visualState = state === 'warning' ? 'cast' : 'release'; boss.visualAge = 0.6;
+            if(stage===2)boss.tigerPose=state==='warning'?5:7;
             c.setData({ message: '' }); c.syncCombat(); kaitian.presentation.render();
           }, { stage, state });
           await page.waitForTimeout(80);
@@ -389,11 +390,45 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
             const sprite = v.layers.world.nodes.get('enemy-' + boss.id).getComponent('cc.Sprite');
             const used = [...v.layers.world.used];
             const attack = used.some(id => id.startsWith('spell-') || id.startsWith('vines-') || id.startsWith('meteor-'));
-            return sprite.spriteFrame === v.assets.frames.bossMotion[stage-1][state==='warning'?0:1] && sprite.spriteFrame.rect.y===(stage-1)*192 && (state==='warning'||attack) && !used.some(id=>id.startsWith('hazard-'));
+            const expected=stage===2?v.assets.frames.tiger[state==='warning'?5:7]:v.assets.frames.bossMotion[stage-1][state==='warning'?0:1];
+            return sprite.spriteFrame === expected && (state==='warning'||attack) && !used.some(id=>id.startsWith('hazard-'));
           }, { stage, state }), 'Casting bodies and physical attacks must render without ground markers');
           await page.screenshot({ path: output + '/boss-' + stage + '-' + viewport.width + '-' + state + '.png' });
         }
         await page.evaluate(() => kaitian.controller.exitToHome());
+      }
+      // Drive the real hunt clock into each authored pose in the exported game.
+      // The joystick and physical sprites remain present at both phone sizes.
+      for(const viewport of [{width:844,height:390},{width:667,height:320}]){
+        await page.setViewportSize(viewport);await page.waitForFunction(w=>kaitian.controller.viewport.windowWidth===w,viewport.width);
+        await page.evaluate(()=>kaitian.controller.beginGame());
+        for(const phase of ['cutoff-step','sweep-windup','sweep-swing','chop-windup','chop-hit','pounce-windup','pounce-flight','backhand-windup','backhand-swing']){
+          const result=await page.evaluate(phase=>{
+            const c=kaitian.controller;c.resetGame();const core=window.arenaFixture(c);c.pauseGame();core.stage=2;core.phase=3;core.remaining=0;core.enemies=[];core.invulnerable=1000;
+            const e=core.spawn('boss');Object.assign(e,{x:33,y:43,spawnTime:0,hp:1000,maxHp:1000,cooldown:100,speed:0,phase2:true});core.player.x=50;core.player.y=58;core.castPattern(2,e,true);
+            let steps=0;while(e.tigerHunt?.phase!==phase&&steps++<700){
+              if(e.tigerHunt?.phase==='landing'){const p=core.point(e);Object.assign(core.player,core.percent({x:p.x-80,y:p.y+40}));}
+              core.update(.025,false);
+            }
+            if(phase==='pounce-flight')for(let i=0;i<7;i++)core.update(.025,false);
+            c.setData({message:''});c.syncCombat();kaitian.presentation.render();
+            const v=kaitian.presentation,sprite=v.layers.world.nodes.get('enemy-'+e.id).getComponent('cc.Sprite');
+            return {phase:e.tigerHunt?.phase,steps,realAtlas:sprite.spriteFrame.texture===v.assets.textures.tiger.texture,
+              joystick:!c.data.ended&&c.layout.joystick&&v.layers.hud.node.active,pose:e.tigerPose,legacyMarker:[...v.layers.world.used].some(id=>id.startsWith('hazard-'))};
+          },phase);
+          assert.equal(result.phase,phase);assert.ok(result.steps<700&&result.realAtlas&&!result.legacyMarker&&result.joystick);assert.ok(result.pose>0);
+          await page.waitForTimeout(40);await page.screenshot({path:output+'/tiger-'+viewport.width+'-'+phase+'.png'});
+        }
+        assert.ok(await page.evaluate(()=>{
+          const c=kaitian.controller;c.resetGame();c.pauseGame();const core=c.combat;core.stage=2;core.startStage();core.phase=3;core.remaining=0;core.enemies=[];core.invulnerable=1000;core.world.prepareNavigation(Infinity);
+          const nav=core.world.bossNav,p=core.world.tigerPillars[0],dx=Math.cos(Math.PI/8),dy=Math.sin(Math.PI/8),e=core.spawn('boss');
+          Object.assign(e,core.percent({x:p.x-dx*340,y:p.y-dy*340-72}),{spawnTime:0,hp:1000,maxHp:1000,cooldown:100,speed:0,phase2:true});Object.assign(core.player,core.percent({x:p.x+dx*220,y:p.y+dy*220-72}));core.castPattern(2,e,true);
+          for(let i=0;i<500&&!p.broken;i++)core.update(.025,false);c.setData({message:''});c.syncCombat();kaitian.presentation.render();
+          const v=kaitian.presentation,stump=v.layers.world.nodes.get('terrain-'+p.id)?.getComponent('cc.Sprite');
+          return p.broken&&e.tigerPose===8&&e.recoverTime>=2&&nav===core.world.bossNav&&stump?.spriteFrame===v.assets.frames.tigerPillars[1];
+        }),'The actual pillar must become a physical stump and stop the phase-two followup');
+        await page.waitForTimeout(40);await page.screenshot({path:output+'/tiger-'+viewport.width+'-pillar-crash.png'});
+        await page.evaluate(()=>kaitian.controller.exitToHome());
       }
       // Actual production phase transition: the battle freezes, the pause
       // button remains usable during animation, then phase two resumes once.
