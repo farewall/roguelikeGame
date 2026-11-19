@@ -167,7 +167,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
           c.syncCombat();c.resumeGame();
         });
         await click('world-map');
-        assert.ok(await page.evaluate(()=>kaitian.presentation.layers.overlay.used.has('map-phoenix-altar')));
+        await page.waitForFunction(()=>kaitian.presentation.layers.overlay.used.has('map-phoenix-altar'));
         await click('world-map-close');await click('phoenix-summon');
         assert.ok(await page.evaluate(()=>kaitian.controller.combat.phase===3&&kaitian.controller.combat.remaining===0));
         await page.evaluate(()=>kaitian.controller.exitToHome());console.log('PASS Creator large worlds '+viewport.width+': five layouts, real terrain, travel across screens, following camera, loot sites, map pause, Phoenix altar, four swords, bounded nodes');

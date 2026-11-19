@@ -77,14 +77,14 @@ export function drawMap(v, layer, x, y, width, height, expanded=false) {
   for(const road of world.roads){g.lineStyle(expanded?4:1.5,THEMES[world.stage-1],0.38);for(let i=0;i<road.length;i++){const p=road[i];if(!i)g.moveTo(x+p.x*scale,y+p.y*scale);else g.lineTo(x+p.x*scale,y+p.y*scale);}}
   if(expanded)for(const pillar of world.tigerPillars||[]){const px=x+pillar.x*scale,py=y+pillar.y*scale;g.lineStyle(pillar.broken?2:4,pillar.broken?0x776c59:0xd6c4a2);g.moveTo(px-3,py+4);g.lineTo(px+2,py-(pillar.broken?1:7));}
   const cam=core.camera();g.lineStyle(1,0xb7d5d1,0.55);g.drawRect(x+cam.x*scale,y+cam.y*scale,Math.min(cam.width,world.width)*scale,Math.min(cam.height,world.height)*scale);
-  for(const site of world.sites){const px=x+site.x*scale,py=y+site.y*scale;g.lineStyle(0);g.beginFill(site.used?0x657969:site.visited?0xe6c27d:0x89938e,1);g.drawPolygon([px,py-4,px+4,py,px,py+4,px-4,py]);g.endFill();if(expanded)v.text(layer,'map-site-'+site.id,site.visited?site.name:'未探明地点',px+12,py-9,18,site.used?0x82968d:0xc9d8c4);}
-  const r=world.relic;if(r){const px=x+r.x*scale,py=y+r.y*scale,done=['complete','claimed'].includes(r.status);g.lineStyle(1,done?0x7e9282:0xf0d49b);g.beginFill(done?0x586d60:0xc79546);g.drawPolygon([px,py-7,px+3,py-3,px+7,py,px+3,py+3,px,py+7,px-3,py+3,px-7,py,px-3,py-3]);g.endFill();if(expanded)v.text(layer,'map-relic',r.visited||world.phoenixAltar?r.name:'异动遗迹',px-14,py-27,21,done?0x82968d:0xe9c98b);}
   const altar = world.phoenixAltar;
+  for(const site of world.sites){const px=x+site.x*scale,py=y+site.y*scale;g.lineStyle(0);g.beginFill(site.used?0x657969:site.visited?0xe6c27d:0x89938e,1);g.drawPolygon([px,py-4,px+4,py,px,py+4,px-4,py]);g.endFill();if(expanded&&(!altar||site.visited))v.text(layer,'map-site-'+site.id,site.visited?site.name:'未探明地点',px+12,py-9,18,site.used?0x82968d:0xc9d8c4);}
+  const r=world.relic;if(r){const px=x+r.x*scale,py=y+r.y*scale,done=['complete','claimed'].includes(r.status);g.lineStyle(1,done?0x7e9282:0xf0d49b);g.beginFill(done?0x586d60:0xc79546);g.drawPolygon([px,py-7,px+3,py-3,px+7,py,px+3,py+3,px,py+7,px-3,py+3,px-7,py,px-3,py-3]);g.endFill();if(expanded)v.text(layer,'map-relic',r.visited||altar?r.name:'异动遗迹',altar?px-12:px+14,altar?py-27:py+12,21,done?0x82968d:0xe9c98b);}
   if (altar && core.phase < 3 && !world.bossBoon) {
     const px = x + altar.x * scale, py = y + altar.y * scale;
     g.lineStyle(0); g.beginFill(0xe09a6e);
     g.drawPolygon([px, py-6, px+6, py+5, px-6, py+5]); g.endFill();
-    if (expanded) v.text(layer, 'map-phoenix-altar', altar.name, px+12, py+5, 20, 0xe6ae84);
+    if (expanded) v.text(layer, 'map-phoenix-altar', altar.name, px-8, py+17, 21, 0xe6ae84, {center:true});
   }
   const boss=core.enemies.find(e=>e.boss&&e.hp>0);
   if(boss){const p=core.point(boss);g.lineStyle(0);g.beginFill(0xe8a17a);g.drawPolygon([x+p.x*scale,y+p.y*scale-6,x+p.x*scale+6,y+p.y*scale,x+p.x*scale,y+p.y*scale+6,x+p.x*scale-6,y+p.y*scale]);g.endFill();}
