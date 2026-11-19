@@ -4,7 +4,7 @@ import {UITransform} from 'cc';
 // Painted curls have soft wakes; the empty angular opening stays clear.
 export function drawSeaWave(v:any,layer:any,h:any,p:any,radius:number,inner:number,fade:number){
   v.waveSurface(layer,h,p,radius,inner,fade);
-  const g=layer.g,age=h.age-h.delay,prefix='spell-'+h.id+'-',count=Math.min(24,Math.max(12,Math.ceil((h.wave?.to||h.radius||radius)*Math.PI*2/80)));
+  const g=layer.g,age=h.age-h.delay,prefix='spell-'+h.id+'-',count=Math.min(18,Math.max(12,Math.ceil((h.wave?.to||h.radius||radius)*Math.PI*2/110)));
   for(let i=0;i<count;i++){
     const a=i*Math.PI*2/count,dx=Math.cos(a),dy=Math.sin(a),width=Math.min(90+Math.sin(i*2.1)*8,radius*Math.PI*2/count*1.05),height=(42+Math.sin(age*4+i)*3)*width/90;
     if(inAngleGap(h,dx,dy))continue;

@@ -148,18 +148,22 @@ test('short-edge scaling survives resize and the Mini Game remains landscape wit
   const app = JSON.parse(fs.readFileSync(path.join(__dirname, '../cocos-project/build-config/wechatgame.json'))); assert.equal(app.packages.wechatgame.orientation, 'landscape'); assert.equal(game.dash, undefined);
 });
 test('runtime assets fit the 4 MiB Mini Game budget, preserve animation transparency and contain valid local audio', () => {
-  const root = path.join(__dirname, '../cocos-project/assets/game-content');
-  const files = fs.readdirSync(root, { recursive: true }).filter(file => fs.statSync(path.join(root, file)).isFile());
-  const size = files.reduce((sum, file) => sum + fs.statSync(path.join(root, file)).size, 0); assert.ok(size < 4 * 1024 * 1024, 'Mini Game build exceeds 4 MiB: ' + size);
+  const {assetFile,assetRoot,bundles,compileCatalog}=require('./cocos/art-catalog.cjs');
+  compileCatalog();
+  const files = bundles.flatMap(name=>{
+    const dir=path.join(assetRoot,name);
+    return fs.readdirSync(dir,{recursive:true}).map(file=>path.join(dir,file)).filter(file=>fs.statSync(file).isFile());
+  });
+  const size = files.reduce((sum, file) => sum + fs.statSync(file).size, 0); assert.ok(size < 4 * 1024 * 1024, 'Mini Game build exceeds 4 MiB: ' + size);
   assert.ok(size < 3.5 * 1024 * 1024, 'Keep source art/audio within the content subpackage budget');
-  const hero=fs.readFileSync(path.join(root,'images/pangu/artifact-cast.png'));
+  const hero=fs.readFileSync(assetFile('artifact'));
   assert.equal(hero.readUInt32BE(16),768);assert.equal(hero.readUInt32BE(20),512);assert.equal(hero[25],6,'Production hero retains full RGBA precision');
-  const banner = fs.readFileSync(path.join(root, 'images/pangu-banner.png'));
+  const banner = fs.readFileSync(assetFile('banner'));
   assert.equal(banner.readUInt32BE(16), 768); assert.equal(banner.readUInt32BE(20), 768); assert.ok(banner.includes(Buffer.from('tRNS')));
-  const swords = fs.readFileSync(path.join(root, 'images/zhuxian-swords.png'));
+  const swords = fs.readFileSync(assetFile('swords'));
   assert.equal(swords.readUInt32BE(16), 512); assert.equal(swords.readUInt32BE(20), 512); assert.ok(swords.includes(Buffer.from('tRNS')));
   for (const name of ['attack', 'bell', 'echo', 'banner', 'dominion', 'rift', 'ready', 'warning', 'hurt', 'upgrade', 'victory', 'death']) {
-    const wav = fs.readFileSync(path.join(root, 'audio', name + '.wav')); assert.equal(wav.toString('ascii', 0, 4), 'RIFF'); assert.equal(wav.readUInt16LE(22), 1); assert.equal(wav.readUInt16LE(34), 16); assert.equal(wav.readUInt32LE(40), wav.length - 44);
+    const wav = fs.readFileSync(assetFile('audio-'+name)); assert.equal(wav.toString('ascii', 0, 4), 'RIFF'); assert.equal(wav.readUInt16LE(22), 1); assert.equal(wav.readUInt16LE(34), 16); assert.equal(wav.readUInt32LE(40), wav.length - 44);
   }
 });
 

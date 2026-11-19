@@ -5,8 +5,8 @@ const {isFree}=require('../game/core/world-geometry');
 const {canCast,tacticDirection}=require('../game/core/enemy-tactics');
 const {setup}=require('./game-harness.cjs');
 test('boss motion supplement has ten transparent runtime frames within its content budget',()=>{
-  const png=require('node:fs').readFileSync(require('node:path').join(__dirname,'../cocos-project/assets/game-content/images/boss-motion.png'));
-  assert.equal(png.readUInt32BE(16),384);assert.equal(png.readUInt32BE(20),960);assert.ok(png.includes(Buffer.from('tRNS')));assert.ok(png.length<128*1024);
+  const png=require('node:fs').readFileSync(require('./cocos/art-catalog.cjs').assetFile('motion1'));
+  assert.equal(png.readUInt32BE(16),384);assert.equal(png.readUInt32BE(20),192);assert.ok(png.includes(Buffer.from('tRNS')));assert.ok(png.length<128*1024);
 });
 function world(stage=1,roll=.6,weapon='swords'){
   const c=new Combat(weapon,()=>roll,{exploration:true});c.stage=stage;c.startStage();c.world.prepareNavigation(Infinity);c.enemies=[];c.phase=0;c.remaining=0;c.invulnerable=1000;c.drainEvents();return c;

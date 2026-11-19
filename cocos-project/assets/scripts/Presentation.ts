@@ -1,4 +1,4 @@
-import { Color, Graphics, HorizontalTextAlignment, Label, Layers, Mask, Node, Rect, Sprite, SpriteFrame, UIOpacity, UITransform, VerticalTextAlignment } from 'cc';
+import { Color, Graphics, HorizontalTextAlignment, Label, Layers, Mask, Node, Rect, Sprite, SpriteFrame, Texture2D, UIOpacity, UITransform, VerticalTextAlignment } from 'cc';
 import { DrawList, rgba } from './DrawList';
 import { frame } from './GameAssets';
 import { enemyFrame, bossFrame } from './generated/game-core';
@@ -15,23 +15,42 @@ const clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
 export class CocosPresentation {
   c: any; ready = false; progress = 0; error = ''; assets: any;
   layers: Record<string, any> = {}; regions: any[] = []; root: Node; worldClip: Node; private lastVersion = -1; private lastReady = false;
+  private overlayTransform: {scale:number; x:number; y:number} | null = null;
   constructor(owner: Node, controller: any) {
     this.c = controller; this.root = this.makeNode('GameLayers'); owner.addChild(this.root);
-    for (const name of ['background', 'ground', 'terrain', 'world', 'hud', 'overlay']) {
+    for (const name of ['background', 'ground', 'roads', 'terrain', 'world', 'hud', 'overlay']) {
       const node = this.makeNode(name);
-      if (['ground','terrain','world'].includes(name)) { if (!this.worldClip) { this.worldClip = this.makeNode('ArenaClip'); this.root.addChild(this.worldClip); this.worldClip.addComponent(Mask).type = Mask.Type.GRAPHICS_RECT; } this.worldClip.addChild(node); }
+      if (['ground','roads','terrain','world'].includes(name)) { if (!this.worldClip) { this.worldClip = this.makeNode('ArenaClip'); this.root.addChild(this.worldClip); this.worldClip.addComponent(Mask).type = Mask.Type.GRAPHICS_RECT; } this.worldClip.addChild(node); }
       else this.root.addChild(node);
-      this.layers[name] = { node, g: new DrawList(node.addComponent(Graphics)), nodes: new Map(), used: new Set(), pools:{sprite:[],label:[],surface:[]} };
+      this.layers[name] = { node, g: new DrawList(node.addComponent(Graphics),name==='background'), nodes: new Map(), used: new Set(), pools:{sprite:[],label:[],surface:[]} };
     }
   }
   finishLayers() {
     for (const layer of Object.values(this.layers) as any[]) {
-      layer.g.flush(); for (const [id, node] of layer.nodes) if (!layer.used.has(id)) node.active = false;
+      layer.g.commit(); for (const [id, node] of layer.nodes) if (!layer.used.has(id)) node.active = false;
     }
+    const t = this.overlayTransform;
+    if (t) this.regions = this.regions.map(r=>({...r,x:r.x*t.scale+t.x,y:r.y*t.scale+t.y,width:r.width*t.scale,height:r.height*t.scale,contentScale:t.scale}));
+  }
+  detachTextures(textures: Set<Texture2D>) {
+    if (!textures.size) return;
+    const visit = (node: Node) => {
+      const sprite = node.getComponent(Sprite);
+      if (sprite?.spriteFrame && textures.has(sprite.spriteFrame.texture as Texture2D)) sprite.spriteFrame = null;
+      if ((node as any).coverFrame && textures.has((node as any).coverFrame.texture)) {
+        (node as any).coverFrame.destroy();
+        (node as any).coverFrame = null;
+        (node as any).coverSource = null;
+      }
+      for (const child of node.children) visit(child);
+    };
+    visit(this.root);
   }
   makeNode(name: string) { const node = new Node(name); node.layer = Layers.Enum.UI_2D; node.addComponent(UITransform).setAnchorPoint(0, 1); return node; }
   begin(name: string) {
-    const layer = this.layers[name]; layer.g.clear(); layer.used.clear(); return layer;
+    const layer = this.layers[name];
+    if (name === 'overlay') { this.overlayTransform = null; layer.node.setScale(1,1,1); layer.node.setPosition(0,0); }
+    layer.g.clear(); layer.used.clear(); return layer;
   }
   use(layer: any, id: string, make: () => Node,kind='') {
     let node = layer.nodes.get(id); if (!node) {
@@ -51,6 +70,7 @@ export class CocosPresentation {
     const g = layer.g; g.lineStyle(border === null ? 0 : 1.5, border === null ? 0 : border, 0.8); g.beginFill(fill, alpha); g.drawRoundedRect(x, y, Math.max(0.01, w), Math.max(0.01, h), radius); g.endFill();
   }
   text(layer: any, id: string, value: any, x: number, y: number, size = 24, color = LIGHT, options: any = {}) {
+    if (options.minPx) size = Math.max(size,Math.ceil(options.minPx / this.c.rpxScale / (this.overlayTransform?.scale || 1)));
     const node = this.use(layer, id, () => { const n = this.makeNode(id); n.addComponent(Label);n.addComponent(UIOpacity); return n; },'label');
     const label = node.getComponent(Label), ui = node.getComponent(UITransform), key = JSON.stringify([size, color, options.serif, options.bold, options.center, options.wrap, options.leading]);
     let dirty = false;
@@ -94,7 +114,7 @@ export class CocosPresentation {
     const enabled = options.enabled !== false;
     this.rect(layer, x, y, width, height, options.primary ? GOLD : options.selected ? 0x354a43 : 0x192e34, enabled ? 1 : 0.45, options.primary || options.selected ? GOLD : 0x6d8172, 4);
     this.text(layer, id + '-label', label, x + width / 2, y + height / 2, options.size || 26, options.primary ? 0x1d2a29 : GOLD, { center: true, alpha: enabled ? 1 : 0.5 });
-    this.regions.push({ id, x, y, width, height, action, enabled });
+    this.regions.push({ id, x, y, width, height, ...options.hit, action, enabled });
   }
   surfaceGroup(layer,id){
     return this.use(layer,'surface-'+id,()=>{
@@ -127,8 +147,12 @@ export class CocosPresentation {
     return node;
   }
   modal(width, height) {
-    const { w, h } = this.c.layout, layer = this.begin('overlay'); this.regions = [];
-    this.rect(layer, 0, 0, w, h, 0x050e14, 0.9, null, 0);
+    const { w, h, safe } = this.c.layout, layer = this.begin('overlay'); this.regions = [];
+    const scale = Math.max(.01,Math.min(1,(safe.width-16)/width,(safe.height-16)/height));
+    const tx = safe.x+safe.width/2-scale*w/2, ty = safe.y+safe.height/2-scale*h/2;
+    layer.node.setScale(scale,scale,1);layer.node.setPosition(tx,-ty);
+    this.overlayTransform = {scale,x:tx,y:ty};
+    this.rect(layer, -tx/scale, -ty/scale, w/scale, h/scale, 0x050e14, 0.9, null, 0);
     const box = { x: (w - width) / 2, y: (h - height) / 2, width, height };
     this.rect(layer, box.x, box.y, width, height, INK, 1, 0x9e966d, 7); return { layer, ...box };
   }
@@ -141,7 +165,8 @@ export class CocosPresentation {
     const arena = c.layout.arena;
     this.worldClip.setPosition(arena.x, -arena.y); this.worldClip.getComponent(UITransform).setContentSize(arena.width, arena.height);
     const cam = c.combat ? c.combat.camera() : {x:0,y:0};
-    for (const name of ['ground','terrain','world']) this.layers[name].node.setPosition(-arena.x-cam.x, arena.y+cam.y);
+    for (const name of ['ground','roads','terrain','world']) this.layers[name].node.setPosition(-arena.x-cam.x, arena.y+cam.y);
+    this.layers.roads.node.active = this.ready && d.view==='game' && Boolean(c.combat?.world);
     if (!this.ready) {
       const layer = this.layers.hud; this.rect(layer, 0, 0, w, h, 0x101f28);
       this.text(layer, 'loading-title', '开天一念', w / 2, h / 2 - 75, 65, GOLD, { center: true, serif: true });
@@ -169,18 +194,22 @@ export class CocosPresentation {
     }
   }
   home() {
-    const { w, h } = this.c.layout, bg = this.layers.background, layer = this.layers.hud, c = this.c;
+    const { w, h, safe } = this.c.layout, bg = this.layers.background, layer = this.layers.hud, c = this.c;
     this.image(bg, 'title', this.assets.textures.title, 0, 0, w, h, 0.8, true);
     const veil = this.use(bg, 'home-veil', () => { const n = this.makeNode('home-veil'); n.addComponent(Graphics); return n; });
-    const shade = veil.getComponent(Graphics); shade.clear(); shade.fillColor = rgba(0x0a1921, 0.38); shade.rect(0, -h, w, h); shade.fill();
-    this.text(layer, 'home-mark', '混沌纪 · 山河未醒', 60, 40, 21, MUTE);
-    const x = w * 0.32, y = h * 0.39;
+    const shade = veil.getComponent(Graphics), veilSize=w+':'+h;
+    if ((veil as any).veilSize!==veilSize) {
+      shade.clear(); shade.fillColor = rgba(0x0a1921, 0.38); shade.rect(0, -h, w, h); shade.fill();
+      (veil as any).veilSize=veilSize;
+    }
+    this.text(layer, 'home-mark', '混沌纪 · 山河未醒', safe.x+28, safe.y+22, 21, MUTE,{minPx:10});
+    const x = safe.x+safe.width*.32, y = safe.y+safe.height*.39;
     this.text(layer, 'home-kicker', '天地重归混沌', x, y - 88, 23, 0xc0cebd, { center: true });
     this.text(layer, 'home-title', '开天一念', x, y, 82, GOLD, { center: true, serif: true });
     this.text(layer, 'home-subtitle', '一念开天 · 万物新生', x, y + 83, 25, LIGHT, { center: true });
-    this.text(layer, 'home-story', '一道神念于混沌中苏醒。循四象遗迹，找回失落的记忆。', w * 0.095, y + 165, 24, LIGHT, { wrap: w * 0.45 });
-    const bx = w * 0.66, bw = w * 0.265;
-    const top=h*.22,shift=c.data.hasCheckpoint?88:0;
+    this.text(layer, 'home-story', '一道神念于混沌中苏醒。循四象遗迹，找回失落的记忆。', safe.x+safe.width*.08, y + 152, 24, LIGHT, { wrap: safe.width*.45,minPx:11 });
+    const bx = safe.x+safe.width*.66, bw = safe.width*.265;
+    const top=safe.y+safe.height*.19,shift=c.data.hasCheckpoint?88:0;
     this.rect(layer,bx-28,top-28,bw+56,354+shift,INK,.8,0x4f665b);
     if(c.data.hasCheckpoint)this.button(layer,'resume','继续修行',bx,top,bw,70,()=>c.resumeRun(),{primary:true,size:29});
     this.button(layer, 'start', c.data.hasCheckpoint?'开启新一局':'踏入混沌', bx,top+shift,bw,70,()=>c.openIntro(),{primary:!c.data.hasCheckpoint,size:29});
@@ -210,15 +239,25 @@ export class CocosPresentation {
     this.rect(bg, 0, 0, w, h, 0x10202a);
     if (!c.combat.world) this.image(bg, 'arena', this.assets.textures['arena' + d.stage], a.x, a.y, a.width, a.height, 0.68, true);
     this.rect(bg, a.x, a.y, a.width, a.height, 0x09171c, 0.15, 0x756f51, 7);
-    const point = p => ({ x: a.x + p.x * c.combat.width / 100, y: a.y + p.y * c.combat.height / 100 });
+    const core = c.combat, cam = core.camera();
+    const point = p => ({ x: a.x + p.x * core.width / 100, y: a.y + p.y * core.height / 100 });
+    const inView = (p,padding=120,q=p) => Math.max(p.x,q.x)+padding>=a.x+cam.x && Math.min(p.x,q.x)-padding<=a.x+cam.x+a.width &&
+      Math.max(p.y,q.y)+padding>=a.y+cam.y && Math.min(p.y,q.y)-padding<=a.y+cam.y+a.height;
     if (c.combat.world) drawWorld(this,this.layers.ground,this.layers.terrain,world,point);
-    for (const hazard of c.combat.hazards) drawHazard(this, world, hazard, point);
+    for (const hazard of core.hazards) {
+      const tail = hazard.end || hazard;
+      const range=Math.max(hazard.radius||0,hazard.wave?.to||0,hazard.width||0)+165;
+      // A moving attack gets a conservative box that includes both endpoints and its sweep.
+      const sweep=point({x:tail.x+(hazard.moving?.x||0),y:tail.y+(hazard.moving?.y||0)});
+      if(inView(point(hazard),range,sweep) || hazard.moving&&inView(point(tail),range,point(hazard))) drawHazard(this, world, hazard, point);
+    }
     const player = point(d.player);
     drawGroundContact(this,this.layers.terrain,'hero',player,{},164,54);
-    for (const wave of c.combat.bellWaves) this.bellWave(world, wave, point);
-    for (const effect of c.combat.effects) this.drawEffect(world, effect, point);
+    for (const wave of core.bellWaves) if(inView(point(wave.origin),wave.range+90)) this.bellWave(world, wave, point);
+    for (const effect of core.effects) if(inView(point(effect),Math.max(160,effect.radius||0))) this.drawEffect(world, effect, point);
     for (const volley of c.combat.projectiles) for (const [index, bolt] of volley.bolts.entries()) {
       const p = point(bolt), dx = bolt.direction.x, dy = bolt.direction.y, trail = Math.min(volley.split ? 26 : 42, volley.traveled);
+      if (!inView(p)) continue;
       g.lineStyle(volley.split ? 1 : 2, 0xe2c68d, 0.4); g.moveTo(p.x - dx * trail, p.y - dy * trail); g.lineTo(p.x, p.y);
       const size = volley.split ? 46 : 68;
       const blade = this.image(world, 'blade-' + volley.id + '-' + index, this.assets.frames.banner[volley.split ? 13 : 12], p.x, p.y, size, size);
@@ -230,7 +269,9 @@ export class CocosPresentation {
       g.lineStyle(2, 0xc5f6df, 0.55); g.moveTo(player.x, player.y); g.lineTo(q.x, q.y);
       this.text(hud, 'aim-help', '拖动调整方向 · 松手裂天', a.x + a.width / 2, a.y + 112, 24, 0xbcead8, { center: true });
     }
-    for (const body of c.combat.remnants) drawRemnant(this, world, body, point(body));
+    const remnants=core.remnants.filter(body=>inView(point(body),creatureSize(body))).reverse();
+    let ordinaryRemnants=0;
+    for (const body of remnants) if(body.boss||ordinaryRemnants++<12) drawRemnant(this, world, body, point(body));
     for (const enemy of c.combat.enemies) {
       const p = point(enemy), size = creatureSize(enemy);
       if (c.combat.world) { const camera=c.combat.camera();if(p.x<a.x+camera.x-260 || p.x>a.x+camera.x+a.width+260 || p.y<a.y+camera.y-260 || p.y>a.y+camera.y+a.height+260) continue; }
@@ -264,33 +305,40 @@ export class CocosPresentation {
       if (enemy.burnTime > 0) this.image(world, 'burn-' + enemy.id, this.assets.frames.meteor[12 + Math.floor(c.combat.time * 8) % 4], p.x - size * 0.24, p.y + size * 0.05, size * 0.48, size * 0.4, 0.4);
       if (enemy.slowTime > 0) for (const side of [-1, 1]) { g.lineStyle(2, 0xa3d5e4, 0.65); g.moveTo(p.x + side * size * 0.25, p.y + size * 0.22); g.lineTo(p.x + side * size * 0.2, p.y + size * 0.36); }
     }
-    const frame = d.actorFrame, atlas = this.assets.frames.artifact[frame.action || 'idle'], texture = atlas[(ROWS[frame.direction || 'down'] || 0) * 6 + (frame.index || 0)];
-    const hero = this.image(world, 'hero', texture, player.x - 96, player.y - HERO_TOP, 192, 192, d.ended && !d.won ? Math.max(0, 1 - (frame.index || 0) / 5) : d.hurt ? 0.65 : 1);
+    const frame = d.actorFrame, atlas = this.assets.frames.artifact[frame.action || 'idle'];
+    const direction = ROWS[frame.direction || 'down'] || 0, index=frame.index||0;
+    const showOutcome=d.ended&&(index>=2||d.showEnding);
+    const texture=showOutcome?this.assets.frames.heroOutcomes[direction*2+(d.won?1:0)]:atlas[direction*6+index];
+    const hero = this.image(world, 'hero', texture, player.x - 96, player.y - HERO_TOP, 192, 192, d.ended && !d.won ? Math.max(.72, 1-index*.055) : d.hurt ? .65 : 1);
     (hero.node as any).worldDepth=player.y+54;
     if (!d.ended) this.artifact(world, player, d.weaponId, c.combat.time, frame);
     if (!d.ended) drawPlayerBind(this, world, player, c.combat.rootTime, c.combat.time);
     hero.tint = d.hurt ? 0xffd4a8 : 0xffffff;
     this.sortWorld();
     if (d.warded) for (const side of [-1, 1]) { g.lineStyle(3, 0xbcdfc8, 0.65); g.moveTo(player.x + side * 45, player.y - 32); g.lineTo(player.x + side * 51, player.y + 20); }
-    this.text(hud, 'brand', '开天一念', a.x, 22, 31, GOLD, { bold: true });
-    this.text(hud, 'phase', d.phaseName, a.x + 200, 16, 23, GOLD);
-    this.text(hud, 'objective', d.objective, a.x + 200, 48, 19, MUTE);
+    const uiTop = c.layout.safe.y, uiBottom = uiTop+c.layout.safe.height, utility=c.layout.utility;
+    this.text(hud, 'brand', '开天一念', a.x, uiTop+22, 31, GOLD, { bold: true });
+    this.text(hud, 'phase', d.phaseName, a.x + 200, uiTop+13, 23, GOLD,{minPx:11});
+    this.text(hud, 'objective', d.objective, a.x + 200, uiTop+46, 19, MUTE,{minPx:10});
     const menu = c.viewport.menuButton, headerRight = Math.max(w - a.x - a.width, menu && menu.left > 0 && menu.left < c.viewport.windowWidth ? w - menu.left / c.rpxScale + 16 : 0);
     const healthX = w - 400 - headerRight;
-    this.text(hud, 'hp', '元气 ' + d.hp + ' / ' + d.maxHp + '     境界 ' + d.level, healthX, 23, 22, LIGHT);
-    this.rect(hud, healthX, 66, 270, 6, 0x36423b); this.rect(hud, healthX, 66, 270 * d.hpPct / 100, 6, d.hpPct < 30 ? 0xd27b63 : GOLD);
-    this.button(hud, 'pause', '暂停', w - 112 - headerRight, 14, 100, 60, () => c.openSettings(), { size: 24 });
-    this.rect(hud, a.x, 84, a.width, 3, 0x263a3e); this.rect(hud, a.x, 84, a.width * d.progress / 100, 3, 0xa3b788);
+    this.text(hud, 'hp', '元气 ' + d.hp + ' / ' + d.maxHp + '     境界 ' + d.level, healthX, uiTop+23, 22, LIGHT,{minPx:10});
+    this.rect(hud, healthX, uiTop+66, 270, 6, 0x36423b); this.rect(hud, healthX, uiTop+66, 270 * d.hpPct / 100, 6, d.hpPct < 30 ? 0xd27b63 : GOLD);
+    const pauseX = w-12-headerRight-Math.max(100,utility.size), pauseW=Math.max(100,utility.size);
+    this.button(hud, 'pause', '暂停', pauseX, uiTop+14, pauseW, 60, () => c.openSettings(), { size: 24, hit:{x:pauseX,y:uiTop,width:pauseW,height:utility.size} });
+    this.rect(hud, a.x, uiTop+84, a.width, 3, 0x263a3e); this.rect(hud, a.x, uiTop+84, a.width * d.progress / 100, 3, 0xa3b788);
     this.text(hud, 'stage', d.stageName, a.x + 24, a.y + 18, 23, GOLD);
     if (c.combat.world) drawWorldHud(this);
     if (d.boss) {
       const bw = Math.min(630, a.width * 0.43), bx = a.x + a.width / 2 - bw / 2;
       this.rect(hud, bx, a.y + 13, bw, 54, 0x142328, 0.8, 0x686951);
       this.text(hud, 'boss-name', d.boss.name + ' · ' + d.boss.phase, bx + 14, a.y + 18, 22, GOLD);
-      this.text(hud, 'boss-state', d.boss.state, bx + bw * 0.51, a.y + 20, 18, MUTE);
+      const state=bw*c.rpxScale<250?d.boss.state.split(' · ')[0]:d.boss.state;
+      this.text(hud, 'boss-state', state, bx + bw * 0.54, a.y + 18, 20, MUTE,{minPx:10});
       this.rect(hud, bx + 14, a.y + 55, bw - 28, 4, 0x35443d); this.rect(hud, bx + 14, a.y + 55, (bw - 28) * d.boss.hpPct / 100, 4, 0xcd9d71);
     }
-    this.button(hud,'build-open','构筑',a.x+a.width-214,a.y+20,88,34,()=>c.openBuild(),{size:21});
+    this.button(hud,'build-open','构筑',utility.x,utility.y+(utility.size-40)/2,utility.size,40,()=>c.openBuild(),
+      {size:Math.max(22,11/c.rpxScale),hit:{x:utility.x,y:utility.y,width:utility.size,height:utility.size}});
     const relic=d.worldRelic;
     if(relic?.nearby&&relic.status==='ready')this.button(hud,'relic-open','查看遗迹',a.x+a.width/2-100,a.y+a.height-79,200,52,()=>c.openRelic(),{primary:true,size:25});
     else if(relic?.status==='active')this.text(hud,'relic-active','守印试炼 · 击败守印灵',a.x+a.width/2,a.y+a.height-34,22,GOLD,{center:true});
@@ -309,9 +357,9 @@ export class CocosPresentation {
       const tw=Math.min(720,a.width*.5),tx=a.x+24;
       this.rect(hud,tx,a.y+81,tw,64,0x0b1d26,.82);this.text(hud,'toast',d.message,tx+15,a.y+90,23,GOLD,{wrap:tw-30,leading:1.2});
     } else if(d.hintsOn&&c.combat.time<12&&!d.boss&&!relic?.nearby)this.text(hud,'hint','左手走位 · 至宝自动追敌 · 右下主动技',a.x+a.width/2,a.y+a.height-24,21,MUTE,{center:true});
-    this.text(hud, 'xp', '灵气 ' + d.xp + ' / ' + d.xpNeed, a.x, h - 39, 21, MUTE);
-    this.rect(hud, a.x + 160, h - 28, a.width - 465, 5, 0x2b3e42); this.rect(hud, a.x + 160, h - 28, (a.width - 465) * d.xpPct / 100, 5, 0xafbf8b);
-    this.text(hud, 'kills', '击破 ' + d.kills + '       ' + (d.stage === 5 ? '天道终战' : '四象 ' + d.stage + ' / 4'), a.x + a.width - 280, h - 39, 20, MUTE);
+    this.text(hud, 'xp', '灵气 ' + d.xp + ' / ' + d.xpNeed, a.x, uiBottom - 39, 21, MUTE,{minPx:10});
+    this.rect(hud, a.x + 160, uiBottom - 28, a.width - 465, 5, 0x2b3e42); this.rect(hud, a.x + 160, uiBottom - 28, (a.width - 465) * d.xpPct / 100, 5, 0xafbf8b);
+    this.text(hud, 'kills', '击破 ' + d.kills + '       ' + (d.stage === 5 ? '天道终战' : '四象 ' + d.stage + ' / 4'), a.x + a.width - 280, uiBottom - 39, 20, MUTE,{minPx:10});
   }
   beam(g, p, q, width, color, alpha) {
     g.lineStyle(width * 0.28, color, alpha); g.moveTo(p.x, p.y); g.lineTo(q.x, q.y);
@@ -498,12 +546,13 @@ export class CocosPresentation {
     c.data.choices.forEach((choice, i) => {
       const cx = x + 28 + i * (cardW + 24), cy = y + 152;
       this.rect(layer, cx, cy, cardW, 322, 0x20363b, 1, ({ fire: 0xd39a70, water: 0x9bceda, earth: 0xc7b987 })[choice.kind] || 0x8f9a78);
-      this.text(layer, 'choice-tag-' + i, choice.tag || '', cx + 20, cy + 16, 20, MUTE);
+      this.text(layer, 'choice-tag-' + i, choice.tag || '', cx + 20, cy + 16, 20, MUTE,{minPx:9});
       this.image(layer, 'choice-icon-' + i, this.assets.textures['upgrade-' + (choice.iconKind || choice.kind)], cx + 20, cy + 57, 54, 54);
-      this.text(layer, 'choice-name-' + i, choice.name, cx + 86, cy + 67, 28, GOLD);
-      this.text(layer, 'choice-change-' + i, choice.change, cx + 20, cy + 131, 23, GOLD, { wrap: cardW - 40 });
-      this.text(layer, 'choice-desc-' + i, choice.desc, cx + 20, cy + 191, 21, LIGHT, { wrap: cardW - 40 });
-      if (choice.combo) this.text(layer, 'choice-combo-' + i, choice.combo, cx + 20, cy + 260, 19, 0xa3c9bd, { wrap: cardW - 40 });
+      this.text(layer, 'choice-name-' + i, choice.name, cx + 86, cy + 67, 28, GOLD,{minPx:12});
+      const change=this.text(layer, 'choice-change-' + i, choice.change, cx + 20, cy + 126, 23, GOLD, { wrap: cardW - 40,minPx:11,leading:1.2 });
+      const descY=cy+126+change.height+12;
+      const desc=this.text(layer, 'choice-desc-' + i, choice.desc, cx + 20, descY, 21, LIGHT, { wrap: cardW - 40,minPx:10,leading:1.25 });
+      if (choice.combo) this.text(layer, 'choice-combo-' + i, choice.combo, cx + 20, descY+desc.height+10, 19, 0xa3c9bd, { wrap: cardW - 40,minPx:9,leading:1.2 });
       this.regions.push({ id: 'upgrade-' + choice.id, x: cx, y: cy, width: cardW, height: 322, action: () => c.chooseUpgrade({ currentTarget: { dataset: { upgradeId: choice.id, choiceToken: c.data.choiceToken } } }) });
     });
   }
@@ -530,7 +579,7 @@ export class CocosPresentation {
   }
   ending() {
     const c = this.c, d = c.data, width = Math.min(c.layout.w - 100, 1380), { layer, x, y, height } = this.modal(width, 610), artW = width * 0.29, bx = x + artW + 30, bw = width - artW - 60;
-    this.image(layer, 'ending-art', this.assets.textures[d.won ? 'ending' : 'arena5'], x + 2, y + 2, artW - 2, height - 4, 0.85, true);
+    this.image(layer, 'ending-art', this.assets.textures[d.won ? 'ending' : 'arena' + d.stage], x + 2, y + 2, artW - 2, height - 4, 0.85, true);
     this.text(layer, 'ending-kicker', d.won ? '万象初生 · 新纪元' : '混沌再起 · 待重生', bx, y + 30, 21, MUTE);
     this.text(layer, 'ending-title', d.endingTitle, bx, y + 69, 46, GOLD, { serif: true });
     this.text(layer, 'ending-copy', d.endingCopy, bx, y + 151, 24, LIGHT, { wrap: bw });

@@ -137,8 +137,12 @@ const definition = {
     const scale = this.rpxScale, w = info.windowWidth / scale, h = info.windowHeight / scale;
     const safe = info.safeArea || { left: 0, right: info.windowWidth, top: 0, bottom: info.windowHeight };
     const left = Math.max(24, safe.left / scale + 12), right = Math.max(24, (info.windowWidth - safe.right) / scale + 12);
-    this.layout = { w, h, arena: { x: left, y: 96, width: w - left - right, height: h - 144 } };
+    const top = safe.top / scale, bottom = (info.windowHeight - safe.bottom) / scale;
+    const bounds = { x:left, y:top, width:w-left-right, height:h-top-bottom };
+    this.layout = { w, h, safe:bounds, arena: { x:left, y:top+96, width:bounds.width, height:Math.max(1,bounds.height-144) } };
     const arena = this.layout.arena;
+    const target = 44 / scale;
+    this.layout.utility = { x:arena.x+arena.width-2*target-14, y:arena.y+6, size:target, gap:9 };
     this.layout.joystick = { x: arena.x + 16, y: arena.y + arena.height - 220, width: 200, height: 200 };
     this.layout.skill = { x: arena.x + arena.width - 212, y: arena.y + arena.height - 220, width: 192, height: 200 };
     const physical = r => ({ left: r.x * scale, top: r.y * scale, width: r.width * scale, height: r.height * scale });
@@ -164,7 +168,7 @@ const definition = {
     this.pendingTimers = {}; this.stopMovement();
   },
   notify(message) { this.setData({ message }); this.schedule('toastTimer', () => this.setData({ message: '' }), 2300); },
-  isBlocked() { return this.data.view !== 'game' || this.data.paused || this.data.ended || this.data.showChoice || this.data.showMemory || this.data.showWorldMap || this.data.showRelic || this.data.showBuildDetails || this.upgradePending || this.stageClearRemaining > 0 || Boolean(this.combat && this.combat.enrage); },
+  isBlocked() { return this.visualLoading || this.data.view !== 'game' || this.data.paused || this.data.ended || this.data.showChoice || this.data.showMemory || this.data.showWorldMap || this.data.showRelic || this.data.showBuildDetails || this.upgradePending || this.stageClearRemaining > 0 || Boolean(this.combat && this.combat.enrage); },
   aimSkill(direction) {
     if (this.isBlocked() || !this.combat || !this.combat.snapshot().skillReady || this.combat.weapon !== 'banner') return false;
     this.setData({ skillAim: this.combat.skillDirection(direction) }); return true;

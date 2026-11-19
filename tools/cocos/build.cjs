@@ -18,6 +18,13 @@ async function build(platform = 'wechatgame') {
   fs.cpSync(path.join(project, 'settings'), path.join(logs, platform + '-settings'), { recursive: true });
   if (code !== 0 && code !== 36) { if (fs.existsSync(log)) console.error(fs.readFileSync(log, 'utf8').slice(-18000)); throw new Error('Creator build failed with exit code ' + code); }
   for (const file of platform === 'wechatgame' ? ['game.js', 'game.json'] : ['index.html', 'application.js']) if (!fs.existsSync(path.join(output, file))) throw new Error('Missing official Creator build output: ' + file);
+  if (platform === 'wechatgame') {
+    for (const file of ['logo.png','slogan.png']) {
+      const target=path.join(output,file);
+      if (!fs.existsSync(target)) throw new Error('Creator first-screen layout changed: '+file);
+      fs.copyFileSync(path.join(root,'art/brand',file),target);
+    }
+  }
   const info = { framework: 'Cocos Creator 3.8.8', source: 'cocos-project/', platform, builder: 'official Creator CLI', commit: process.env.GITHUB_SHA || 'local', assets: [] };
   for (const file of fs.readdirSync(output, { recursive: true })) if (fs.statSync(path.join(output, file)).isFile()) info.assets.push(file.replaceAll('\\', '/'));
   fs.writeFileSync(path.join(output, 'build-info.json'), JSON.stringify(info, null, 2));

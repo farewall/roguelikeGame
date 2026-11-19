@@ -4,7 +4,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 ART = ROOT / 'art/white-tiger'
-OUT = ROOT / 'cocos-project/assets/game-content/images'
+OUT = ROOT / 'cocos-project/assets/game-realm-2/images'
 
 def source(name):
     image = Image.open(ART / name).convert('RGBA')

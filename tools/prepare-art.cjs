@@ -4,14 +4,15 @@ const sharp = require('sharp');
 const fs = require('node:fs');
 const path = require('node:path');
 const out = path.join(__dirname, '../cocos-project/assets/game-content/images');
+const reference = path.join(__dirname, '../art/production-atlas-inputs');
 async function split(file, names, size, transparent) {
   const {width, height} = await sharp(file).metadata();
   for (let i=0; i<names.length; i++) {
     const left=Math.round(i%3*width/3), top=Math.round(Math.floor(i/3)*height/2);
     const w=Math.round((i%3+1)*width/3)-left, h=Math.round((Math.floor(i/3)+1)*height/2)-top;
     let img=sharp(file).extract({left,top,width:w,height:h}).resize(size,size,{fit:'contain',background:{r:0,g:0,b:0,alpha:0}});
-    if (transparent) await img.png({palette:true,colours:128,effort:10}).toFile(path.join(out,names[i]+'.png'));
-    else await img.flatten({background:'#141d25'}).jpeg({quality:78,mozjpeg:true}).toFile(path.join(out,names[i]+'.jpg'));
+    if (transparent) await img.png({palette:true,colours:128,effort:10}).toFile(path.join(reference,names[i]+'.png'));
+    else await img.flatten({background:'#141d25'}).jpeg({quality:78,mozjpeg:true}).toFile(path.join(reference,names[i]+'.jpg'));
   }
 }
 const paths={

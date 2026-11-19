@@ -4,7 +4,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 source = ROOT / 'art/boss-motion/source.png'
-output = ROOT / 'cocos-project/assets/game-content/images/boss-motion.png'
+output = ROOT / 'art/production-atlas-inputs/boss-motion.png'
 image = Image.open(source).convert('RGBA')
 if image.getchannel('A').getextrema() != (0, 255):
     raise ValueError('Boss poses must have transparent backgrounds and opaque bodies')
@@ -22,3 +22,6 @@ for row in range(5):
                                     row * 192 + 181 - body.height))
 atlas.quantize(colors=256, method=Image.Quantize.FASTOCTREE).save(output, optimize=True)
 print(f'Boss action supplement: {output.stat().st_size} bytes, ten 192x192 frames')
+
+import runpy
+runpy.run_path(str(ROOT/'tools/prepare-production-art.py'))

@@ -1,46 +1,162 @@
-import { assetManager, AssetManager, AudioClip, ImageAsset, Rect, Size, SpriteFrame, Texture2D } from 'cc';
+import { Asset, assetManager, AssetManager, AudioClip, ImageAsset, Rect, Size, SpriteFrame, Texture2D } from 'cc';
 import { ARTIFACT_COLUMNS } from './generated/game-core';
-const paths: Record<string, string> = { title: 'titile-bg', enemies: 'enemy-actions', bosses: 'chaos-boss-actions', bossMotion:'boss-motion',tiger:'white-tiger',tigerPillars:'tiger-pillars',spellAtlas: 'boss-actions', bell: 'chaos-bell', banner: 'pangu-banner', swords: 'zhuxian-swords', meteor: 'phoenix-meteor', worldGround: 'world-ground', worldProps: 'world-props', worldPools: 'world-pools', worldStyle:'world-style',waveRidges:'sea-crests',ending: 'ending-dawn', artifact: 'pangu/artifact-cast' };
-for (let i = 1; i <= 5; i++) paths['arena' + i] = 'arena-' + i;
-for (const kind of ['power', 'haste', 'health', 'fire', 'water', 'earth']) paths['upgrade-' + kind] = 'upgrade-' + kind;
-export function frame(texture: Texture2D, rect?: Rect) {
-  const sprite = new SpriteFrame(); sprite.texture = texture; if (rect) { sprite.rect = rect; sprite.originalSize = new Size(rect.width, rect.height); } return sprite;
+import { artEntries, artGroups } from './generated/art-catalog';
+
+type Definition = { bundle: string; path: string; audio?: boolean; target?: (string | number)[]; rects?: number[][] };
+type AssetEntry = { key: string; spec: Definition; source: Asset; texture?: Texture2D; full?: SpriteFrame; slices?: SpriteFrame[] };
+type BundleEntry = { bundle: AssetManager.Bundle; assets: AssetEntry[] };
+const entries = Object.entries(artEntries) as [string, Definition][];
+
+export const realmGroups = (stage: number): string[] => artGroups.realms[stage - 1] || [];
+
+export function visualGroups(c: any): string[] {
+  if (c.data.view !== 'game' || !c.combat) return [artGroups.shell];
+  const core = c.combat, realms = new Set<number>([core.stage, core.world?.stage || core.stage]);
+  for (const e of [...core.enemies, ...core.remnants]) if (e.boss) realms.add(e.bossType);
+  if (c.data.showMemory) realms.add(c.data.memory.id);
+  const names = [artGroups.shell, artGroups.common, artGroups.weapons[core.weapon], ...Array.from(realms).flatMap(realmGroups)];
+  if (core.hazards.some(h => h.kind === 'tide')) names.push(...realmGroups(4).filter(n => n === 'game-tides'));
+  return Array.from(new Set(names)).sort();
 }
-export async function loadAssets(progress: (value: number) => void = () => {}) {
-  const bundle = await new Promise<AssetManager.Bundle>((resolve, reject) => assetManager.loadBundle('game-content', (error, value) => error ? reject(error) : resolve(value)));
-  const textures: Record<string, SpriteFrame> = {}, frames: any = { artifact: {}, enemies: [], bosses: [], bossMotion:[],tiger:[],tigerPillars:[],spells: [], chaosMist: [], bell: [], banner: [], swords: [], meteor: [], worldGround: [], worldProps: [], worldPools: [],worldStyle:[],waveRidges:[] }, audio: Record<string, AudioClip> = {};
-  const sounds = ['attack', 'bell', 'echo', 'banner', 'dominion', 'rift', 'ready', 'warning', 'hurt', 'upgrade', 'victory', 'death'];
-  let done = 0; const total = Object.keys(paths).length + sounds.length;
-  await Promise.all(Object.entries(paths).map(async ([key, file]) => {
-    const image = await new Promise<ImageAsset>((resolve, reject) => bundle.load('images/' + file, ImageAsset, (error, value) => error ? reject(error) : resolve(value)));
-    const texture = new Texture2D(); texture.image = image; textures[key] = frame(texture); progress(++done / total);
-  }));
-  await Promise.all(sounds.map(async key => {
-    audio[key] = await new Promise<AudioClip>((resolve, reject) => bundle.load('audio/' + key, AudioClip, (error, value) => error ? reject(error) : resolve(value))); progress(++done / total);
-  }));
-  for (const [action, columns] of Object.entries(ARTIFACT_COLUMNS) as [string, number[]][]) {
-    frames.artifact[action] = []; for (let row = 0; row < 4; row++) for (const column of columns) frames.artifact[action].push(frame(textures.artifact.texture, new Rect(column * 128, row * 128, 128, 128)));
-    frames[action]=frames.artifact[action];
+
+export function frame(texture: Texture2D, rect?: Rect) {
+  const sprite = new SpriteFrame();
+  sprite.texture = texture;
+  if (rect) { sprite.rect = rect; sprite.originalSize = new Size(rect.width, rect.height); }
+  return sprite;
+}
+
+function setFrame(frames: any, [key, index]: (string|number)[], value: any) {
+  if (index === undefined) frames[key] = value;
+  else (frames[key] ||= [])[index] = value;
+}
+
+function dispose(entry: BundleEntry) {
+  for (const asset of entry.assets) {
+    asset.slices?.forEach(f => f.destroy());
+    asset.full?.destroy();
+    asset.texture?.destroy();
+    asset.source.decRef();
   }
-  for (let row = 0; row < 4; row++) for (let column = 0; column < 6; column++) {
-    frames.enemies.push(frame(textures.enemies.texture, new Rect(column * 192, row * 192, 192, 192)));
+  assetManager.removeBundle(entry.bundle);
+}
+
+async function loadEntry(bundle: AssetManager.Bundle, key: string, spec: Definition): Promise<AssetEntry> {
+  if (spec.audio) {
+    const source = await new Promise<AudioClip>((resolve,reject) => bundle.load(spec.path,AudioClip,(err,value)=>err?reject(err):resolve(value)));
+    source.addRef();
+    return {key,spec,source};
   }
-  for (let row = 0; row < 6; row++) {
-    const target = row === 5 ? frames.chaosMist : (frames.bosses[row] = []);
-    for (let column = 0; column < 6; column++) target.push(frame(textures.bosses.texture, new Rect(column * 192, row * 192, 192, 192)));
+  const source = await new Promise<ImageAsset>((resolve,reject) => bundle.load(spec.path,ImageAsset,(err,value)=>err?reject(err):resolve(value)));
+  source.addRef();
+  const entry: AssetEntry = {key,spec,source,texture:new Texture2D(),slices:[]};
+  try {
+    entry.texture.image = source;
+    entry.full = frame(entry.texture);
+    for (const rect of spec.rects || []) entry.slices.push(frame(entry.texture,new Rect(rect[0],rect[1],rect[2],rect[3])));
+    return entry;
+  } catch (error) {
+    entry.slices.forEach(sprite => sprite.destroy());
+    entry.full?.destroy(); entry.texture.destroy(); source.decRef();
+    throw error;
   }
-  for(let row=0;row<5;row++){frames.bossMotion[row]=[];for(let col=0;col<2;col++)frames.bossMotion[row].push(frame(textures.bossMotion.texture,new Rect(col*192,row*192,192,192)));}
-  for(let i=0;i<16;i++)frames.tiger.push(frame(textures.tiger.texture,new Rect(i%4*192,Math.floor(i/4)*192,192,192)));
-  for(let i=0;i<3;i++)frames.tigerPillars.push(frame(textures.tigerPillars.texture,new Rect(i*192,0,192,192)));
-  for (let column = 0; column < 6; column++) frames.spells.push(frame(textures.spellAtlas.texture, new Rect(column * 128, 5 * 128, 128, 128)));
-  for (let row = 0; row < 4; row++) for (let column = 0; column < 4; column++) frames.bell.push(frame(textures.bell.texture, new Rect(column * 192, row * 192, 192, 192)));
-  for (let row = 0; row < 4; row++) for (let column = 0; column < 4; column++) frames.banner.push(frame(textures.banner.texture, new Rect(column * 192, row * 192, 192, 192)));
-  for (let row = 0; row < 2; row++) for (let column = 0; column < 2; column++) frames.swords.push(frame(textures.swords.texture, new Rect(column * 256, row * 256, 256, 256)));
-  for (let row = 0; row < 2; row++) for (let column = 0; column < 3; column++) frames.worldGround.push(frame(textures.worldGround.texture, new Rect(column * 256 + 1, row * 256 + 1, 254, 254)));
-  for(let i=0;i<6;i++)frames.worldStyle.push(frame(textures.worldStyle.texture,new Rect(i%3*256,Math.floor(i/3)*256,256,256)));
-  for (let row = 0; row < 4; row++) for (let column = 0; column < 4; column++) frames.worldProps.push(frame(textures.worldProps.texture, new Rect(column * 192, row * 192, 192, 192)));
-  for (let row = 0; row < 2; row++) for (let column = 0; column < 2; column++) frames.worldPools.push(frame(textures.worldPools.texture, new Rect(column * 384, row * 384, 384, 384)));
-  for(let i=0;i<4;i++)frames.waveRidges.push(frame(textures.waveRidges.texture,new Rect(i%2*256,Math.floor(i/2)*96,256,96)));
-  for (let row = 0; row < 4; row++) for (let column = 0; column < 4; column++) frames.meteor.push(frame(textures.meteor.texture, new Rect(column * 192, row * 192, 192, 192)));
-  return { textures, frames, audio, bundle };
+}
+
+export class GameAssets {
+  private loaded = new Map<string,BundleEntry>();
+  private pending = new Map<string,Promise<BundleEntry>>();
+  private mounted = new Set<string>();
+  private requested = new Set<string>();
+  private warming = new Set<string>();
+  private destroyed = false;
+
+  private acquire(name: string): Promise<BundleEntry> {
+    const loaded = this.loaded.get(name);
+    if (loaded) return Promise.resolve(loaded);
+    const pending = this.pending.get(name);
+    if (pending) return pending;
+    const request = this.download(name).finally(() => this.pending.delete(name));
+    this.pending.set(name,request);
+    return request;
+  }
+
+  private async download(name: string) {
+    const bundle = await new Promise<AssetManager.Bundle>((resolve,reject) => assetManager.loadBundle(name,(err,value)=>err?reject(err):resolve(value)));
+    const settled = await Promise.allSettled(entries.filter(([,spec])=>spec.bundle===name).map(([key,spec])=>loadEntry(bundle,key,spec)));
+    const assets = settled.flatMap(result=>result.status==='fulfilled'?[result.value]:[]);
+    const failure = settled.find(result=>result.status==='rejected');
+    const result = {bundle,assets};
+    if (failure || this.destroyed || !this.needed(name)) dispose(result);
+    else this.loaded.set(name,result);
+    if (failure?.status==='rejected') throw failure.reason;
+    return result;
+  }
+
+  private needed(name: string) {
+    return this.mounted.has(name) || this.requested.has(name) || this.warming.has(name);
+  }
+
+  private prune() {
+    for (const [key,entry] of this.loaded) {
+      if (this.needed(key)) continue;
+      this.loaded.delete(key);
+      dispose(entry);
+    }
+  }
+
+  async request(names: string[], progress: (value: number) => void) {
+    this.requested = new Set(names);
+    this.warming.clear();
+    this.prune();
+    let done = 0;
+    const result = await Promise.allSettled(names.map(async name=>{
+      await this.acquire(name);
+      progress(++done / names.length);
+    }));
+    const failure = result.find(entry=>entry.status==='rejected');
+    if (failure?.status==='rejected') throw failure.reason;
+  }
+
+  async prefetch(names: string[]) {
+    this.warming = new Set(names);
+    this.prune();
+    await Promise.allSettled(names.map(name=>this.acquire(name)));
+  }
+
+  mount(names: string[], detach: (textures: Set<Texture2D>) => void) {
+    const next = new Set(names);
+    const removed = new Set<Texture2D>();
+    for (const name of this.mounted) {
+      if (next.has(name)) continue;
+      for (const asset of this.loaded.get(name)?.assets || []) if (asset.texture) removed.add(asset.texture);
+    }
+    detach(removed);
+    this.mounted = next;
+    const frames: any = {}, textures: Record<string,SpriteFrame> = {}, audio: Record<string,AudioClip> = {};
+    for (const name of next) {
+      for (const entry of this.loaded.get(name).assets) {
+        const {key,spec,full,slices,source} = entry;
+        if (spec.audio) { audio[key.slice(6)] = source as AudioClip; continue; }
+        textures[key] = full;
+        if (spec.target) setFrame(frames,spec.target,slices.length?slices:full);
+      }
+    }
+    if (frames.hero) {
+      frames.artifact = {};
+      const columnsPerDirection = frames.hero.length / 4;
+      for (const [action, columns] of Object.entries(ARTIFACT_COLUMNS) as [string, number[]][]) {
+        frames.artifact[action] = Array.from({length:4},(_,row)=>columns.map(col=>frames.hero[row*columnsPerDirection+col])).flat();
+      }
+    }
+    this.prune();
+    return {frames,textures,audio};
+  }
+
+  residentGroups() { return Array.from(this.loaded.keys()).sort(); }
+
+  destroy() {
+    this.destroyed = true;
+    this.mounted.clear(); this.requested.clear(); this.warming.clear();
+    this.prune();
+  }
 }

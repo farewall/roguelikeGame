@@ -8,11 +8,13 @@ test('official Creator WeChat output is complete and records its source commit',
   for (const file of proof.assets) assert.ok(fs.existsSync(path.join(root, file)), file);
   assert.ok(proof.assets.some(f => /cocos-js\/.+\.js$/.test(f)), 'Cocos engine modules must be present');
   assert.ok(fs.existsSync(path.join(root, 'game.js'))); assert.ok(!fs.existsSync(path.join(root, 'app.json')));
+  for (const file of ['logo.png','slogan.png']) assert.deepEqual(fs.readFileSync(path.join(root,file)),fs.readFileSync(path.join(__dirname,'../../art/brand',file)));
 });
 test('game content is a real landscape Mini Game subpackage and respects its budget', () => {
   const game = JSON.parse(fs.readFileSync(path.join(root, 'game.json'))); assert.equal(game.deviceOrientation, 'landscape');
   const packages = game.subpackages || game.subPackages || [];
-  assert.ok(packages.some(p => /game-content/.test(p.name + p.root)), 'Art and audio must be exported as the game-content subpackage');
+  const {bundles} = require('./art-catalog.cjs');
+  assert.deepEqual(packages.map(p=>p.name).sort(), bundles.slice().sort());
   for (const p of packages) assert.ok(fs.existsSync(path.join(root, p.root)), p.root);
-  const report = require('../package-budget.cjs').budget(root); assert.ok(report.fits, JSON.stringify(report)); assert.ok(report.subpackages.some(p => p.bytes > 1000000));
+  const report = require('../package-budget.cjs').budget(root); assert.ok(report.fits, JSON.stringify(report)); assert.ok(report.subpackages.find(p=>p.name==='game-shell').bytes<300*1024);
 });

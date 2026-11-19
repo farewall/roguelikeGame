@@ -1,0 +1,952 @@
+{
+  "shell": "game-shell",
+  "common": "game-content",
+  "weapons": {
+    "bell": "game-bell",
+    "banner": "game-banner",
+    "swords": "game-swords"
+  },
+  "realms": [
+    [
+      "game-realm-1"
+    ],
+    [
+      "game-realm-2"
+    ],
+    [
+      "game-realm-3"
+    ],
+    [
+      "game-realm-4",
+      "game-tides"
+    ],
+    [
+      "game-realm-5",
+      "game-tides"
+    ]
+  ],
+  "assets": {
+    "title": {
+      "bundle": "game-shell",
+      "path": "images/title-bg.png",
+      "size": [
+        750,
+        422
+      ],
+      "encoding": "png-palette"
+    },
+    "artifact": {
+      "bundle": "game-content",
+      "path": "images/pangu/artifact-cast.png",
+      "size": [
+        768,
+        512
+      ],
+      "encoding": "png-rgba",
+      "target": [
+        "hero"
+      ],
+      "grid": {
+        "tile": [
+          128,
+          128
+        ],
+        "columns": 6,
+        "rows": 4
+      },
+      "source": "art/release-polish/pangu.png",
+      "footRow": 120
+    },
+    "enemies": {
+      "bundle": "game-content",
+      "path": "images/enemy-actions.png",
+      "size": [
+        1152,
+        768
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "enemies"
+      ],
+      "grid": {
+        "tile": [
+          192,
+          192
+        ],
+        "columns": 6,
+        "rows": 4
+      }
+    },
+    "spells": {
+      "bundle": "game-content",
+      "path": "images/spell-textures.png",
+      "size": [
+        768,
+        128
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "spells"
+      ],
+      "grid": {
+        "tile": [
+          128,
+          128
+        ],
+        "columns": 6,
+        "rows": 1
+      },
+      "source": "art/production-atlas-inputs/boss-actions.png",
+      "crop": [
+        0,
+        640,
+        768,
+        128
+      ]
+    },
+    "chaosMist": {
+      "bundle": "game-content",
+      "path": "images/chaos-mist.png",
+      "size": [
+        1152,
+        192
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "chaosMist"
+      ],
+      "grid": {
+        "tile": [
+          192,
+          192
+        ],
+        "columns": 6,
+        "rows": 1
+      },
+      "source": "art/production-atlas-inputs/chaos-boss-actions.png",
+      "crop": [
+        0,
+        960,
+        1152,
+        192
+      ]
+    },
+    "meteor": {
+      "bundle": "game-content",
+      "path": "images/phoenix-meteor.png",
+      "size": [
+        768,
+        768
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "meteor"
+      ],
+      "grid": {
+        "tile": [
+          192,
+          192
+        ],
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    "worldGround": {
+      "bundle": "game-content",
+      "path": "images/world-ground.jpg",
+      "size": [
+        768,
+        512
+      ],
+      "encoding": "jpeg",
+      "target": [
+        "worldGround"
+      ],
+      "grid": {
+        "tile": [
+          256,
+          256
+        ],
+        "columns": 3,
+        "rows": 2,
+        "count": 5,
+        "inset": 1
+      },
+      "source": "art/release-polish/ground.png"
+    },
+    "worldProps": {
+      "bundle": "game-content",
+      "path": "images/world-props.png",
+      "size": [
+        768,
+        768
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "worldProps"
+      ],
+      "grid": {
+        "tile": [
+          192,
+          192
+        ],
+        "columns": 4,
+        "rows": 4
+      },
+      "source": "art/release-polish/props.png",
+      "footRow": 167
+    },
+    "shadow": {
+      "bundle": "game-content",
+      "path": "images/ground-shadow.png",
+      "size": [
+        256,
+        256
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "worldStyle",
+        5
+      ],
+      "source": "art/production-atlas-inputs/world-style.png",
+      "crop": [
+        512,
+        256,
+        256,
+        256
+      ]
+    },
+    "bell": {
+      "bundle": "game-bell",
+      "path": "images/chaos-bell.png",
+      "size": [
+        768,
+        768
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "bell"
+      ],
+      "grid": {
+        "tile": [
+          192,
+          192
+        ],
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    "banner": {
+      "bundle": "game-banner",
+      "path": "images/pangu-banner.png",
+      "size": [
+        768,
+        768
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "banner"
+      ],
+      "grid": {
+        "tile": [
+          192,
+          192
+        ],
+        "columns": 4,
+        "rows": 4
+      },
+      "source": "art/pangu-banner/source.png"
+    },
+    "swords": {
+      "bundle": "game-swords",
+      "path": "images/zhuxian-swords.png",
+      "size": [
+        512,
+        512
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "swords"
+      ],
+      "grid": {
+        "tile": [
+          256,
+          256
+        ],
+        "columns": 2,
+        "rows": 2
+      },
+      "source": "art/zhuxian-swords/source.png"
+    },
+    "arena1": {
+      "bundle": "game-realm-1",
+      "path": "images/arena-1.jpg",
+      "size": [
+        512,
+        512
+      ],
+      "encoding": "jpeg"
+    },
+    "landmark1": {
+      "bundle": "game-realm-1",
+      "path": "images/landmark.png",
+      "size": [
+        256,
+        256
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "worldStyle",
+        0
+      ],
+      "source": "art/production-atlas-inputs/world-style.png",
+      "crop": [
+        0,
+        0,
+        256,
+        256
+      ]
+    },
+    "boss1": {
+      "bundle": "game-realm-1",
+      "path": "images/boss.png",
+      "size": [
+        1152,
+        192
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "bosses",
+        0
+      ],
+      "grid": {
+        "tile": [
+          192,
+          192
+        ],
+        "columns": 6,
+        "rows": 1
+      },
+      "source": "art/production-atlas-inputs/chaos-boss-actions.png",
+      "crop": [
+        0,
+        0,
+        1152,
+        192
+      ],
+      "footRow": 181
+    },
+    "motion1": {
+      "bundle": "game-realm-1",
+      "path": "images/boss-motion.png",
+      "size": [
+        384,
+        192
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "bossMotion",
+        0
+      ],
+      "grid": {
+        "tile": [
+          192,
+          192
+        ],
+        "columns": 2,
+        "rows": 1
+      },
+      "source": "art/production-atlas-inputs/boss-motion.png",
+      "crop": [
+        0,
+        0,
+        384,
+        192
+      ],
+      "footRow": 181
+    },
+    "arena2": {
+      "bundle": "game-realm-2",
+      "path": "images/arena-2.jpg",
+      "size": [
+        512,
+        512
+      ],
+      "encoding": "jpeg"
+    },
+    "landmark2": {
+      "bundle": "game-realm-2",
+      "path": "images/landmark.png",
+      "size": [
+        256,
+        256
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "worldStyle",
+        1
+      ],
+      "source": "art/production-atlas-inputs/world-style.png",
+      "crop": [
+        256,
+        0,
+        256,
+        256
+      ]
+    },
+    "tiger": {
+      "bundle": "game-realm-2",
+      "path": "images/white-tiger.png",
+      "size": [
+        768,
+        768
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "tiger"
+      ],
+      "grid": {
+        "tile": [
+          192,
+          192
+        ],
+        "columns": 4,
+        "rows": 4
+      },
+      "source": "art/white-tiger/poses.png",
+      "footRow": 181
+    },
+    "tigerPillars": {
+      "bundle": "game-realm-2",
+      "path": "images/tiger-pillars.png",
+      "size": [
+        576,
+        192
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "tigerPillars"
+      ],
+      "grid": {
+        "tile": [
+          192,
+          192
+        ],
+        "columns": 3,
+        "rows": 1
+      },
+      "source": "art/white-tiger/pillars.png"
+    },
+    "arena3": {
+      "bundle": "game-realm-3",
+      "path": "images/arena-3.jpg",
+      "size": [
+        512,
+        512
+      ],
+      "encoding": "jpeg"
+    },
+    "landmark3": {
+      "bundle": "game-realm-3",
+      "path": "images/landmark.png",
+      "size": [
+        256,
+        256
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "worldStyle",
+        2
+      ],
+      "source": "art/production-atlas-inputs/world-style.png",
+      "crop": [
+        512,
+        0,
+        256,
+        256
+      ]
+    },
+    "boss3": {
+      "bundle": "game-realm-3",
+      "path": "images/boss.png",
+      "size": [
+        1152,
+        192
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "bosses",
+        2
+      ],
+      "grid": {
+        "tile": [
+          192,
+          192
+        ],
+        "columns": 6,
+        "rows": 1
+      },
+      "source": "art/production-atlas-inputs/chaos-boss-actions.png",
+      "crop": [
+        0,
+        384,
+        1152,
+        192
+      ],
+      "footRow": 181
+    },
+    "motion3": {
+      "bundle": "game-realm-3",
+      "path": "images/boss-motion.png",
+      "size": [
+        384,
+        192
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "bossMotion",
+        2
+      ],
+      "grid": {
+        "tile": [
+          192,
+          192
+        ],
+        "columns": 2,
+        "rows": 1
+      },
+      "source": "art/production-atlas-inputs/boss-motion.png",
+      "crop": [
+        0,
+        384,
+        384,
+        192
+      ],
+      "footRow": 181
+    },
+    "arena4": {
+      "bundle": "game-realm-4",
+      "path": "images/arena-4.jpg",
+      "size": [
+        512,
+        512
+      ],
+      "encoding": "jpeg"
+    },
+    "landmark4": {
+      "bundle": "game-realm-4",
+      "path": "images/landmark.png",
+      "size": [
+        256,
+        256
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "worldStyle",
+        3
+      ],
+      "source": "art/production-atlas-inputs/world-style.png",
+      "crop": [
+        0,
+        256,
+        256,
+        256
+      ]
+    },
+    "boss4": {
+      "bundle": "game-realm-4",
+      "path": "images/boss.png",
+      "size": [
+        1152,
+        192
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "bosses",
+        3
+      ],
+      "grid": {
+        "tile": [
+          192,
+          192
+        ],
+        "columns": 6,
+        "rows": 1
+      },
+      "source": "art/production-atlas-inputs/chaos-boss-actions.png",
+      "crop": [
+        0,
+        576,
+        1152,
+        192
+      ],
+      "footRow": 181
+    },
+    "motion4": {
+      "bundle": "game-realm-4",
+      "path": "images/boss-motion.png",
+      "size": [
+        384,
+        192
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "bossMotion",
+        3
+      ],
+      "grid": {
+        "tile": [
+          192,
+          192
+        ],
+        "columns": 2,
+        "rows": 1
+      },
+      "source": "art/production-atlas-inputs/boss-motion.png",
+      "crop": [
+        0,
+        576,
+        384,
+        192
+      ],
+      "footRow": 181
+    },
+    "arena5": {
+      "bundle": "game-realm-5",
+      "path": "images/arena-5.jpg",
+      "size": [
+        512,
+        512
+      ],
+      "encoding": "jpeg"
+    },
+    "landmark5": {
+      "bundle": "game-realm-5",
+      "path": "images/landmark.png",
+      "size": [
+        256,
+        256
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "worldStyle",
+        4
+      ],
+      "source": "art/production-atlas-inputs/world-style.png",
+      "crop": [
+        256,
+        256,
+        256,
+        256
+      ]
+    },
+    "boss5": {
+      "bundle": "game-realm-5",
+      "path": "images/boss.png",
+      "size": [
+        1152,
+        192
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "bosses",
+        4
+      ],
+      "grid": {
+        "tile": [
+          192,
+          192
+        ],
+        "columns": 6,
+        "rows": 1
+      },
+      "source": "art/production-atlas-inputs/chaos-boss-actions.png",
+      "crop": [
+        0,
+        768,
+        1152,
+        192
+      ],
+      "footRow": 181
+    },
+    "motion5": {
+      "bundle": "game-realm-5",
+      "path": "images/boss-motion.png",
+      "size": [
+        384,
+        192
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "bossMotion",
+        4
+      ],
+      "grid": {
+        "tile": [
+          192,
+          192
+        ],
+        "columns": 2,
+        "rows": 1
+      },
+      "source": "art/production-atlas-inputs/boss-motion.png",
+      "crop": [
+        0,
+        768,
+        384,
+        192
+      ],
+      "footRow": 181
+    },
+    "pool3": {
+      "bundle": "game-realm-1",
+      "path": "images/pool.png",
+      "size": [
+        384,
+        384
+      ],
+      "encoding": "png-rgba",
+      "target": [
+        "worldPools",
+        3
+      ],
+      "source": "art/production-atlas-inputs/world-pools.png",
+      "crop": [
+        384,
+        384,
+        384,
+        384
+      ]
+    },
+    "pool1": {
+      "bundle": "game-realm-3",
+      "path": "images/pool.png",
+      "size": [
+        384,
+        384
+      ],
+      "encoding": "png-rgba",
+      "target": [
+        "worldPools",
+        1
+      ],
+      "source": "art/production-atlas-inputs/world-pools.png",
+      "crop": [
+        384,
+        0,
+        384,
+        384
+      ]
+    },
+    "pool2": {
+      "bundle": "game-realm-5",
+      "path": "images/pool.png",
+      "size": [
+        384,
+        384
+      ],
+      "encoding": "png-rgba",
+      "target": [
+        "worldPools",
+        2
+      ],
+      "source": "art/production-atlas-inputs/world-pools.png",
+      "crop": [
+        0,
+        384,
+        384,
+        384
+      ]
+    },
+    "pool0": {
+      "bundle": "game-tides",
+      "path": "images/water.png",
+      "size": [
+        384,
+        384
+      ],
+      "encoding": "png-rgba",
+      "target": [
+        "worldPools",
+        0
+      ],
+      "source": "art/production-atlas-inputs/world-pools.png",
+      "crop": [
+        0,
+        0,
+        384,
+        384
+      ]
+    },
+    "waveRidges": {
+      "bundle": "game-tides",
+      "path": "images/sea-crests.png",
+      "size": [
+        512,
+        192
+      ],
+      "encoding": "png-rgba",
+      "target": [
+        "waveRidges"
+      ],
+      "grid": {
+        "tile": [
+          256,
+          96
+        ],
+        "columns": 2,
+        "rows": 2
+      },
+      "source": "art/release-polish/waves.png"
+    },
+    "ending": {
+      "bundle": "game-realm-5",
+      "path": "images/ending-dawn.jpg",
+      "size": [
+        512,
+        512
+      ],
+      "encoding": "jpeg"
+    },
+    "upgrade-power": {
+      "bundle": "game-content",
+      "path": "images/upgrade-power.png",
+      "size": [
+        96,
+        96
+      ],
+      "encoding": "png-rgba"
+    },
+    "upgrade-haste": {
+      "bundle": "game-content",
+      "path": "images/upgrade-haste.png",
+      "size": [
+        96,
+        96
+      ],
+      "encoding": "png-rgba"
+    },
+    "upgrade-health": {
+      "bundle": "game-content",
+      "path": "images/upgrade-health.png",
+      "size": [
+        96,
+        96
+      ],
+      "encoding": "png-rgba"
+    },
+    "upgrade-fire": {
+      "bundle": "game-content",
+      "path": "images/upgrade-fire.png",
+      "size": [
+        96,
+        96
+      ],
+      "encoding": "png-rgba"
+    },
+    "upgrade-water": {
+      "bundle": "game-content",
+      "path": "images/upgrade-water.png",
+      "size": [
+        96,
+        96
+      ],
+      "encoding": "png-rgba"
+    },
+    "upgrade-earth": {
+      "bundle": "game-content",
+      "path": "images/upgrade-earth.png",
+      "size": [
+        96,
+        96
+      ],
+      "encoding": "png-rgba"
+    },
+    "audio-attack": {
+      "bundle": "game-content",
+      "path": "audio/attack.wav",
+      "encoding": "wav-pcm"
+    },
+    "audio-bell": {
+      "bundle": "game-content",
+      "path": "audio/bell.wav",
+      "encoding": "wav-pcm"
+    },
+    "audio-echo": {
+      "bundle": "game-content",
+      "path": "audio/echo.wav",
+      "encoding": "wav-pcm"
+    },
+    "audio-banner": {
+      "bundle": "game-content",
+      "path": "audio/banner.wav",
+      "encoding": "wav-pcm"
+    },
+    "audio-dominion": {
+      "bundle": "game-content",
+      "path": "audio/dominion.wav",
+      "encoding": "wav-pcm"
+    },
+    "audio-rift": {
+      "bundle": "game-content",
+      "path": "audio/rift.wav",
+      "encoding": "wav-pcm"
+    },
+    "audio-ready": {
+      "bundle": "game-content",
+      "path": "audio/ready.wav",
+      "encoding": "wav-pcm"
+    },
+    "audio-warning": {
+      "bundle": "game-content",
+      "path": "audio/warning.wav",
+      "encoding": "wav-pcm"
+    },
+    "audio-hurt": {
+      "bundle": "game-content",
+      "path": "audio/hurt.wav",
+      "encoding": "wav-pcm"
+    },
+    "audio-upgrade": {
+      "bundle": "game-content",
+      "path": "audio/upgrade.wav",
+      "encoding": "wav-pcm"
+    },
+    "audio-victory": {
+      "bundle": "game-content",
+      "path": "audio/victory.wav",
+      "encoding": "wav-pcm"
+    },
+    "audio-death": {
+      "bundle": "game-content",
+      "path": "audio/death.wav",
+      "encoding": "wav-pcm"
+    },
+    "heroOutcomes": {
+      "bundle": "game-content",
+      "path": "images/hero-outcomes.png",
+      "size": [
+        256,
+        512
+      ],
+      "encoding": "png-rgba",
+      "target": [
+        "heroOutcomes"
+      ],
+      "grid": {
+        "tile": [
+          128,
+          128
+        ],
+        "columns": 2,
+        "rows": 4
+      },
+      "source": "art/release-polish/pangu-outcomes.png",
+      "footRow": 120,
+      "poseHeights": [
+        82,
+        112
+      ]
+    }
+  }
+}

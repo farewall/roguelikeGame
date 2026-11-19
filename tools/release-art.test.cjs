@@ -1,7 +1,8 @@
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),zlib=require('node:zlib');
-function spriteAlpha(file='pangu/artifact-cast.png'){
-  const png=fs.readFileSync(path.join(__dirname,'../cocos-project/assets/game-content/images',file)),chunks=[];
+const {assetFile}=require('./cocos/art-catalog.cjs');
+function spriteAlpha(key='artifact'){
+  const png=fs.readFileSync(assetFile(key)),chunks=[];
   assert.equal(png[24],8);assert.ok([3,6].includes(png[25]));const channels=png[25]===6?4:1,width=png.readUInt32BE(16),height=png.readUInt32BE(20);let transparency=Buffer.alloc(0);
   for(let at=8;at<png.length;){const size=png.readUInt32BE(at),type=png.toString('ascii',at+4,at+8);if(type==='IDAT')chunks.push(png.subarray(at+8,at+8+size));if(type==='tRNS')transparency=png.subarray(at+8,at+8+size);at+=size+12;}
   const data=zlib.inflateSync(Buffer.concat(chunks)),stride=width*channels,pixels=Buffer.alloc(stride*height);
@@ -27,11 +28,12 @@ test('all 24 production hero poses retain clear gutters, solid bodies and one gr
   }
 });
 test('high-resolution pool materials have continuous interiors and clean transparent gutters for shoreline clipping',()=>{
-  const {alpha,width,height}=spriteAlpha('world-pools.png');assert.equal(width,768);assert.equal(height,768);
-  for(let row=0;row<2;row++)for(let col=0;col<2;col++){
-    assert.ok(alpha(col*384+192,row*384+192)>=240);
-    for(const [x,y] of [[0,0],[0,383],[383,0],[383,383]])assert.equal(alpha(col*384+x,row*384+y),0);
-    for(let y=128;y<256;y++)for(let x=128;x<256;x++)assert.ok(alpha(col*384+x,row*384+y)>=240,'Clipped material must remain solid through the pool interior');
+  for(let index=0;index<4;index++){
+    const {alpha,width,height}=spriteAlpha('pool'+index);
+    assert.equal(width,384);assert.equal(height,384);
+    assert.ok(alpha(192,192)>=240);
+    for(const [x,y] of [[0,0],[0,383],[383,0],[383,383]])assert.equal(alpha(x,y),0);
+    for(let y=128;y<256;y++)for(let x=128;x<256;x++)assert.ok(alpha(x,y)>=240,'Clipped material must remain solid through the pool interior');
   }
 });
 test('the runtime keeps one consistent hero atlas for combat and the ending',()=>{
@@ -41,8 +43,8 @@ test('the runtime keeps one consistent hero atlas for combat and the ending',()=
   assert.ok(presentation.includes("atlas = this.assets.frames.artifact[frame.action || 'idle']"));
 });
 test('large water surfaces and curled crests retain full color and alpha precision',()=>{
-  for(const [name,w,h] of [['world-pools.png',768,768],['sea-crests.png',512,192]]){
-    const data=fs.readFileSync(path.join(__dirname,'../cocos-project/assets/game-content/images',name));
+  for(const [name,w,h] of [['pool0',384,384],['waveRidges',512,192]]){
+    const data=fs.readFileSync(assetFile(name));
     assert.equal(data[25],6);assert.equal(data.readUInt32BE(16),w);assert.equal(data.readUInt32BE(20),h);
     const image=spriteAlpha(name);assert.equal(image.alpha(0,0),0);
   }

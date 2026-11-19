@@ -3,12 +3,14 @@ export function rgba(hex: number, alpha = 1) { return new Color((hex >>> 16) & 2
 // Batched geometry commands rendered by Cocos Graphics. The layout uses a top-left origin.
 export class DrawList {
   private commands: Array<[string, number[]]> = [];
+  private batches: {commands:Array<[string,number[]]>;fill:Color;stroke:Color;width:number;filling:boolean}[] = [];
+  private previous: string | null = null;
   private filling = false;
   private fill = rgba(0xffffff);
   private stroke = rgba(0xffffff);
   private width = 0;
-  constructor(public graphics: Graphics) {}
-  clear() { this.commands = []; this.filling = false; this.width = 0; this.graphics.clear(); }
+  constructor(public graphics: Graphics, private retained = false) {}
+  clear() { this.commands = []; this.batches = []; this.filling = false; this.width = 0; if (!this.retained) this.graphics.clear(); }
   lineStyle(width: number, color?: number, alpha = 1) { if (!this.filling) this.flush(); this.width = width; if (color !== undefined) this.stroke = rgba(color, alpha); }
   beginFill(color: number, alpha = 1) { this.flush(); this.fill = rgba(color, alpha); this.filling = true; }
   endFill() { this.flush(); this.filling = false; }
@@ -31,9 +33,24 @@ export class DrawList {
   }
   flush() {
     if (!this.commands.length) return;
+    const batch = {commands:this.commands,fill:this.fill,stroke:this.stroke,width:this.width,filling:this.filling};
+    if (this.retained) this.batches.push(batch); else this.paint(batch);
+    this.commands = [];
+  }
+  commit() {
+    this.flush();
+    if (!this.retained) return;
+    const color = (c: Color) => [c.r,c.g,c.b,c.a];
+    const key = JSON.stringify(this.batches.map(b => [b.commands,color(b.fill),color(b.stroke),b.width,b.filling]));
+    if (key === this.previous) return;
+    this.graphics.clear();
+    this.batches.forEach(batch=>this.paint(batch));
+    this.previous = key;
+  }
+  private paint({commands,fill,stroke,width,filling}) {
     const g: any = this.graphics;
-    for (const [method, args] of this.commands) g[method](...args);
-    g.fillColor = this.fill; g.strokeColor = this.stroke; g.lineWidth = this.width;
-    if (this.filling) g.fill(); if (this.width > 0) g.stroke(); this.commands = [];
+    for (const [method, args] of commands) g[method](...args);
+    g.fillColor = fill; g.strokeColor = stroke; g.lineWidth = width;
+    if (filling) g.fill(); if (width > 0) g.stroke();
   }
 }

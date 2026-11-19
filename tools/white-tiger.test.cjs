@@ -107,7 +107,7 @@ test('a saturated hazard budget falls back to recovery instead of trapping the t
 test('tiger and bone atlases have opaque bodies, transparent backgrounds and bounded runtime frames',()=>{
   const fs=require('node:fs'),path=require('node:path');
   for(const [name,w,h,cap] of [['white-tiger',768,768,170000],['tiger-pillars',576,192,24000]]){
-    const data=fs.readFileSync(path.join(__dirname,'../cocos-project/assets/game-content/images/'+name+'.png'));
+    const data=fs.readFileSync(require('./cocos/art-catalog.cjs').assetFile(name==='white-tiger'?'tiger':'tigerPillars'));
     assert.equal(data.readUInt32BE(16),w);assert.equal(data.readUInt32BE(20),h);assert.ok(data.includes(Buffer.from('tRNS')));assert.ok(data.length<cap);
   }
 });

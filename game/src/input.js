@@ -42,7 +42,7 @@ class NativeInput {
       if (Math.hypot(touch.clientX - press.x, touch.clientY - press.y) > 12) press.moved = true;
       const region = this.presentation.regions.find(r => r.id === press.id);
       if (!region || press.epoch !== epoch(this.controller.data)) continue;
-      if (region.type === 'scroll') this.controller.scrollArchive((press.lastY - touch.clientY) / this.controller.rpxScale);
+      if (region.type === 'scroll') this.controller.scrollArchive((press.lastY - touch.clientY) / this.controller.rpxScale / (region.contentScale || 1));
       if (region.type === 'volume') this.volume(this.point(touch), region);
       if (region.type === 'skill' && this.controller.combat.weapon === 'banner' && press.moved) {
         press.direction = { x: touch.clientX - press.x, y: touch.clientY - press.y }; this.controller.aimSkill(press.direction);

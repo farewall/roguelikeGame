@@ -4,7 +4,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 source = ROOT / 'art/zhuxian-swords/source.png'
-output = ROOT / 'cocos-project/assets/game-content/images/zhuxian-swords.png'
+output = ROOT / 'cocos-project/assets/game-swords/images/zhuxian-swords.png'
 image = Image.open(source).convert('RGBA')
 if image.width != image.height or image.getchannel('A').getextrema() != (0, 255):
     raise ValueError('Expected square transparent 2x2 atlas with four opaque sword bodies')

@@ -4,7 +4,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 source = ROOT / 'art/pangu-banner/source.png'
-output = ROOT / 'cocos-project/assets/game-content/images/pangu-banner.png'
+output = ROOT / 'cocos-project/assets/game-banner/images/pangu-banner.png'
 image = Image.open(source).convert('RGBA')
 if image.width != image.height or image.getchannel('A').getextrema() != (0, 255):
     raise ValueError('Expected square transparent 4x4 banner atlas with opaque solid bodies')

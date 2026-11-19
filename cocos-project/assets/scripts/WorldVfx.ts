@@ -17,14 +17,18 @@ export function drawWorld(v, ground, terrain, actors, point) {
     const mark=v.image(ground,'landmark-'+i,v.assets.frames.worldStyle[world.stage-1],a.x+region.x-size/2,a.y+region.y-size*.36,size,size*.72,[.36,.35,.32,.34,.36][world.stage-1]);mark.tint=0xd2d2c9;
     if(i%2){mark.node.setScale(-1,1,1);mark.node.setPosition(a.x+region.x+size/2,-(a.y+region.y-size*.36));}else mark.node.setScale(1,1,1);
   }
-  // Flatten fine floor detail while keeping the real terrain and bodies crisp.
-  g.lineStyle(0);g.beginFill([0x23332c,0x332f2a,0x202730,0x22353c,0x29323a][world.stage-1],.12);
-  g.drawRect(a.x+cam.x,a.y+cam.y,cam.width,cam.height);g.endFill();
-  for(const road of world.roads)for(let j=1;j<road.length;j++){
-    const from=road[j-1],to=road[j],dx=to.x-from.x,dy=to.y-from.y,length=Math.hypot(dx,dy)||1,nx=-dy/length,ny=dx/length,sideA=[],sideB=[],count=Math.max(2,Math.ceil(length/60));
-    if(Math.max(from.x,to.x)<cam.x-70||Math.min(from.x,to.x)>cam.x+cam.width+70||Math.max(from.y,to.y)<cam.y-70||Math.min(from.y,to.y)>cam.y+cam.height+70)continue;
-    for(let i=0;i<=count;i++){const t=i/count,x=from.x+dx*t,y=from.y+dy*t,w=36+Math.sin(i*1.7+j)*8;sideA.push(a.x+x+nx*w,a.y+y+ny*w);sideB.unshift(a.x+x-nx*w,a.y+y-ny*w);}
-    g.lineStyle(0);g.beginFill([0x89927c,0xb4a18a,0x797b7f,0x9cbbc0,0xaaa38d][world.stage-1],0.075);g.drawPolygon([...sideA,...sideB]);g.endFill();
+  const roads = v.layers.roads, offset = a.x + ':' + a.y;
+  if (roads.world!==world || roads.offset!==offset) {
+    roads.world=world; roads.offset=offset;
+    const base=roads.g;base.clear();
+    base.lineStyle(0);base.beginFill([0x23332c,0x332f2a,0x202730,0x22353c,0x29323a][world.stage-1],.12);
+    base.drawRect(a.x,a.y,world.width,world.height);base.endFill();
+    for(const road of world.roads)for(let j=1;j<road.length;j++){
+      const from=road[j-1],to=road[j],dx=to.x-from.x,dy=to.y-from.y,length=Math.hypot(dx,dy)||1,nx=-dy/length,ny=dx/length,sideA=[],sideB=[],count=Math.max(2,Math.ceil(length/60));
+      for(let i=0;i<=count;i++){const t=i/count,x=from.x+dx*t,y=from.y+dy*t,w=36+Math.sin(i*1.7+j)*8;sideA.push(a.x+x+nx*w,a.y+y+ny*w);sideB.unshift(a.x+x-nx*w,a.y+y-ny*w);}
+      base.lineStyle(0);base.beginFill([0x9aa482,0xb4a18a,0xa27761,0x9cbbc0,0xaaa38d][world.stage-1],world.stage===3?.11:.075);base.drawPolygon([...sideA,...sideB]);base.endFill();
+    }
+    base.lineStyle(24,0x172529,0.9);base.moveTo(a.x,a.y);base.lineTo(a.x+world.width,a.y);base.lineTo(a.x+world.width,a.y+world.height);base.lineTo(a.x,a.y+world.height);base.lineTo(a.x,a.y);
   }
   // Water, molten rock and void are physical terrain. Their visible shore is the collision contour.
   for(const pool of world.pools) {
@@ -32,10 +36,12 @@ export function drawWorld(v, ground, terrain, actors, point) {
     const index=pool.kind==='lava'?1:pool.kind==='void'?2:world.stage===1?3:0;
     v.terrainSurface(terrain,pool.id,v.assets.frames.worldPools[index],pool,a);
   }
+  const silhouettes=[core.groundPoint(core.player),...core.enemies.filter(e=>visible(core.point(e).x,core.point(e).y,220)&&e.castTime>0).map(e=>core.groundPoint(e))];
   for(const prop of world.props) {
     if(!visible(prop.x,prop.y,prop.size)) continue;
     const texture=prop.tigerPillar?v.assets.frames.tigerPillars[prop.broken?1:0]:v.assets.frames.worldProps[prop.sprite];
-    const sprite=v.image(actors,'terrain-'+prop.id,texture,a.x+prop.x-prop.size/2,a.y+prop.y-prop.size*(prop.tigerPillar ? .948 : .87),prop.size,prop.size);
+    const occluding=silhouettes.some(p=>Math.abs(p.x-prop.x)<prop.size*.32 && p.y<prop.y && p.y>prop.y-prop.size*.66);
+    const sprite=v.image(actors,'terrain-'+prop.id,texture,a.x+prop.x-prop.size/2,a.y+prop.y-prop.size*(prop.tigerPillar ? .948 : .87),prop.size,prop.size,occluding?.49:1);
     sprite.tint=prop.tigerPillar?0xffffff:0xe1e4dd;(sprite.node as any).worldDepth=a.y+prop.y;
     if(prop.flip) { sprite.node.setScale(-1,1,1);sprite.node.setPosition(a.x+prop.x+prop.size/2,-(a.y+prop.y-prop.size*0.87)); }
     else sprite.node.setScale(1,1,1);
@@ -66,8 +72,6 @@ export function drawWorld(v, ground, terrain, actors, point) {
     (body.node as any).worldDepth = y;
     v.text(actors, 'phoenix-altar-name', altar.name, x, y + 26, 21, 0xe3a478, {center:true});
   }
-  // The world border is distant geography; it never follows the camera.
-  g.lineStyle(24,0x172529,0.9);g.moveTo(a.x,a.y);g.lineTo(a.x+world.width,a.y);g.lineTo(a.x+world.width,a.y+world.height);g.lineTo(a.x,a.y+world.height);g.lineTo(a.x,a.y);
 }
 export function drawMap(v, layer, x, y, width, height, expanded=false) {
   const c=v.c, core=c.combat, world=core.world, g=layer.g, scale=Math.min(width/world.width,height/world.height), w=world.width*scale,h=world.height*scale;
@@ -93,8 +97,11 @@ export function drawMap(v, layer, x, y, width, height, expanded=false) {
 export function drawWorldHud(v) {
   const c=v.c, core=c.combat, a=c.layout.arena, hud=v.layers.hud, world=core.world;
   v.text(hud,'world-region',world.regionAt(core.point(core.player))+' · 探索 '+world.explored+'/'+world.sites.length,a.x+24,a.y+49,18,0xaac0b0);
-  const boss=core.enemies.find(e=>e.boss&&e.hp>0),x=a.x+a.width-214,y=a.y+20;if(!boss)drawMap(v,hud,x,y+30,196,124);
-  v.button(hud,'world-map','地图',x+112,y,84,30,()=>c.openWorldMap(),{size:19});
+  const boss=core.enemies.find(e=>e.boss&&e.hp>0),u=c.layout.utility;
+  if(!boss)drawMap(v,hud,u.x,u.y+u.size+9,2*u.size+u.gap,124);
+  const x=u.x+u.size+u.gap;
+  v.button(hud,'world-map','地图',x,u.y+(u.size-40)/2,u.size,40,()=>c.openWorldMap(),
+    {size:Math.max(22,11/c.rpxScale),hit:{x,y:u.y,width:u.size,height:u.size}});
   if(!boss)return;
   const p=core.point(boss),cam=core.camera(),sx=p.x-cam.x,sy=p.y-cam.y;
   if(sx>=50&&sx<=a.width-50&&sy>=70&&sy<=a.height-70)return;

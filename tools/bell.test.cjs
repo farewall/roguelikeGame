@@ -91,7 +91,7 @@ test('Chaos Bell reserves enough top clearance to keep its overhead body inside 
 
 test('Chaos Bell has sixteen textured rotation frames with solid bronze and translucent edge alpha', () => {
   const fs = require('node:fs'), path = require('node:path');
-  const png = fs.readFileSync(path.join(__dirname, '../cocos-project/assets/game-content/images/chaos-bell.png'));
+  const png = fs.readFileSync(require('./cocos/art-catalog.cjs').assetFile('bell'));
   assert.equal(png.readUInt32BE(16), 768); assert.equal(png.readUInt32BE(20), 768);
   assert.ok(png.length < 280 * 1024);
   let alpha;

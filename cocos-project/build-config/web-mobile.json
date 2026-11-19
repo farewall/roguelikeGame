@@ -16,8 +16,88 @@
   "mainBundleCompressionType": "merge_dep",
   "bundleConfigs": [
     {
+      "root": "db://assets/game-shell",
+      "name": "game-shell",
+      "output": true,
+      "priority": 1,
+      "isRemote": false,
+      "compressionType": "merge_dep"
+    },
+    {
       "root": "db://assets/game-content",
       "name": "game-content",
+      "output": true,
+      "priority": 1,
+      "isRemote": false,
+      "compressionType": "merge_dep"
+    },
+    {
+      "root": "db://assets/game-bell",
+      "name": "game-bell",
+      "output": true,
+      "priority": 1,
+      "isRemote": false,
+      "compressionType": "merge_dep"
+    },
+    {
+      "root": "db://assets/game-banner",
+      "name": "game-banner",
+      "output": true,
+      "priority": 1,
+      "isRemote": false,
+      "compressionType": "merge_dep"
+    },
+    {
+      "root": "db://assets/game-swords",
+      "name": "game-swords",
+      "output": true,
+      "priority": 1,
+      "isRemote": false,
+      "compressionType": "merge_dep"
+    },
+    {
+      "root": "db://assets/game-realm-1",
+      "name": "game-realm-1",
+      "output": true,
+      "priority": 1,
+      "isRemote": false,
+      "compressionType": "merge_dep"
+    },
+    {
+      "root": "db://assets/game-realm-2",
+      "name": "game-realm-2",
+      "output": true,
+      "priority": 1,
+      "isRemote": false,
+      "compressionType": "merge_dep"
+    },
+    {
+      "root": "db://assets/game-realm-3",
+      "name": "game-realm-3",
+      "output": true,
+      "priority": 1,
+      "isRemote": false,
+      "compressionType": "merge_dep"
+    },
+    {
+      "root": "db://assets/game-realm-4",
+      "name": "game-realm-4",
+      "output": true,
+      "priority": 1,
+      "isRemote": false,
+      "compressionType": "merge_dep"
+    },
+    {
+      "root": "db://assets/game-tides",
+      "name": "game-tides",
+      "output": true,
+      "priority": 1,
+      "isRemote": false,
+      "compressionType": "merge_dep"
+    },
+    {
+      "root": "db://assets/game-realm-5",
+      "name": "game-realm-5",
       "output": true,
       "priority": 1,
       "isRemote": false,

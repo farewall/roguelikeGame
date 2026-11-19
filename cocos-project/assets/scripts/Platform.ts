@@ -4,6 +4,7 @@ export function createPlatform(controller: () => any, owner: Node) {
   const native = typeof wx === 'object' ? wx : null;
   const callbacks: Record<string, Function[]> = {}, touches = new Map<any, any>(), disposers: Function[] = [];
   let clips: Record<string, AudioClip> = {};
+  const sources = new Set<AudioSource>();
   const emit = (key: string, event: any) => (callbacks[key] || []).slice().forEach(fn => fn(event));
   const viewport = () => {
     if (native) {
@@ -38,12 +39,17 @@ export function createPlatform(controller: () => any, owner: Node) {
     vibrateShort(options: any) { if (native && native.vibrateShort) native.vibrateShort(options); },
     createInnerAudioContext() {
       const node = new Node('EffectAudio'); owner.addChild(node); const audio = node.addComponent(AudioSource);
+      sources.add(audio);
       let source = '';
       return { get src() { return source; }, set src(value: string) { source = value; const id = value.split('/').pop().replace('.wav', ''); audio.clip = clips[id] || null; },
         get volume() { return audio.volume; }, set volume(value: number) { audio.volume = value; },
-        play() { if (audio.clip) audio.play(); }, stop() { audio.stop(); }, destroy() { node.destroy(); } };
+        play() { if (audio.clip) audio.play(); }, stop() { audio.stop(); }, destroy() { sources.delete(audio);node.destroy(); } };
     },
-    setAudioClips(value: Record<string, AudioClip>) { clips = value; },
+    setAudioClips(value: Record<string, AudioClip>) {
+      const active=new Set(Object.values(value));
+      for (const source of sources) if(source.clip&&!active.has(source.clip)) { source.stop(); source.clip=null; }
+      clips = value;
+    },
     emit, destroy() { disposers.forEach(fn => fn()); touches.clear(); }
   };
   for (const key of ['TouchStart', 'TouchMove', 'TouchEnd', 'TouchCancel', 'Hide', 'Show']) {
