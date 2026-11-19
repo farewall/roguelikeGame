@@ -77,8 +77,9 @@ test('settings freezes simulation, pending strikes and warning clocks; resume cr
 });
 test('pause preserves remaining awakening timer and prevents selection under settings', () => {
   const { game, elapse, fireTimer } = setup(); choose(game, 'fire'); elapse(200); game.openSettings();
-  assert.equal(game.pendingTimers.upgradeTimer.remaining, 800); elapse(10000); game.onShow(); assert.equal(game.data.paused, true);
-  game.closeSettings(); assert.equal(game.pendingTimers.upgradeTimer.remaining, 800); fireTimer(game.upgradeTimer);
+  assert.equal(game.pendingTimers.upgradeTimer.remaining, 50); elapse(10000); game.onShow(); assert.equal(game.data.paused, true);
+  game.closeSettings(); assert.equal(game.pendingTimers.upgradeTimer.remaining, 50); fireTimer(game.upgradeTimer);
+  assert.equal(game.data.actorFrame.action, 'idle');
   game.combat.xp = game.combat.xpNeed; game.levelUp(); const e = upgradeEvent(game); game.openSettings(); game.chooseUpgrade(e);
   assert.equal(game.data.level, 2); game.closeSettings(); game.chooseUpgrade(e); assert.equal(game.data.level, 3);
 });

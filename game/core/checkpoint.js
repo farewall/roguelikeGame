@@ -3,7 +3,7 @@ const {Combat,WEAPONS,PATHS}=require('./combat');
 const KEY='pangu.checkpoint.v1',VERSION=1;
 const scalars=['stage','phase','phaseTime','stageTime','time','hp','maxHp','power','haste','level','xp','xpNeed','kills','damageTaken','nextId','attackCd','energy','skillCooldown','skillUses','strikeCount','remaining','waveSpawns','spawnCd'];
 const records=['elements','bellUpgrades','bannerUpgrades','swordUpgrades','damageBySource','damageByCause'];
-const enemyKeys=['id','x','y','kind','boss','bossType','name','hp','maxHp','damageScale','pressure','speed','cooldown','burnTime','burnDps','slowTime','freezeTime','sequence','phase2','trial','relicTrial','fodder','spawnDuration','spawnTime'];
+const enemyKeys=['id','x','y','kind','boss','bossType','name','hp','maxHp','damageScale','pressure','speed','cooldown','burnTime','burnDps','slowTime','freezeTime','sequence','phase2','trial','relicTrial','fodder','openingCaster','spawnDuration','spawnTime'];
 const pick=(o,keys)=>Object.fromEntries(keys.filter(k=>o[k]!==undefined).map(k=>[k,o[k]]));
 const finite=n=>typeof n==='number'&&Number.isFinite(n)&&Math.abs(n)<1e12;
 function makeCheckpoint(c) {

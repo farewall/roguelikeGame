@@ -7,7 +7,7 @@ const { SWORDS } = require('./swords');
 const { WorldState } = require('./world');
 const { VINES, vineRadius } = require('./vines');
 const { METEOR, meteorPhase } = require('./meteor');
-const { experienceNeed, waveQuota, enemyProfile } = require('./progression');
+const { experienceNeed, waveQuota, waveAdvanceTime, enemyProfile } = require('./progression');
 const { advanceEnemyAnimation } = require('./enemy-animation');
 const {canCast,tacticDirection}=require('./enemy-tactics');
 const {relicView,chooseRelic,relicDeaths}=require('./world-events');
@@ -119,6 +119,19 @@ class Combat extends ArtifactCombat {
   }
   phaseLabel() { return ['一 · 初劫', '二 · 群劫', '三 · 精英', '四 · 守关'][this.phase]; }
   chooseRelic(id) { return chooseRelic(this,id); }
+  canSummonPhoenix() {
+    const altar = this.world?.phoenixAltar;
+    if (!altar || this.phase !== 2 || this.cleared || this.ended || this.world.bossBoon ||
+        this.world.relic.status === 'active' || this.enemies.some(e => e.hp > 0 && e.trial)) return false;
+    const player = this.groundPoint(this.player);
+    return Math.hypot(player.x - altar.x, player.y - altar.y) <= 135;
+  }
+  summonPhoenix() {
+    if (!this.canSummonPhoenix()) return false;
+    this.nextWave();
+    this.eventsTaken.push('余烬祭坛 · 提前迎战');
+    return true;
+  }
   nearest(enemies, origin = this.player) {
     return enemies.reduce((a, b) => !a || this.distance(origin, b) < this.distance(origin, a) - 1e-6 || (Math.abs(this.distance(origin, a) - this.distance(origin, b)) < 1e-6 && b.id < a.id) ? b : a, null);
   }
@@ -147,8 +160,8 @@ class Combat extends ArtifactCombat {
     if (id === 'trial') this.trialPending = true;
     event.resolved = true; this.eventsTaken.push(choice.name); return true;
   }
-  spawnPoint(kind,fodder=false) {
-    if (this.world) return this.world.spawnPoint(this, kind,fodder);
+  spawnPoint(kind,fodder=false,openingCaster=false) {
+    if (this.world) return this.world.spawnPoint(this, kind,fodder,openingCaster);
     const margin = kind === 'boss' ? 118 : kind === 'elite' ? 86 : 64;
     const mx = Math.min(38, Math.max(6, margin / this.width * 100));
     const my = Math.min(38, Math.max(12, margin / this.height * 100));
@@ -169,15 +182,16 @@ class Combat extends ArtifactCombat {
     }
     return best;
   }
-  spawn(kind, forming = false, fodder = false) {
+  spawn(kind, forming = false, fodder = false, openingCaster = false) {
     if (this.enemies.length >= 32 || this.cleared || this.ended) return null;
-    const p = this.spawnPoint(kind,fodder); if (!p) return null;
+    const p = this.spawnPoint(kind,fodder,openingCaster); if (!p) return null;
     const boss = kind === 'boss';
     const stats = this.enemyStats(kind), hp = stats.hp;
     const e = { id: ++this.nextId, ...p, kind, boss, bossType: boss ? this.stage : 0, name: boss ? BOSSES[this.stage - 1] : ENEMIES.find(x => x.id === kind).name,
       hp, maxHp: hp, hpPct: 100, damageScale: stats.damageScale, pressure: stats.pressure, speed: (boss ? 42 : kind === 'charger' ? 66 : 52) * stats.speedScale,
       cooldown: boss ? 2 : kind === 'ranged' ? 1.3 : 2.5, castTime: 0, recoverTime: 0,
       burnTime: 0, slowTime: 0, freezeTime: 0, hitTime: 0, sequence: 0, phase2: false, chargeHit: false, fodder };
+    if (openingCaster) { e.cooldown = 0.2; e.openingCaster = true; }
     e.spawnDuration = boss ? 1.2 : kind === 'elite' ? 0.95 : 0.75; e.spawnTime = forming ? e.spawnDuration : 0;
     this.enemies.push(e); this.emit('discover', { id: boss ? 'boss-' + this.stage : kind }); return e;
   }
@@ -248,17 +262,18 @@ class Combat extends ArtifactCombat {
     if (this.phase >= 3) return;
     this.spawnCd -= dt;
     if (this.remaining > 0 && this.spawnCd <= 0 && this.enemies.length < 31) {
-      const kind = this.phase === 2 ? (this.waveSpawns % 4 === 0 ? 'elite' : 'wraith')
+      const openingCaster = Boolean(this.world && this.stage === 1 && this.phase === 0 && this.waveSpawns === 4);
+      const kind = openingCaster ? 'ranged' : this.phase === 2 ? (this.waveSpawns % 4 === 0 ? 'elite' : 'wraith')
         : this.phase === 0 ? (this.stage > 1 && this.waveSpawns % 10 === 9 ? 'charger' : 'wraith')
         : ['wraith', 'wraith', 'wraith', 'wraith', 'ranged', 'wraith', 'wraith', 'wraith', 'wraith', 'charger'][this.waveSpawns % 10];
-      const enemy = kind === 'wraith' ? this.spawnFodder() : this.spawn(kind, true);
+      const enemy = kind === 'wraith' ? this.spawnFodder() : this.spawn(kind, true, false, openingCaster);
       if (enemy) {
         this.remaining--; this.waveSpawns++;
         this.spawnCd = this.phase === 2 ? 0.65 : 0.26 - (this.stage - 1) * 0.012 + this.random() * 0.12;
       } else this.spawnCd = 0.15;
 
     }
-    if (!this.remaining && (!this.enemies.length || this.phaseTime >= [18, 22, 22][this.phase])) this.nextWave();
+    if (!this.remaining && (!this.enemies.length || this.phaseTime >= waveAdvanceTime(this.stage, this.phase, this.exploration))) this.nextWave();
   }
   updateEnemy(e, dt) {
     if (e.spawnTime > 0) { e.spawnTime = Math.max(0, e.spawnTime - dt); return; }
@@ -282,7 +297,12 @@ class Combat extends ArtifactCombat {
     const visible = !view || position.x >= view.x + margin && position.x <= view.x + view.width - margin && position.y >= view.y + margin && position.y <= view.y + view.height - margin;
     if (visible && e.cooldown <= 0 && !e.castTime && !e.recoverTime && canCast(this,e)) {
       if (e.boss) { this.castPattern(e.bossType, e, e.phase2); e.cooldown = e.phase2 ? 3.5 : 4.5; }
-      else if (e.kind === 'ranged') { this.lineAtPlayer(e, 34, 0.95, 0.24, '息', 'arcane', 7); e.castTime = 1.2; e.recoverTime = 1.7; e.cooldown = 3; this.emit('cast', { name: e.name }); }
+      else if (e.kind === 'ranged') {
+        this.lineAtPlayer(e, 34, 0.95, 0.24, '息', 'arcane', 7);
+        e.castTime = 1.2; e.recoverTime = 1.7; e.cooldown = 3;
+        this.emit('cast', { name: e.name, hint: e.openingCaster ? '喉囊鼓起了 · 横移躲开吐息' : '' });
+        e.openingCaster = false;
+      }
       else if (e.kind === 'charger') { this.charge(e, false); e.cooldown = 4.4; }
       else if (e.kind === 'elite') { this.hazard({ shape: 'ring', x: e.x, y: e.y, radius: 150, inner: 120, wave: { from: 20, to: 150, width: 30 }, delay: 1.05, duration: 0.55, label: '震', kind: 'arcane', damage: 9, owner: e.id, shockwave: true }); e.castTime = 1.6; e.recoverTime = 2.1; e.cooldown = 4; this.emit('cast', { name: e.name }); }
     }
@@ -621,8 +641,11 @@ class Combat extends ArtifactCombat {
     if (this.weapon === 'banner') take(pool.filter(u => ['blades', 'split'].includes(u.kind) && (this.level === 1 && !this.bannerUpgrades.blades ? u.kind === 'blades' : this.level === 2 && !this.bannerUpgrades.split ? u.kind === 'split' : true)));
     if (this.weapon === 'swords') take(pool.filter(u=>u.kind.startsWith('sword-')&&(this.level===1&&!this.swordUpgrades.reach?u.kind==='sword-reach':true)));
     take(pool.filter(u => this.hp <= this.maxHp * 0.55 ? u.kind === 'health' : ['power', 'haste'].includes(u.kind) || u.kind === 'health' && this.level % 4 === 0));
-    take(pool.filter(u => ELEMENTS[u.kind] && (this.weapon === 'bell' || this.elements[u.kind] === 0)));
-    if (this.weapon !== 'bell') take(pool.filter(u => ELEMENTS[u.kind] && this.elements[u.kind] > 0));
+    const elements = pool.filter(u => ELEMENTS[u.kind]);
+    const learned = elements.filter(u => this.elements[u.kind] > 0);
+    const newElements = elements.filter(u => !this.elements[u.kind]);
+    // Alternate between developing an existing element and opening a new combination.
+    take(this.level % 2 === 0 && learned.length ? learned : newElements.length ? newElements : elements);
     while (choices.length < 3 && pool.length) take(pool);
     return choices;
   }
@@ -639,15 +662,17 @@ class Combat extends ArtifactCombat {
     const boss = this.enemies.find(e => e.boss);
     const exposed = boss && tigerVulnerable(boss);
     const hint = boss ? ['盘身后根脉分叉 · 甩尾前离开龙首朝向', '低肩横爪 · 抬爪下劈 · 诱扑撞骨柱破势', '抬翼陨火 · 从火浪缺口穿行', '缩甲后向外发浪 · 绕向发亮甲片', '结印后敕令落下 · 连招结束时反击'][boss.bossType - 1] : '';
+    const readyTime = waveAdvanceTime(this.stage, this.phase, this.exploration);
     return {
       world: this.world ? { name:this.world.name, region:this.world.regionAt(this.point(this.player)), explored:this.world.explored, sites:this.world.sites.length, width:this.width, height:this.height } : null,
       worldRelic:relicView(this),
+      phoenixSummonReady: this.canSummonPhoenix(),
       bossTransition: this.enrage ? { ...this.enrage } : null,
       rooted: this.rootTime > 0, rootTime: round(this.rootTime), hp: Math.ceil(this.hp), maxHp: this.maxHp, hpPct: this.hp / this.maxHp * 100,
       level: this.level, xp: this.xp, xpNeed: this.xpNeed, xpPct: Math.min(100, this.xp / this.xpNeed * 100),
       stage: this.stage, stageName: STAGES[this.stage - 1], phaseName: this.phaseLabel(),
-      objective: this.phase === 3 ? '击败' + BOSSES[this.stage - 1] : `剩余 ${this.enemies.length + this.remaining} 敌 · ${Math.max(0, Math.ceil([18, 22, 22][this.phase] - this.phaseTime))}秒后增援`,
-      progress: this.cleared ? 100 : Math.floor(Math.min(95, this.phase * 25 + (this.phase === 3 && boss ? (1 - boss.hp / boss.maxHp) * 25 : Math.min(1, this.phaseTime / [18, 22, 22][this.phase]) * 25))),
+      objective: this.phase === 3 ? '击败' + BOSSES[this.stage - 1] : `剩余 ${this.enemies.length + this.remaining} 敌`,
+      progress: this.cleared ? 100 : Math.floor(Math.min(95, this.phase * 25 + (this.phase === 3 ? (boss ? 1 - boss.hp / boss.maxHp : 0) * 25 : Math.min(1, this.phaseTime / readyTime) * 25))),
       enemies: this.enemies.map(e => ({ id: e.id, kind: e.kind, boss: e.boss, bossType: e.bossType, trial: Boolean(e.trial), x: round(e.x), y: round(e.y), hpPct: round(Math.max(0, e.hp / e.maxHp * 100)),
         burnTime: e.burnTime > 0 ? 1 : 0, slowTime: e.slowTime > 0 ? 1 : 0, freezeTime: e.freezeTime > 0 ? 1 : 0, hitTime: e.hitTime > 0 ? 1 : 0, casting: e.castTime > 0, recovering: e.castTime <= 0 && e.recoverTime > 0, shielded: Boolean(e.shielded), exposed: tigerVulnerable(e) })),
       hazards: this.hazards.map(h => {

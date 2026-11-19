@@ -61,6 +61,18 @@ test('enemy growth follows world progress, never player upgrades, and leaves old
   near(old.maxHp, hp); near(old.speed, speed); const fodder = c.spawnFodder(); assert.ok(fodder.maxHp < 4);
 });
 
+test('the next two picks can deepen one learned element with any artifact', () => {
+  for (const weapon of ['bell', 'banner', 'swords']) {
+    for (const level of [3, 4]) {
+      const c = new Combat(weapon, () => 0.99);
+      c.elements.fire = 1; c.level = level;
+      const first = c.choices();
+      c.level++;
+      assert.ok([...first, ...c.choices()].some(o => o.kind === 'fire' && o.desc.includes('传火')));
+    }
+  }
+});
+
 test('higher quotas and gentler experience costs yield sixteen meaningful upgrades in a full run budget', () => {
   let enemies = 5; for (let stage = 1; stage <= 5; stage++) for (let phase = 0; phase < 3; phase++) enemies += waveQuota(stage, phase);
   assert.equal(enemies, 289); assert.ok(enemies > 170 * 1.5 && enemies < 170 * 2);

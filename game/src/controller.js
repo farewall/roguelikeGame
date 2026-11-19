@@ -4,12 +4,13 @@ const { GameAudio } = require('../core/game-audio');
 const { Combat, WEAPONS, PLAYER_SPEED, ENEMIES } = require('../core/combat');
 const { SWORDS } = require('../core/swords');
 const { normalizeViewport } = require('./viewport');
-const { MEMORIES, readArchive, saveArchive, runView } = require('../core/chronicle');
+const { MEMORIES, readArchive, saveArchive, runView, retryHint } = require('../core/chronicle');
 const {readCheckpoint,saveCheckpoint,clearCheckpoint,restoreCheckpoint}=require('../core/checkpoint');
 const SETTINGS_KEY = 'pangu.settings.v1';
 const ACTOR_SHEETS = ['idle', 'move', 'attack', 'hurt', 'awaken', 'death'];
 const DIRECTION_ROW = { down: 0, up: 1, left: 2, right: 3 };
 const ACTOR_FRAME_SIZE = 192;
+const UPGRADE_RECOVERY_MS = 250;
 const NativeDate = Date;
 const INPUT_BOUNDARIES = ['view', 'paused', 'ended', 'showSettings', 'confirmExit', 'showArchive', 'archiveTab', 'showIntro', 'showChoice', 'choiceToken', 'showMemory', 'showEnding', 'rewardSelectedId', 'showWorldMap','showRelic','showBuildDetails'];
 
@@ -28,7 +29,7 @@ const definition = {
     stage: 1, stageName: '', phaseName: '', objective: '', progress: 0, boss: null, kills: 0, combatStats: '', weaponId: 'bell', actorSheets: [], actorFrame: { left: 0, top: 0, action: 'idle' }, pathName: '', warded: false,
     player: { x: 50, y: 55 }, enemies: [], hazards: [], effects: [], weaponName: '混沌钟', elementName: '未附魔', comboName: '', message: '',
     showChoice: false, choices: [], choiceToken: 0, joystick: { x: 0, y: 0, active: false }, attackRange: 180,
-    ended: false, showEnding: false, won: false, endingTitle: '', endingCopy: '', showMemory: false, memory: null,
+    ended: false, showEnding: false, won: false, endingTitle: '', endingCopy: '', endingHint: '', showMemory: false, memory: null,
     selectedWeapon: 'bell', weapons: Object.keys(WEAPONS).map(id => ({ id, ...WEAPONS[id] })),
     archiveMemories: [], archiveEnemies: [], archiveRuns: [], memoryCount: 0, enemyCount: 0, runSummary: null, runReport: null,
     rewardChoices: [], rewardSelectedId: '', rewardKind: '', rewardTitle: '', energy: 100, skillReady: true, skillName: '镇界', skillAim: null
@@ -61,6 +62,12 @@ const definition = {
   openRelic() {const r=this.data.worldRelic;if(this.isBlocked()||!r||!r.nearby||r.status!=='ready')return;this.pauseGame();this.setData({showRelic:true});},
   closeRelic() {this.setData({showRelic:false});this.resumeGame();},
   chooseRelic(id) {if(!this.data.showRelic||!this.combat.chooseRelic(id))return false;this.syncCombat();this.closeRelic();this.saveRun();return true;},
+  summonPhoenix() {
+    if (this.isBlocked() || !this.combat.summonPhoenix()) return false;
+    this.syncCombat();
+    this.saveRun();
+    return true;
+  },
   openWorldMap() { if (this.isBlocked() || !this.combat.world) return; this.pauseGame(); this.setData({showWorldMap:true}); },
   closeWorldMap() { this.setData({showWorldMap:false}); this.resumeGame(); },
   onResize() { this.stopMovement(); this.updateLayout(); this.actorFrameKey = ''; if (this.actor) this.renderActor(0); this.measureArena(); },
@@ -205,11 +212,12 @@ const definition = {
       if (event.type === 'world-loot') { this.notify(event.name + ' · ' + event.reward); if (this.audio) this.audio.play('upgrade'); }
       if(event.type==='relic-trial')this.notify('守印灵凝形 · 击败后取得遗迹庇护');
       if(event.type==='relic-complete'){this.notify('遗迹已解印 · 专属提升与本境庇护生效');if(this.audio)this.audio.play('upgrade');this.saveRun();}
-      if(event.type==='boss-break'){this.notify(event.copy);if(this.audio)this.audio.play('echo');}
+      if(event.type==='boss-break'){this.notify(event.copy || event.name);if(this.audio)this.audio.play('echo');}
       if (event.type === 'boss') this.notify(event.name + '现身 · 观察预警后再接近');
       if (event.type === 'boss-phase') { this.stopMovement(); this.cancelSkillAim(); if (this.audio) { this.audio.stopAll(); this.audio.play('dominion'); } this.notify(event.name + ' · 法相暴怒'); }
       if (event.type === 'boss-enraged') this.notify(event.name + ' · 留意新的蓄势动作');
       if (event.type === 'cast' && this.audio && !warned && now >= (this.warningSoundUntil || 0)) { this.audio.play('warning'); this.warningSoundUntil = now + 650; warned = true; }
+      if (event.type === 'cast' && event.hint && this.data.hintsOn) this.notify(event.hint);
       if (event.type === 'trial-clear') this.notify('试炼完成 · 额外获得 6 灵气，恢复 10 元气');
       if (event.type === 'discover' && !this.archive.enemies.includes(event.id)) { this.archive.enemies.push(event.id); saveArchive(wx, this.archive); }
       if (event.type === 'death') { this.finish(false); break; }
@@ -243,7 +251,11 @@ const definition = {
     if (this.audio) this.audio.play('upgrade');
     this.upgradePending = true;
     this.saveRun();
-    this.schedule('upgradeTimer', () => { this.upgradePending = false; if (!this.data.ended) this.levelUp(); }, 1000);
+    this.schedule('upgradeTimer', () => {
+      if (this.actor.state === 'awaken') this.renderActor(1);
+      this.upgradePending = false;
+      if (!this.data.ended) this.levelUp();
+    }, UPGRADE_RECOVERY_MS);
   },
   onUpgradeTouchStart(e) {
     const touch = e.touches && e.touches[0];
@@ -279,7 +291,8 @@ const definition = {
     if (!this.data.showMemory || this.data.paused || (this.data.rewardChoices.length && !this.data.rewardSelectedId) || !this.combat.advanceStage()) return;
     this.setData({ showMemory: false }); this.actor = new PanguAnimation(); this.actorFrameKey = '';
     this.lastTickTime = Date.now(); this.lastMoveTime = Date.now(); this.syncCombat(); this.renderActor(0);
-    this.notify('整备完成 · 恢复 15 元气'); this.levelUp();
+    this.notify(this.combat.world?.phoenixAltar ? '恢复 15 元气 · 地图可查看熔心岔路' : '整备完成 · 恢复 15 元气');
+    this.levelUp();
     this.saveRun();
   },
   finish(win) {
@@ -292,13 +305,18 @@ const definition = {
     const report = this.combat.battleReport();
     const run = { won: win, seconds: Math.floor(this.combat.time), kills: this.combat.kills, stage: this.combat.stage, weaponId: this.combat.weapon, build: this.combat.buildLabel(), detail: report.damage + '；' + report.cause };
     this.archive.runs.unshift(run); this.archive.runs = this.archive.runs.slice(0, 8); saveArchive(wx, this.archive);
-    this.setData({ ended: true, showEnding: false, showMemory: false, won: win, showChoice: false, hazards: [], runSummary: runView(run), runReport: report, endingTitle: win ? '开天一念' : '神念归寂', endingCopy: win ? '你汇聚四象遗力，镇压天道，劈开混沌。第一缕晨光照亮人间。此后万物，将自行书写未来。' : '止步于' + (this.combat.lastDamageName || '混沌劫境') + '。已苏醒的记忆与图鉴仍留在手记中。' });
+    this.setData({ ended: true, showEnding: false, showMemory: false, won: win, showChoice: false, hazards: [], runSummary: runView(run), runReport: report, endingHint: win ? '' : retryHint(this.combat.lastDamageName), endingTitle: win ? '开天一念' : '神念归寂', endingCopy: win ? '你汇聚四象遗力，镇压天道，劈开混沌。第一缕晨光照亮人间。此后万物，将自行书写未来。' : '止步于' + (this.combat.lastDamageName || '混沌劫境') + '。已苏醒的记忆与图鉴仍留在手记中。' });
     this.combat.hazards = []; this.combat.projectiles = []; this.combat.followups = []; this.renderActor(0);
     this.combat.resetSwords();
     this.lastMoveTime = Date.now();
     this.schedule('endingTimer', () => { this.renderActor(1); this.setData({ showEnding: true }); }, 1050);
   },
-  restart() { this.setData({ view: 'game' }); this.resetGame(); },
+  restart() { this.beginGame(); },
+  changeWeaponAfterRun() {
+    if (!this.data.showEnding) return;
+    this.exitToHome();
+    this.openIntro();
+  },
   measureArena() { this.updateLayout(); },
   onTouchStart(e) {
     if (this.isBlocked() || this.touchOrigin) return;
@@ -321,7 +339,8 @@ const definition = {
     this.setData({ joystick: { x: 0, y: 0, active: false } }); if (this.actor) this.actor.move(0, 0);
   },
   renderActor(dt) {
-    const frame = this.actor.update(dt), key = frame.action + ':' + frame.direction + ':' + frame.index;
+    const speed = this.upgradePending && this.actor.state === 'awaken' ? 1000 / UPGRADE_RECOVERY_MS : 1;
+    const frame = this.actor.update(dt * speed), key = frame.action + ':' + frame.direction + ':' + frame.index;
     if (key === this.actorFrameKey) return; this.actorFrameKey = key;
     this.setData({ actorFrame: { action: frame.action, direction: frame.direction, index: frame.index, left: -frame.index * ACTOR_FRAME_SIZE * this.rpxScale, top: -DIRECTION_ROW[frame.direction] * ACTOR_FRAME_SIZE * this.rpxScale } });
   },

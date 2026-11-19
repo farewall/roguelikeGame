@@ -22,4 +22,22 @@ function readArchive(api) {
 function saveArchive(api, archive) { try { if (api.setStorageSync) api.setStorageSync(ARCHIVE_KEY, archive); } catch (_) {} }
 function duration(seconds) { const n = Math.max(0, Math.floor(seconds)); return Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0'); }
 function runView(run) { return { ...run, timeLabel: duration(run.seconds), weaponName: WEAPONS[run.weaponId].name, result: run.won ? '天地初开' : '止步第 ' + run.stage + ' 境' }; }
-module.exports = { ARCHIVE_KEY, MEMORIES, readArchive, saveArchive, duration, runView };
+function retryHint(cause) {
+  if (!cause) return '';
+  if (/追猎|断岳|追扑/.test(cause)) return '白虎伏身时准备横移。落地回望后，留意第二次起跳。';
+  if (/横爪|下劈|横剪/.test(cause)) return '白虎压肩时退出爪尖，抬爪时绕向它的侧面。';
+  const hints = {
+    '吞灵吐息': '看到喉囊鼓起就横向走位，也可以让树石挡住吐息。',
+    '生息藤蔓': '青龙盘身时寻找藤蔓间隙，沿缺口绕开龙首。',
+    '盘龙扫尾': '等青龙转身并甩完尾巴，再上前反打。',
+    '陨火撞击': '朱雀抬翼后保持移动，陨火会逐次瞄准。',
+    '余烬焚地': '绕开仍有火焰的余烬，等地面熄灭再折返。',
+    '天火焚地': '朱雀扇翼时找火浪缺口，沿缺口穿过。',
+    '归墟潮汐': '玄武缩甲时往亮甲一侧绕，从波浪的缺口穿过。',
+    '敕令裁决': '天道双掌聚光时横移，等法环松解再进攻。',
+    '裂界扑杀': '裂界奔兽伏身后会沿直线扑出，向侧面让开。',
+    '镇劫震击': '看到重兽抬爪就拉开距离，等震波过去再靠近。'
+  };
+  return hints[cause] || '用摇杆保持距离，主动技可以留到被围住时解围。';
+}
+module.exports = { ARCHIVE_KEY, MEMORIES, readArchive, saveArchive, duration, runView, retryHint };

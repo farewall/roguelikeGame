@@ -9,6 +9,7 @@ function registerPressure(c,e,damage,source) {
   if(e.pressureKey!==key){e.pressureKey=key;e.pressureDamage=0;e.pressureBroken=false;}
   if(e.pressureBroken)return;e.pressureDamage+=damage;
   const threshold=e.maxHp*(root ? .045 : c.world?.bossBoon ? .045 : .06);
+  if (shell) e.shellPressure = Math.min(1, e.pressureDamage / threshold);
   if(e.pressureDamage<threshold)return;
   if(root){
     const roots=c.hazards.filter(h=>h.owner===e.id&&h.rootBranch&&h.pressureCue===e.bossPattern.next&&!h.broken);if(!roots.length)return;
@@ -16,10 +17,16 @@ function registerPressure(c,e,damage,source) {
     c.effect('boss-break',roots[0].end,44,{life:.45});
     c.emit('boss-break',{name:'断根开路',copy:'根脉已断 · 穿过缺口'});
   }else{
-    const plan=e.bossPattern,cue=plan.cues.find((q,i)=>i>=plan.next&&q.type==='wave'&&!q.cancelled);
-    let cancelled=false;
-    if(cue){cue.cancelled=true;cancelled=true;}else{const h=c.hazards.find(h=>h.owner===e.id&&h.kind==='tide'&&h.age<h.delay);if(h){h.broken=true;cancelled=true;}}
-    e.shellBrokenTime=1.1;e.shielded=false;c.effect('boss-break',e,60,{life:.6});c.emit('boss-break',{name:'破甲断浪',copy:cancelled?'甲片崩开 · 一重海浪被打断':'甲片崩开 · 趁机输出'});
+    const pending = c.hazards.find(h => h.owner === e.id && h.kind === 'tide' && !h.broken && h.age < h.delay);
+    const plan = e.bossPattern;
+    const later = pending ? null : plan.cues.find((q, i) => i >= plan.next && q.type === 'wave' && !q.cancelled);
+    if (pending) pending.broken = true;
+    if (later) later.cancelled = true;
+    e.shellWaterCollapse = Boolean(pending);
+    e.shellBrokenTime = 1.1;
+    e.shielded = false;
+    c.effect('boss-break', e, 60, {life:.6});
+    c.emit('boss-break', { name:'破甲断浪', copy:pending || later ? '甲片崩开 · 一重海浪被打断' : '甲片崩开 · 趁机输出' });
   }
   e.pressureBroken=true;e.staggerVisual=.5;
 }

@@ -66,11 +66,31 @@ test('physical pressure opens one root lane per windup; passive burns do not era
   c.deal(e,80,'burn',false);assert.ok(c.hazards.every(h=>!h.broken));c.deal(e,46,'direct');assert.equal(c.hazards.filter(h=>h.broken).length,1);
   c.deal(e,60,'skill');assert.equal(c.hazards.filter(h=>h.broken).length,1);c.updateHazards(.025);assert.equal(c.hazards.length,2);assert.ok(c.drainEvents().some(e=>e.type==='boss-break'));
 });
-test('flanking shell pressure cancels one future wave and exposes armor, while frontal hits do not',()=>{
+test('flanking shell pressure cracks armor and cancels one unreleased wave, while frontal hits do not',()=>{
   const c=world(4),e=target(c,'boss');c.castPattern(4,e,true);const p=c.point(e);
   Object.assign(c.player,c.percent({x:p.x-Math.cos(e.coreAngle)*160,y:p.y-Math.sin(e.coreAngle)*160}));c.deal(e,150,'skill');assert.ok(!e.bossPattern.cues.some(q=>q.cancelled));
-  Object.assign(c.player,c.percent({x:p.x+Math.cos(e.coreAngle)*160,y:p.y+Math.sin(e.coreAngle)*160}));c.deal(e,70,'direct');assert.equal(e.bossPattern.cues.filter(q=>q.cancelled).length,1);assert.ok(e.shellBrokenTime>0);assert.equal(e.shielded,false);
-  c.deal(e,100,'direct');assert.equal(e.bossPattern.cues.filter(q=>q.cancelled).length,1);advance(c,.5);assert.equal(e.shielded,false);
+  assert.ok(!e.shellPressure);
+  Object.assign(c.player,c.percent({x:p.x+Math.cos(e.coreAngle)*160,y:p.y+Math.sin(e.coreAngle)*160}));
+  c.deal(e,30,'direct');assert.ok(e.shellPressure>0&&e.shellPressure<1);assert.ok(e.shielded);
+  c.deal(e,30,'direct');assert.equal(c.hazards.filter(h=>h.broken).length,1);assert.ok(e.shellBrokenTime>0);assert.equal(e.shielded,false);
+  c.deal(e,100,'direct');assert.ok(!e.bossPattern.cues.some(q=>q.cancelled));advance(c,.5);assert.equal(e.shielded,false);assert.ok(!c.hazards.some(h=>h.kind==='tide'));
+});
+
+test('Phoenix altar trades remaining reinforcements for an earlier fight and resumes that encounter', () => {
+  const {makeCheckpoint,restoreCheckpoint}=require('../game/core/checkpoint');
+  const c=world(3),altar=c.world.phoenixAltar;
+  assert.ok(isFree(c.world,altar,35));assert.equal(c.world.nav.components[c.world.nav.index(altar)],c.world.nav.mainComponent);
+  c.phase=2;c.remaining=5;
+  assert.equal(c.summonPhoenix(),false);
+  Object.assign(c.player,c.percent(altar));
+  c.world.bossBoon=true;assert.equal(c.summonPhoenix(),false);
+  c.world.bossBoon=false;
+  const xp=c.xp;
+  assert.ok(c.summonPhoenix());assert.equal(c.xp,xp);assert.equal(c.remaining,0);
+  assert.equal(c.summonPhoenix(),false);
+  const resumed=restoreCheckpoint(makeCheckpoint(c));
+  assert.ok(resumed);assert.equal(resumed.phase,3);assert.equal(resumed.canSummonPhoenix(),false);
+  advance(resumed,.8);assert.equal(resumed.enemies.filter(e=>e.boss).length,1);
 });
 test('enemy formations retain the shared player flow target and limit overlapping windups',()=>{
   const c=world(2),elite=target(c,'elite',240),wraith=target(c,'wraith',400,20),ranged=target(c,'ranged',180,-100),charger=target(c,'charger',340,100);

@@ -8,7 +8,7 @@ const LAYOUTS = [
   { name: '断戟骨原', width: 4400, height: 2100, entry: [450,1500], regions: [[900,1450,'遗兵长廊'],[2300,1000,'骸骨隘口'],[3700,650,'白骨祭台']],
     roads: [[[450,1500],[1400,1500],[1550,650],[2780,650],[2780,1500],[3930,1500],[3930,600]],[[500,500],[1550,650]],[[2100,1700],[3800,1700]]],
     pools: [], sites: [[1550,650,'战魂残响','xp'],[2780,1500,'遗兵宝匣','health'],[3930,600,'玄铁残碑','energy']], terrain: 'dust' },
-  { name: '熔心三岔', width: 3400, height: 2900, entry: [500,2400], regions: [[850,2100,'玄岩台地'],[2100,1500,'熔心裂谷'],[2450,750,'余烬祭坛']],
+  { name: '熔心三岔', width: 3400, height: 2900, entry: [500,2400], regions: [[850,2100,'玄岩台地'],[2100,1500,'熔心裂谷'],[2450,750,'焚天石径']],
     roads: [[[500,2400],[1100,2300],[1100,1650],[1500,1650],[1500,700],[2350,900]],[[1100,2100],[2800,2100],[2900,2200]],[[2800,2100],[2800,1000],[2350,900]]],
     pools: [[2200,1500,420,400],[650,950,300,350],[1800,2500,430,220]], sites: [[1100,1650,'温玉泉眼','health'],[2350,900,'地火灵晶','xp'],[2900,2200,'熔心残碑','energy']], terrain: 'lava' },
   { name: '归墟回桥', width: 4200, height: 2700, entry: [600,2150], regions: [[900,1800,'霜岸旧港'],[2250,1700,'双潮回桥'],[3500,700,'沉海古门']],
@@ -45,6 +45,7 @@ class WorldState {
       for(const prop of nearest){if(this.tigerPillars.some(p=>Math.hypot(p.x-prop.x,p.y-prop.y)<380))continue;Object.assign(prop,{tigerPillar:true,broken:false,size:240,flip:false});this.tigerPillars.push(prop);if(this.tigerPillars.filter(p=>this.regionAt(p)===region.name).length>=2)break;}
     }
     this.nav = new FlowField(this); this.bossNav = new FlowField(this,64,36,true); this.explored = 0;
+    this.phoenixAltar = stage === 3 ? { x: 2240, y: 2100, name: '余烬祭坛' } : null;
     this.relicRoll=relicRoll;this.relic=makeRelic(this,relicRoll);this.bossBoon=false;this.cameraBias={x:0,y:0};
   }
   camera(player, width, height) { return {x:clamp(player.x+this.cameraBias.x-width/2,0,Math.max(0,this.width-width)),y:clamp(player.y+this.cameraBias.y-height/2,0,Math.max(0,this.height-height)),width,height}; }
@@ -54,19 +55,27 @@ class WorldState {
   clip(from,to,radius=12,coverOnly=false) { return clipSegment(this,from,to,radius,coverOnly); }
   prepareNavigation(work=64) { return this.bossNav.prepare(work); }
   steer(from,to,radius=20) { return (radius>24?this.bossNav:this.nav).direction(from,to,radius); }
-  spawnPoint(c,kind,fodder=false) {
-    const player=c.point(c.player), boss=kind==='boss', min=boss?350:300, max=boss?520:700, margin=boss?118:70,offset=this.footOffset({kind,boss,fodder});
+  spawnPoint(c,kind,fodder=false,openingCaster=false) {
+    const player=c.point(c.player), boss=kind==='boss', min=openingCaster?255:boss?350:300, max=openingCaster?330:boss?520:700, margin=boss?118:70,offset=this.footOffset({kind,boss,fodder});
+    const view = openingCaster ? c.camera() : null;
+    const ground = c.groundPoint(c.player);
     let best=null,bestOpen=-1;
-    const nav=boss?this.bossNav:this.nav;if(!nav.ready)return null;nav.update(c.groundPoint(c.player));
+    const nav=boss?this.bossNav:this.nav;if(!nav.ready)return null;nav.update(ground);
     for(let i=0;i<40;i++) {
       const a=c.random()*Math.PI*2+i*2.399963, r=min+((c.random()+i*0.17)%1)*(max-min), p={x:clamp(player.x+Math.cos(a)*r,margin,this.width-margin),y:clamp(player.y+Math.sin(a)*r,margin,this.height-margin)};
       const foot={x:p.x,y:p.y+offset};
       if(Math.hypot(p.x-player.x,p.y-player.y)<180 || !isFree(this,foot,boss?50:28) || nav.cost[nav.index(foot)]<0 || !nav.canJoin(foot,boss?34:20)) continue;
       if(c.enemies.some(e=>c.distance(c.percent(p),e)<(boss?100:55))) continue;
+      if (view) {
+        if (p.x < view.x+70 || p.x > view.x+view.width-70 || p.y < view.y+90 || p.y > view.y+view.height-70) continue;
+        const end = this.clip(foot, ground, 17, true);
+        if (Math.hypot(end.x-ground.x, end.y-ground.y) > 1) continue;
+      }
       if(boss){const open=Array.from({length:8},(_,j)=>isFree(this,{x:p.x+Math.cos(j*Math.PI/4)*170,y:p.y+Math.sin(j*Math.PI/4)*170+54},24)).filter(Boolean).length;
         if(open>bestOpen){bestOpen=open;best=p;}if(open<7)continue;}
       return c.percent(p);
     }
+    if (view) return this.spawnPoint(c,kind,fodder);
     return best?c.percent(best):null;
   }
   openDirection(origin,preferred) {

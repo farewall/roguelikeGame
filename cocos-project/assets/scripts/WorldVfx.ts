@@ -59,6 +59,13 @@ export function drawWorld(v, ground, terrain, actors, point) {
     if(relic.visited)v.text(actors,'world-relic-name',relic.name+(complete?' · 已解':' · 查看'),a.x+relic.x,a.y+relic.y+28,22,complete?0x92a395:0xe6c88b,{center:true});
     if(!complete){for(let i=0;i<3;i++){const yy=a.y+relic.y-90-(core.time*19+i*19)%54;g.lineStyle(2,0xe4c686,.55);g.moveTo(a.x+relic.x-12+i*12,yy);g.lineTo(a.x+relic.x-9+i*12,yy-9);}}
   }
+  const altar = world.phoenixAltar;
+  if (altar && visible(altar.x, altar.y, 160) && core.phase < 3) {
+    const x = a.x + altar.x, y = a.y + altar.y;
+    const body = v.image(actors, 'phoenix-altar', v.assets.frames.worldProps[14], x - 66, y - 116, 132, 132);
+    (body.node as any).worldDepth = y;
+    v.text(actors, 'phoenix-altar-name', altar.name, x, y + 26, 21, 0xe3a478, {center:true});
+  }
   // The world border is distant geography; it never follows the camera.
   g.lineStyle(24,0x172529,0.9);g.moveTo(a.x,a.y);g.lineTo(a.x+world.width,a.y);g.lineTo(a.x+world.width,a.y+world.height);g.lineTo(a.x,a.y+world.height);g.lineTo(a.x,a.y);
 }
@@ -71,7 +78,14 @@ export function drawMap(v, layer, x, y, width, height, expanded=false) {
   if(expanded)for(const pillar of world.tigerPillars||[]){const px=x+pillar.x*scale,py=y+pillar.y*scale;g.lineStyle(pillar.broken?2:4,pillar.broken?0x776c59:0xd6c4a2);g.moveTo(px-3,py+4);g.lineTo(px+2,py-(pillar.broken?1:7));}
   const cam=core.camera();g.lineStyle(1,0xb7d5d1,0.55);g.drawRect(x+cam.x*scale,y+cam.y*scale,Math.min(cam.width,world.width)*scale,Math.min(cam.height,world.height)*scale);
   for(const site of world.sites){const px=x+site.x*scale,py=y+site.y*scale;g.lineStyle(0);g.beginFill(site.used?0x657969:site.visited?0xe6c27d:0x89938e,1);g.drawPolygon([px,py-4,px+4,py,px,py+4,px-4,py]);g.endFill();if(expanded)v.text(layer,'map-site-'+site.id,site.visited?site.name:'未探明地点',px+12,py-9,18,site.used?0x82968d:0xc9d8c4);}
-  const r=world.relic;if(r){const px=x+r.x*scale,py=y+r.y*scale,done=['complete','claimed'].includes(r.status);g.lineStyle(1,done?0x7e9282:0xf0d49b);g.beginFill(done?0x586d60:0xc79546);g.drawPolygon([px,py-7,px+3,py-3,px+7,py,px+3,py+3,px,py+7,px-3,py+3,px-7,py,px-3,py-3]);g.endFill();if(expanded)v.text(layer,'map-relic',r.visited?r.name:'异动遗迹',px+14,py+12,21,done?0x82968d:0xe9c98b);}
+  const r=world.relic;if(r){const px=x+r.x*scale,py=y+r.y*scale,done=['complete','claimed'].includes(r.status);g.lineStyle(1,done?0x7e9282:0xf0d49b);g.beginFill(done?0x586d60:0xc79546);g.drawPolygon([px,py-7,px+3,py-3,px+7,py,px+3,py+3,px,py+7,px-3,py+3,px-7,py,px-3,py-3]);g.endFill();if(expanded)v.text(layer,'map-relic',r.visited||world.phoenixAltar?r.name:'异动遗迹',px-14,py-27,21,done?0x82968d:0xe9c98b);}
+  const altar = world.phoenixAltar;
+  if (altar && core.phase < 3 && !world.bossBoon) {
+    const px = x + altar.x * scale, py = y + altar.y * scale;
+    g.lineStyle(0); g.beginFill(0xe09a6e);
+    g.drawPolygon([px, py-6, px+6, py+5, px-6, py+5]); g.endFill();
+    if (expanded) v.text(layer, 'map-phoenix-altar', altar.name, px+12, py+5, 20, 0xe6ae84);
+  }
   const boss=core.enemies.find(e=>e.boss&&e.hp>0);
   if(boss){const p=core.point(boss);g.lineStyle(0);g.beginFill(0xe8a17a);g.drawPolygon([x+p.x*scale,y+p.y*scale-6,x+p.x*scale+6,y+p.y*scale,x+p.x*scale,y+p.y*scale+6,x+p.x*scale-6,y+p.y*scale]);g.endFill();}
   const player=core.point(core.player),px=x+player.x*scale,py=y+player.y*scale;g.lineStyle(1,0x172e30);g.beginFill(0xe4f4cf);g.drawCircle(px,py,expanded?6:4);g.endFill();

@@ -120,6 +120,7 @@ function decree(c, e) {
 
 function execute(c, e, cue, plan) {
   e.attackType = cue.type; e.visualState = ''; e.visualAge = 0;e.actionAge=0;
+  if (e.bossType === 4) e.shellPressure = 0;
   const before=c.hazards.length;
   switch (cue.type) {
     case 'roots': roots(c, e, cue.alternating); break;

@@ -83,9 +83,11 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         await click('memory-continue'); assert.equal(await page.evaluate(() => kaitian.controller.combat.path), route);
         await page.evaluate(() => { const c = kaitian.controller; c.stopLoops(); c.combat.cleared = true; c.combat.stage = 2; c.combat.random = () => 0.9; c.completeStage(); });
         await click('reward-trial'); await click('memory-continue'); assert.ok(await page.evaluate(() => kaitian.controller.combat.enemies.some(e => e.trial)));
-        await page.evaluate(() => { const c = kaitian.controller.combat; c.invulnerable = 0; c.hurt(1000, '火羽焚地'); });
+        await page.evaluate(() => { const c = kaitian.controller.combat; c.invulnerable = 0; c.hurt(1000, '余烬焚地'); });
         await page.waitForFunction(() => kaitian.controller.data.showEnding, null, { timeout: 5000 }); await page.screenshot({ path: output + '/' + prefix + '-ending.png' });
-        await click('ending-home'); await click('archive'); await click('archive-runs'); assert.ok(await page.evaluate(() => kaitian.controller.data.archiveRuns.length > 0)); await click('archive-close');
+        assert.match(await page.evaluate(()=>kaitian.controller.data.endingHint), /地面熄灭/);
+        await click('ending-change'); await click('intro-back');
+        await click('archive'); await click('archive-runs'); assert.ok(await page.evaluate(() => kaitian.controller.data.archiveRuns.length > 0)); await click('archive-close');
         assert.deepEqual(errors, [], prefix); console.log('PASS Cocos Creator ' + prefix + ': native nodes, joystick, skill, pause/background, upgrades, stage progression, trial, ending, archive');
       }
       for (const viewport of [{ width:844,height:390 },{ width:667,height:320 }]) for (const weapon of ['bell','banner','swords']) {
@@ -158,7 +160,17 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
           await page.screenshot({path:output+'/world-'+viewport.width+'-'+stage+'-'+mode+'.png'});
           if(mode==='map'){await click('world-map-close');assert.equal(await page.evaluate(()=>kaitian.controller.data.showWorldMap),false);await page.evaluate(()=>kaitian.controller.pauseGame());}
         }
-        await page.evaluate(()=>kaitian.controller.exitToHome());console.log('PASS Creator large worlds '+viewport.width+': five layouts, real terrain, travel across screens, following camera, loot sites, map pause, four swords, bounded nodes');
+        await page.evaluate(()=>{
+          const c=kaitian.controller,core=c.combat;
+          core.stage=3;core.startStage();core.phase=2;core.remaining=6;core.spawnCd=4;
+          Object.assign(core.player,core.percent({x:core.world.phoenixAltar.x,y:core.world.phoenixAltar.y-54}));
+          c.syncCombat();c.resumeGame();
+        });
+        await click('world-map');
+        assert.ok(await page.evaluate(()=>kaitian.presentation.layers.overlay.used.has('map-phoenix-altar')));
+        await click('world-map-close');await click('phoenix-summon');
+        assert.ok(await page.evaluate(()=>kaitian.controller.combat.phase===3&&kaitian.controller.combat.remaining===0));
+        await page.evaluate(()=>kaitian.controller.exitToHome());console.log('PASS Creator large worlds '+viewport.width+': five layouts, real terrain, travel across screens, following camera, loot sites, map pause, Phoenix altar, four swords, bounded nodes');
       }
       for (let stage = 1; stage <= 5; stage++) {
         await page.evaluate(stage => {

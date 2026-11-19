@@ -8,6 +8,27 @@ const near=(a,b,e=1e-6)=>assert.ok(Math.abs(a-b)<e,`${a} != ${b}`);
 function fresh(weapon='bell',stage=1){const c=new Combat(weapon,()=>0.5,{exploration:true});c.configureArena(1550,606,1);c.stage=stage;c.startStage();while(!c.world.prepareNavigation(256)){}c.enemies=[];c.phase=3;c.remaining=0;c.drainEvents();return c;}
 function advance(c,seconds){for(let t=0;t<seconds-1e-7;t+=.025)c.update(.025,false);}
 
+test('the opening introduces one visible, dodgeable caster before the mixed wave', () => {
+  const {random}=require('./journey-policy.cjs');
+  for (const [width,height] of [[1480,606],[1450,606]]) {
+    const c=new Combat('bell',random(17),{exploration:true});
+    c.configureArena(width,height,1);
+    let hazard;
+    while (c.time<8&&!hazard) {
+      c.update(.025,false);
+      hazard=c.hazards.find(h=>h.label==='息');
+    }
+    assert.ok(hazard&&c.phase===0&&c.time<8);
+    assert.ok(c.drainEvents().some(e=>e.type==='cast'&&e.hint.includes('横移')));
+    const caster=c.enemies.find(e=>e.id===hazard.owner),view=c.camera(),point=c.point(caster);
+    assert.ok(point.x>view.x&&point.x<view.x+view.width&&point.y>view.y&&point.y<view.y+view.height);
+    assert.equal(hazard.active,false);
+    const aim=c.vector(caster,c.player);
+    c.move(c.player,{x:-aim.y,y:aim.x},100);
+    assert.equal(c.contains({...hazard,age:hazard.delay},c.player),false);
+  }
+});
+
 test('each region has its own large layout, terrain family, connected landmarks and safe entrance',()=>{
   const signatures=new Set();
   for(let stage=1;stage<=5;stage++){

@@ -8,6 +8,9 @@ const RELICS = [
   {name:'天纹遗诏',copy:'残卷记着旧日敕令的停顿。看清法则，便能争取更长的闪避时机。',boon:'天道敕令多蓄势0.25秒'}
 ];
 function makeRelic(world,roll=.5) {
+  // The furnace marks the longer west route around the lava pool.
+  if (world.stage === 3) return {...RELICS[2], id:'relic-3', x:1500, y:1450,
+    variant:roll<.5?'offering':'trial', status:'ready', visited:false, enemyIds:[]};
   const anchors=[world.roads[0][1],world.sites[1]],anchor=anchors[Math.floor(roll*10)%2];
   let point=anchor;
   for(let i=0;i<12;i++){const a=i*Math.PI/6,p={x:anchor.x+Math.cos(a)*205,y:anchor.y+Math.sin(a)*205};if(isFree(world,p,35)&&world.nav.components[world.nav.index(p)]===world.nav.mainComponent&&world.sites.every(s=>Math.hypot(s.x-p.x,s.y-p.y)>170)){point=p;break;}}

@@ -294,6 +294,11 @@ export class CocosPresentation {
     const relic=d.worldRelic;
     if(relic?.nearby&&relic.status==='ready')this.button(hud,'relic-open','查看遗迹',a.x+a.width/2-100,a.y+a.height-79,200,52,()=>c.openRelic(),{primary:true,size:25});
     else if(relic?.status==='active')this.text(hud,'relic-active','守印试炼 · 击败守印灵',a.x+a.width/2,a.y+a.height-34,22,GOLD,{center:true});
+    else if (d.phoenixSummonReady && !d.ended) {
+      const center = a.x + a.width / 2;
+      this.button(hud, 'phoenix-summon', '提前迎战朱雀', center-112, a.y+a.height-101, 224, 52, ()=>c.summonPhoenix(), {primary:true,size:24});
+      this.text(hud, 'phoenix-cost', '停止精英波增援 · 放弃息火炉庇护', center, a.y+a.height-38, 18, GOLD, {center:true});
+    }
     if (!d.ended) {
       this.skillControl(hud);
       const controls = hud.g;
@@ -468,7 +473,9 @@ export class CocosPresentation {
   worldMap() {
     const c=this.c,width=Math.min(c.layout.w-100,1120),{layer,x,y}=this.modal(width,650),world=c.combat.world;
     this.text(layer,'world-map-title',world.name+' · '+world.regionAt(c.combat.point(c.combat.player)),x+32,y+25,32,GOLD);
-    this.text(layer,'world-map-help','已暂停 · 浅色点为主角，菱形为遗迹与补给，红色为首领'+(world.stage===2?' · 骨柱可诱撞':''),x+32,y+77,20,MUTE);
+    const help = world.phoenixAltar ? '息火炉减轻余火 · 余烬祭坛可在精英波提前迎战' :
+      '浅色点为主角，菱形为遗迹与补给，红色为首领'+(world.stage===2?' · 骨柱可诱撞':'');
+    this.text(layer,'world-map-help',help,x+32,y+77,20,MUTE);
     drawMap(this,layer,x+90,y+122,width-180,425,true);
     this.button(layer,'world-map-close','返回探索',x+32,y+573,width-64,52,()=>c.closeWorldMap(),{primary:true,size:24});
   }
@@ -530,8 +537,11 @@ export class CocosPresentation {
     this.text(layer, 'ending-facts', '战斗 ' + d.runSummary.timeLabel + '     击破 ' + d.runSummary.kills + '     ' + d.runSummary.result, bx, y + 275, 23, GOLD);
     this.text(layer, 'ending-build', d.runSummary.weaponName + ' · ' + d.runSummary.build, bx, y + 329, 23, MUTE, { wrap: bw });
     this.text(layer, 'ending-report', d.runReport.damage + '\n' + d.runReport.cause, bx, y + 409, 21, MUTE, { wrap: bw });
-    this.button(layer, 'ending-home', '返回山河', bx, y + 522, (bw - 20) / 2, 60, () => c.exitToHome());
-    this.button(layer, 'ending-restart', '再入混沌', bx + (bw + 20) / 2, y + 522, (bw - 20) / 2, 60, () => c.restart(), { primary: true });
+    if (d.endingHint) this.text(layer, 'ending-hint', d.endingHint, bx, y + 471, 22, GOLD, {wrap:bw});
+    const buttonWidth = (bw - 32) / 3;
+    this.button(layer, 'ending-home', '返回山河', bx, y+534, buttonWidth, 52, () => c.exitToHome());
+    this.button(layer, 'ending-change', '换件至宝', bx+buttonWidth+16, y+534, buttonWidth, 52, () => c.changeWeaponAfterRun());
+    this.button(layer, 'ending-restart', '同宝再战', bx+(buttonWidth+16)*2, y+534, buttonWidth, 52, () => c.restart(), {primary:true});
   }
   archive() {
     const c = this.c, d = c.data, width = Math.min(c.layout.w - 100, 1380), { layer, x, y } = this.modal(width, 650);

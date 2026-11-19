@@ -45,7 +45,7 @@ export function creatureMotion(e: any, time: number) {
 export function drawCreatureTell(v: any, layer: any, e: any, p: any, size: number) {
   if(e.bossType===2)return;
   const casting = e.visualState === 'cast', recovering = e.visualState === 'recover';
-  if ((!casting && !recovering && !e.phase2) || e.spawnTime > 0) return;
+  if ((!casting && !recovering && !e.phase2 && !e.shellBrokenTime) || e.spawnTime > 0) return;
   const g = layer.g, color = e.boss ? COLORS[e.bossType - 1] : e.kind === 'ranged' ? 0x9bd9e6 : 0xe2c3a1;
   const angle = e.attackAngle === undefined ? Math.atan2(v.c.player.y - e.y, v.c.player.x - e.x) : e.attackAngle;
   const dx = Math.cos(angle), dy = Math.sin(angle), age = e.visualAge || 0;
@@ -71,7 +71,7 @@ export function drawCreatureTell(v: any, layer: any, e: any, p: any, size: numbe
         const sway = Math.sin(age * 5 + i) * 3, length = 8 + charge * 10;
         g.lineStyle(2, 0x97d48a, 0.7); g.moveTo(x - dx * i * 7, y + i * 4); g.lineTo(x + dx * length, y - length * 0.4 + sway);
       }
-    } else if (e.bossType === 4) {
+    } else if (e.bossType === 4 && !e.shellBrokenTime && v.c.combat.hazards.some(h => h.owner === e.id && h.kind === 'tide' && h.age < h.delay && !h.broken)) {
       // Small streams converge beneath the shell before the outward sea wave.
       for (let i = 0; i < 6; i++) {
         const a = i * Math.PI / 3, r = size * (0.35 + (1 - (age + i / 6) % 1) * 0.12);
@@ -84,9 +84,23 @@ export function drawCreatureTell(v: any, layer: any, e: any, p: any, size: numbe
     }
   }
   if (e.bossType === 4 && e.shielded && e.coreAngle !== undefined) {
-    const x = p.x + Math.cos(e.coreAngle) * size * 0.27, y = p.y + Math.sin(e.coreAngle) * size * 0.2;
-    tile('open-core', 2, x, y, 30, 24, 0.72 + Math.sin(age * 7) * 0.15);
-    g.lineStyle(3, 0xe7e9b8, 0.85); g.moveTo(x - 6, y - 10); g.lineTo(x, y); g.lineTo(x + 7, y + 10);
+    const x = p.x + Math.cos(e.coreAngle) * size * 0.27, y = p.y + Math.sin(e.coreAngle) * size * 0.2 - size * 0.09;
+    const pressure = e.pressureBroken ? 0 : clamp(e.shellPressure || 0);
+    tile('open-core', 2, x, y, 32 + 12 * pressure, 25 + 10 * pressure, 0.76 + Math.sin(age * 7) * 0.12);
+    if (pressure > 0) {
+      g.lineStyle(2 + 2 * pressure, 0xf2e1b4, 0.7 + 0.2 * pressure);
+      g.moveTo(x - 11 * pressure, y - 14 * pressure); g.lineTo(x - 2, y - 3);
+      g.lineTo(x + 4, y + 2); g.lineTo(x + 12 * pressure, y + 15 * pressure);
+      if (pressure >= 0.45) { g.moveTo(x - 2, y - 3); g.lineTo(x + 14 * pressure, y - 6); }
+    }
+  }
+  if (e.bossType === 4 && e.shellBrokenTime > 0 && e.coreAngle !== undefined) {
+    const t = clamp((1.1 - e.shellBrokenTime) / 0.45);
+    if (t < 1 && e.shellWaterCollapse) {
+      const side = Math.cos(e.coreAngle);
+      for (let i = 0; i < 3; i++) tile('shell-spill-' + i, 4, p.x + side * 34 + (i - 1) * (18 + t * 20),
+        p.y + size * (0.16 + t * 0.28), 48 + t * 14, 21 - t * 12, (1 - t) * 0.85);
+    }
   }
   if (e.bossType === 5) {
     // The broken law-ring belongs to the body, high above the ground.
