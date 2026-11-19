@@ -21,6 +21,9 @@ export function visualGroups(c: any): string[] {
 
 export function frame(texture: Texture2D, rect?: Rect) {
   const sprite = new SpriteFrame();
+  // These frames already reference authored atlases. Packing them again can
+  // give a short-lived realm frame a texture owned by a different bundle.
+  sprite.packable = false;
   sprite.texture = texture;
   if (rect) { sprite.rect = rect; sprite.originalSize = new Size(rect.width, rect.height); }
   return sprite;
@@ -123,12 +126,15 @@ export class GameAssets {
     await Promise.allSettled(names.map(name=>this.acquire(name)));
   }
 
-  mount(names: string[], detach: (textures: Set<Texture2D>) => void) {
+  mount(names: string[], detach: (frames: Set<SpriteFrame>) => void) {
     const next = new Set(names);
-    const removed = new Set<Texture2D>();
+    const removed = new Set<SpriteFrame>();
     for (const name of this.mounted) {
       if (next.has(name)) continue;
-      for (const asset of this.loaded.get(name)?.assets || []) if (asset.texture) removed.add(asset.texture);
+      for (const asset of this.loaded.get(name)?.assets || []) {
+        if (asset.full) removed.add(asset.full);
+        asset.slices?.forEach(sprite=>removed.add(sprite));
+      }
     }
     detach(removed);
     this.mounted = next;

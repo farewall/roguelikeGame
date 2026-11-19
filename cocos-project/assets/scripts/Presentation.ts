@@ -1,4 +1,4 @@
-import { Color, Graphics, HorizontalTextAlignment, Label, Layers, Mask, Node, Rect, Sprite, SpriteFrame, Texture2D, UIOpacity, UITransform, VerticalTextAlignment } from 'cc';
+import { Color, Graphics, HorizontalTextAlignment, Label, Layers, Mask, Node, Rect, Sprite, SpriteFrame, UIOpacity, UITransform, VerticalTextAlignment } from 'cc';
 import { DrawList, rgba } from './DrawList';
 import { frame } from './GameAssets';
 import { enemyFrame, bossFrame } from './generated/game-core';
@@ -32,19 +32,27 @@ export class CocosPresentation {
     const t = this.overlayTransform;
     if (t) this.regions = this.regions.map(r=>({...r,x:r.x*t.scale+t.x,y:r.y*t.scale+t.y,width:r.width*t.scale,height:r.height*t.scale,contentScale:t.scale}));
   }
-  detachTextures(textures: Set<Texture2D>) {
-    if (!textures.size) return;
-    const visit = (node: Node) => {
-      const sprite = node.getComponent(Sprite);
-      if (sprite?.spriteFrame && textures.has(sprite.spriteFrame.texture as Texture2D)) sprite.spriteFrame = null;
-      if ((node as any).coverFrame && textures.has((node as any).coverFrame.texture)) {
-        (node as any).coverFrame.destroy();
-        (node as any).coverFrame = null;
-        (node as any).coverSource = null;
-      }
-      for (const child of node.children) visit(child);
+  detachFrames(frames: Set<SpriteFrame>) {
+    if (!frames.size) return;
+    const usesFrame = (node: Node) => frames.has(node.getComponent(Sprite)?.spriteFrame) ||
+      frames.has((node as any).coverSource) || node.children.some(usesFrame);
+    const remove = (node: Node) => {
+      // Re-enabling a cached Sprite flushes UVs before its new frame is set.
+      // Retire the whole node (including masked children) while its frame lives.
+      node.active = false;
+      node.removeFromParent();
+      (node as any).coverFrame?.destroy();
+      node.destroy();
     };
-    visit(this.root);
+    for (const layer of Object.values(this.layers)) {
+      for (const [id, node] of layer.nodes as Map<string,Node>) if (usesFrame(node)) {
+        remove(node); layer.nodes.delete(id); layer.used.delete(id);
+      }
+      for (const kind of Object.keys(layer.pools)) layer.pools[kind]=layer.pools[kind].filter((node: Node)=>{
+        if (!usesFrame(node)) return true;
+        remove(node); return false;
+      });
+    }
   }
   makeNode(name: string) { const node = new Node(name); node.layer = Layers.Enum.UI_2D; node.addComponent(UITransform).setAnchorPoint(0, 1); return node; }
   begin(name: string) {
@@ -245,11 +253,13 @@ export class CocosPresentation {
       Math.max(p.y,q.y)+padding>=a.y+cam.y && Math.min(p.y,q.y)-padding<=a.y+cam.y+a.height;
     if (c.combat.world) drawWorld(this,this.layers.ground,this.layers.terrain,world,point);
     for (const hazard of core.hazards) {
-      const tail = hazard.end || hazard;
+      const start=point(hazard), end=point(hazard.end||hazard);
       const range=Math.max(hazard.radius||0,hazard.wave?.to||0,hazard.width||0)+165;
       // A moving attack gets a conservative box that includes both endpoints and its sweep.
-      const sweep=point({x:tail.x+(hazard.moving?.x||0),y:tail.y+(hazard.moving?.y||0)});
-      if(inView(point(hazard),range,sweep) || hazard.moving&&inView(point(tail),range,point(hazard))) drawHazard(this, world, hazard, point);
+      const dx=(hazard.moving?.x||0)*core.width/100,dy=(hazard.moving?.y||0)*core.height/100;
+      const lo={x:Math.min(start.x,end.x)+Math.min(0,dx),y:Math.min(start.y,end.y)+Math.min(0,dy)};
+      const hi={x:Math.max(start.x,end.x)+Math.max(0,dx),y:Math.max(start.y,end.y)+Math.max(0,dy)};
+      if(inView(lo,range,hi)) drawHazard(this, world, hazard, point);
     }
     const player = point(d.player);
     drawGroundContact(this,this.layers.terrain,'hero',player,{},164,54);

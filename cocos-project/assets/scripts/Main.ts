@@ -41,7 +41,7 @@ export class KaitianGame extends Component {
       if (id === this.requestId) this.presentation.progress = value;
     }).then(()=>{
       if (!this.isValid || id !== this.requestId) return;
-      this.presentation.assets = this.resources.mount(names,textures=>this.presentation.detachTextures(textures));
+      this.presentation.assets = this.resources.mount(names,frames=>this.presentation.detachFrames(frames));
       this.api.setAudioClips(this.presentation.assets.audio);
       this.controller.visualLoading = false;
       this.controller.startLoops();
