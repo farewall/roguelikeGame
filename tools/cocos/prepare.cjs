@@ -6,6 +6,28 @@ const { bundles, generateArtCatalog } = require('./art-catalog.cjs');
 function uuid(name) { const h = crypto.createHash('sha256').update('kaitian-cocos:' + name).digest('hex'); return h.slice(0, 8) + '-' + h.slice(8, 12) + '-4' + h.slice(13, 16) + '-a' + h.slice(17, 20) + '-' + h.slice(20, 32); }
 function compressed(value) { const h = value.replace(/-/g, ''), alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'; let out = h.slice(0, 5); for (let i = 5; i < h.length; i += 3) { const n = parseInt(h.slice(i, i + 3), 16); out += alphabet[n >>> 6] + alphabet[n & 63]; } return out; }
 function json(file, value) { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(value, null, 2) + '\n'); }
+function configureBundleProfiles() {
+  const file = path.join(project, 'settings/v2/packages/builder.json');
+  const settings = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : { __version__: '1.3.9' };
+  const bundleConfig = settings.bundleConfig ||= {};
+  const custom = bundleConfig.custom ||= {};
+  for (const name of bundles) {
+    const metaFile = path.join(assets, name + '.meta');
+    const meta = JSON.parse(fs.readFileSync(metaFile, 'utf8'));
+    const data = meta.userData ||= {};
+    const id = data.bundleConfigID ||= 'auto_' + compressed(uuid('bundle-config/' + name));
+    const profile = custom[id] ||= { displayName: name, configs: {} };
+    const configs = profile.configs ||= {};
+    for (const platform of ['native', 'web']) configs[platform] ||= { preferredOptions: { compressionType: 'merge_dep', isRemote: false } };
+    // Creator uses its builder profile, rather than the folder's legacy compressionType,
+    // to decide which output paths are registered as WeChat subpackages.
+    configs.miniGame ||= {};
+    configs.miniGame.configMode = 'overwrite';
+    (configs.miniGame.overwriteSettings ||= {}).wechatgame = { compressionType: 'subpackage', isRemote: false };
+    json(metaFile, meta);
+  }
+  json(file, settings);
+}
 function node(name, parent, children, components, camera = false) {
   return { __type__: 'cc.Node', _name: name, _objFlags: 0, __editorExtras__: {}, _parent: { __id__: parent }, _children: children.map(id => ({ __id__: id })), _active: true, _components: components.map(id => ({ __id__: id })), _prefab: null,
     _lpos: { __type__: 'cc.Vec3', x: 0, y: 0, z: camera ? 1000 : 0 }, _lrot: { __type__: 'cc.Quat', x: 0, y: 0, z: 0, w: 1 }, _lscale: { __type__: 'cc.Vec3', x: 1, y: 1, z: 1 }, _mobility: 0, _layer: 33554432, _euler: { __type__: 'cc.Vec3', x: 0, y: 0, z: 0 }, _id: uuid(name) };
@@ -45,8 +67,9 @@ async function prepare() {
     const userData = bundles.includes(file) ? { isBundle: true, bundleName: file, priority: 1, compressionType: { wechatgame: 'subpackage' }, isRemoteBundle: {} } : importer === 'image' ? { type: 'texture', fixAlphaTransparencyArtifacts: false } : {};
     json(meta, { ver: directory ? '1.2.0' : importer === 'scene' ? '1.1.50' : importer === 'image' ? '1.0.27' : ['typescript', 'javascript'].includes(importer) ? '4.0.24' : '1.0.0', importer, imported: false, uuid: id, files: [], subMetas: {}, userData });
   }
+  configureBundleProfiles();
   await esbuild.build({ entryPoints: [path.join(assets, 'scripts/Main.ts')], bundle: true, external: ['cc'], format: 'esm', target: ['es2017'], outfile: path.join(root, '.cache/cocos-source-check.js'), logLevel: 'silent' });
-  console.log('Creator project prepared: 3.8.8, native 2D nodes, deterministic asset IDs, game-content bundle.');
+  console.log('Creator project prepared: 3.8.8, native 2D nodes, deterministic asset IDs, ' + bundles.length + ' art bundles.');
 }
 if (require.main === module) prepare().catch(error => { console.error(error); process.exitCode = 1; });
 module.exports = { prepare, uuid, compressed };

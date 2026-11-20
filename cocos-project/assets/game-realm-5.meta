@@ -12,6 +12,7 @@
     "compressionType": {
       "wechatgame": "subpackage"
     },
-    "isRemoteBundle": {}
+    "isRemoteBundle": {},
+    "bundleConfigID": "auto_2d713UR1+ZEk6VFhcE1ByQ/"
   }
 }
