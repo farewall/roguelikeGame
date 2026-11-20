@@ -15,10 +15,15 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         await route.fulfill({ status: 200, contentType: ({ '.js': 'application/javascript', '.json': 'application/json', '.html': 'text/html', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.wav': 'audio/wav', '.wasm': 'application/wasm' })[path.extname(file)] || 'application/octet-stream', body: fs.readFileSync(file) });
       } catch (error) { await route.fulfill({ status: 500, body: error.message }); }
     });
+    const sceneTransitions = new Set(['intro-enter', 'resume', 'memory-continue', 'ending-home', 'ending-change', 'ending-restart']);
     async function click(id) {
       await page.waitForFunction(id => window.kaitian && kaitian.presentation.regions.some(r => r.id === id && r.enabled !== false), id, { timeout: 10000 });
       const p = await page.evaluate(id => { const r = kaitian.presentation.regions.find(r => r.id === id), s = kaitian.controller.rpxScale; return { x: (r.x + r.width / 2) * s, y: (r.y + r.height / 2) * s }; }, id);
       await page.mouse.click(p.x, p.y);
+      if (sceneTransitions.has(id)) {
+        await page.evaluate(() => kaitian.syncAssets());
+        await page.waitForFunction(() => kaitian.presentation.ready && !kaitian.controller.visualLoading && kaitian.presentation.regions.length > 0);
+      }
     }
     try {
       await page.goto('http://127.0.0.1:4173/', { waitUntil: 'domcontentloaded' });
@@ -125,7 +130,12 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
           c.stopLoops(); c.combat.phase=3; c.combat.remaining=0; c.combat.enemies=[]; c.combat.hazards=[]; c.combat.invulnerable=1000; c.setData({message:''}); c.syncCombat();
           if(c.combat.weapon==='swords'){const core=c.combat,e=core.spawn('ranged');Object.assign(e,{x:core.player.x+200/core.width*100,y:core.player.y,hp:1000,maxHp:1000,speed:0,cooldown:100,spawnTime:0});}
         });
-        await page.waitForTimeout(80);
+        await page.waitForFunction(() => {
+          const { controller, presentation } = kaitian;
+          const width = presentation.worldClip.getComponent('cc.UITransform').contentSize.width;
+          return presentation.ready && !controller.visualLoading && presentation.regions.some(r=>r.id==='skill') &&
+            Math.abs(width*controller.rpxScale-controller.arenaRect.width)<.01;
+        });
         assert.ok(await page.evaluate(()=>{
           const c=kaitian.controller, s=c.rpxScale, a=c.arenaRect, w=c.viewport.windowWidth, skill=c.layout.skill;
           const mask=kaitian.presentation.worldClip.getComponent('cc.UITransform').contentSize;
