@@ -52,7 +52,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
       assert.equal(utility.length,3);assert.ok(utility.every(h=>Math.abs(h-44)<.01));
       await click('world-map');await click('map-target-relic');
       assert.equal(await page.evaluate(()=>kaitian.controller.data.mapTarget),'relic-1');
-      assert.ok(await page.evaluate(()=>kaitian.presentation.layers.overlay.used.has('map-focus-label')));
+      await page.waitForFunction(()=>kaitian.presentation.layers.overlay.used.has('map-focus-label'));
       await page.screenshot({path:output+'/q-map-safe-568.png'});
       await click('map-target-health');
       assert.equal(await page.evaluate(()=>kaitian.controller.data.mapTarget),'site-0');
