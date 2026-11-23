@@ -51,6 +51,14 @@ class WorldState {
   camera(player, width, height) { return {x:clamp(player.x+this.cameraBias.x-width/2,0,Math.max(0,this.width-width)),y:clamp(player.y+this.cameraBias.y-height/2,0,Math.max(0,this.height-height)),width,height}; }
   footOffset(entity) { return entity.boss?72:entity.fodder?24:({wraith:40,ranged:46,charger:48,elite:56}[entity.kind]||54); }
   regionAt(p) { return this.regions.reduce((a,b)=>Math.hypot(p.x-b.x,p.y-b.y)<Math.hypot(p.x-a.x,p.y-a.y)?b:a).name; }
+  mapTargets(phase) {
+    const targets = this.sites.map(site => ({ ...site, available: !site.used }));
+    if (this.relic) targets.push({ ...this.relic, kind: 'relic', available: this.relic.status === 'ready' && phase < 3 });
+    if (this.phoenixAltar && phase < 3 && !this.bossBoon) {
+      targets.push({ ...this.phoenixAltar, id: 'phoenix', kind: 'altar', available: true });
+    }
+    return targets;
+  }
   move(p,dx,dy,radius=20,limits) { return slideMove(this,p,dx,dy,radius,limits); }
   clip(from,to,radius=12,coverOnly=false) { return clipSegment(this,from,to,radius,coverOnly); }
   prepareNavigation(work=64) { return this.bossNav.prepare(work); }

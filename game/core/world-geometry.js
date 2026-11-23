@@ -107,6 +107,44 @@ class FlowField {
     while (read < write) for (const next of this.neighbors(queue[read++])) if (this.cost[next] < 0) { this.cost[next] = this.cost[queue[read - 1]] + 1; queue[write++] = next; }
   }
   canJoin(from,radius=this.radius) { return this.ready && [this.index(from),...this.neighbors(this.index(from))].some(i=>{if(this.cost[i]<0)return false;const p=this.point(i),hit=clipSegment(this.world,from,p,radius);return Math.hypot(hit.x-p.x,hit.y-p.y)<1;}); }
+  route(from, goal, radius = 20) {
+    if (!this.ready) return [];
+    const clear = (start, end) => {
+      const clipped = clipSegment(this.world, start, end, radius);
+      return Math.hypot(clipped.x - end.x, clipped.y - end.y) < 1;
+    };
+    if (clear(from, goal)) return [from, goal];
+    const connect = (p, reverse = false) => {
+      const index = this.index(p), x = index % this.cols, y = Math.floor(index / this.cols);
+      let best = -1, distance = Infinity;
+      for (let j = Math.max(0, y - 2); j <= Math.min(this.rows - 1, y + 2); j++) {
+        for (let i = Math.max(0, x - 2); i <= Math.min(this.cols - 1, x + 2); i++) {
+          const cell = j * this.cols + i, point = this.point(cell), d = Math.hypot(p.x - point.x, p.y - point.y);
+          if (this.components[cell] === this.mainComponent && d < distance && (reverse ? clear(point, p) : clear(p, point))) {
+            best = cell;
+            distance = d;
+          }
+        }
+      }
+      return best;
+    };
+    const start = connect(from), end = connect(goal, true);
+    if (start < 0 || end < 0) return [];
+    const parents = new Int32Array(this.blocked.length).fill(-1), queue = new Int32Array(this.blocked.length);
+    parents[start] = start;
+    queue[0] = start;
+    for (let read = 0, write = 1; read < write && parents[end] < 0; read++) {
+      for (const next of this.links[queue[read]]) if (parents[next] < 0) {
+        parents[next] = queue[read];
+        queue[write++] = next;
+      }
+    }
+    if (parents[end] < 0) return [];
+    const trail = [goal];
+    for (let at = end; at !== start; at = parents[at]) trail.push(this.point(at));
+    trail.push(this.point(start), from);
+    return trail.reverse();
+  }
   direction(from, goal, radius = 20) {
     if (!this.ready) return { x: 0, y: 0 };
     this.update(goal);

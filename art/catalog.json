@@ -30,10 +30,11 @@
       "bundle": "game-shell",
       "path": "images/title-bg.png",
       "size": [
-        750,
-        422
+        1096,
+        512
       ],
-      "encoding": "png-palette"
+      "encoding": "png-palette",
+      "source": "art/q-style/title.jpg"
     },
     "artifact": {
       "bundle": "game-content",
@@ -54,7 +55,7 @@
         "columns": 6,
         "rows": 4
       },
-      "source": "art/release-polish/pangu.png",
+      "source": "art/q-style/hero.png",
       "footRow": 120
     },
     "enemies": {
@@ -75,7 +76,8 @@
         ],
         "columns": 6,
         "rows": 4
-      }
+      },
+      "source": "art/q-style/enemies.png"
     },
     "spells": {
       "bundle": "game-content",
@@ -172,7 +174,7 @@
         "count": 5,
         "inset": 1
       },
-      "source": "art/release-polish/ground.png"
+      "source": "art/q-style/ground.jpg"
     },
     "worldProps": {
       "bundle": "game-content",
@@ -193,7 +195,7 @@
         "columns": 4,
         "rows": 4
       },
-      "source": "art/release-polish/props.png",
+      "source": "art/q-style/props.png",
       "footRow": 167
     },
     "shadow": {
@@ -234,7 +236,8 @@
         ],
         "columns": 4,
         "rows": 4
-      }
+      },
+      "source": "art/q-style/weapons.png"
     },
     "banner": {
       "bundle": "game-banner",
@@ -255,7 +258,7 @@
         "columns": 4,
         "rows": 4
       },
-      "source": "art/pangu-banner/source.png"
+      "source": "art/q-style/weapons.png"
     },
     "swords": {
       "bundle": "game-swords",
@@ -276,7 +279,7 @@
         "columns": 2,
         "rows": 2
       },
-      "source": "art/zhuxian-swords/source.png"
+      "source": "art/q-style/weapons.png"
     },
     "arena1": {
       "bundle": "game-realm-1",
@@ -285,7 +288,8 @@
         512,
         512
       ],
-      "encoding": "jpeg"
+      "encoding": "jpeg",
+      "source": "art/q-style/realms.jpg"
     },
     "landmark1": {
       "bundle": "game-realm-1",
@@ -299,13 +303,7 @@
         "worldStyle",
         0
       ],
-      "source": "art/production-atlas-inputs/world-style.png",
-      "crop": [
-        0,
-        0,
-        256,
-        256
-      ]
+      "source": "art/q-style/props.png"
     },
     "boss1": {
       "bundle": "game-realm-1",
@@ -327,13 +325,7 @@
         "columns": 6,
         "rows": 1
       },
-      "source": "art/production-atlas-inputs/chaos-boss-actions.png",
-      "crop": [
-        0,
-        0,
-        1152,
-        192
-      ],
+      "source": "art/q-style/bosses.png",
       "footRow": 181
     },
     "motion1": {
@@ -356,13 +348,7 @@
         "columns": 2,
         "rows": 1
       },
-      "source": "art/production-atlas-inputs/boss-motion.png",
-      "crop": [
-        0,
-        0,
-        384,
-        192
-      ],
+      "source": "art/q-style/bosses.png",
       "footRow": 181
     },
     "arena2": {
@@ -372,7 +358,8 @@
         512,
         512
       ],
-      "encoding": "jpeg"
+      "encoding": "jpeg",
+      "source": "art/q-style/realms.jpg"
     },
     "landmark2": {
       "bundle": "game-realm-2",
@@ -386,13 +373,7 @@
         "worldStyle",
         1
       ],
-      "source": "art/production-atlas-inputs/world-style.png",
-      "crop": [
-        256,
-        0,
-        256,
-        256
-      ]
+      "source": "art/q-style/props.png"
     },
     "tiger": {
       "bundle": "game-realm-2",
@@ -413,7 +394,7 @@
         "columns": 4,
         "rows": 4
       },
-      "source": "art/white-tiger/poses.png",
+      "source": "art/q-style/tiger.png",
       "footRow": 181
     },
     "tigerPillars": {
@@ -435,7 +416,7 @@
         "columns": 3,
         "rows": 1
       },
-      "source": "art/white-tiger/pillars.png"
+      "source": "art/q-style/props.png"
     },
     "arena3": {
       "bundle": "game-realm-3",
@@ -444,7 +425,8 @@
         512,
         512
       ],
-      "encoding": "jpeg"
+      "encoding": "jpeg",
+      "source": "art/q-style/realms.jpg"
     },
     "landmark3": {
       "bundle": "game-realm-3",
@@ -458,13 +440,7 @@
         "worldStyle",
         2
       ],
-      "source": "art/production-atlas-inputs/world-style.png",
-      "crop": [
-        512,
-        0,
-        256,
-        256
-      ]
+      "source": "art/q-style/props.png"
     },
     "boss3": {
       "bundle": "game-realm-3",
@@ -486,13 +462,7 @@
         "columns": 6,
         "rows": 1
       },
-      "source": "art/production-atlas-inputs/chaos-boss-actions.png",
-      "crop": [
-        0,
-        384,
-        1152,
-        192
-      ],
+      "source": "art/q-style/bosses.png",
       "footRow": 181
     },
     "motion3": {
@@ -515,13 +485,7 @@
         "columns": 2,
         "rows": 1
       },
-      "source": "art/production-atlas-inputs/boss-motion.png",
-      "crop": [
-        0,
-        384,
-        384,
-        192
-      ],
+      "source": "art/q-style/bosses.png",
       "footRow": 181
     },
     "arena4": {
@@ -531,7 +495,8 @@
         512,
         512
       ],
-      "encoding": "jpeg"
+      "encoding": "jpeg",
+      "source": "art/q-style/realms.jpg"
     },
     "landmark4": {
       "bundle": "game-realm-4",
@@ -545,13 +510,7 @@
         "worldStyle",
         3
       ],
-      "source": "art/production-atlas-inputs/world-style.png",
-      "crop": [
-        0,
-        256,
-        256,
-        256
-      ]
+      "source": "art/q-style/props.png"
     },
     "boss4": {
       "bundle": "game-realm-4",
@@ -573,13 +532,7 @@
         "columns": 6,
         "rows": 1
       },
-      "source": "art/production-atlas-inputs/chaos-boss-actions.png",
-      "crop": [
-        0,
-        576,
-        1152,
-        192
-      ],
+      "source": "art/q-style/bosses.png",
       "footRow": 181
     },
     "motion4": {
@@ -602,13 +555,7 @@
         "columns": 2,
         "rows": 1
       },
-      "source": "art/production-atlas-inputs/boss-motion.png",
-      "crop": [
-        0,
-        576,
-        384,
-        192
-      ],
+      "source": "art/q-style/bosses.png",
       "footRow": 181
     },
     "arena5": {
@@ -618,7 +565,8 @@
         512,
         512
       ],
-      "encoding": "jpeg"
+      "encoding": "jpeg",
+      "source": "art/q-style/realms.jpg"
     },
     "landmark5": {
       "bundle": "game-realm-5",
@@ -632,13 +580,7 @@
         "worldStyle",
         4
       ],
-      "source": "art/production-atlas-inputs/world-style.png",
-      "crop": [
-        256,
-        256,
-        256,
-        256
-      ]
+      "source": "art/q-style/props.png"
     },
     "boss5": {
       "bundle": "game-realm-5",
@@ -660,13 +602,7 @@
         "columns": 6,
         "rows": 1
       },
-      "source": "art/production-atlas-inputs/chaos-boss-actions.png",
-      "crop": [
-        0,
-        768,
-        1152,
-        192
-      ],
+      "source": "art/q-style/bosses.png",
       "footRow": 181
     },
     "motion5": {
@@ -689,13 +625,7 @@
         "columns": 2,
         "rows": 1
       },
-      "source": "art/production-atlas-inputs/boss-motion.png",
-      "crop": [
-        0,
-        768,
-        384,
-        192
-      ],
+      "source": "art/q-style/bosses.png",
       "footRow": 181
     },
     "pool3": {
@@ -710,13 +640,7 @@
         "worldPools",
         3
       ],
-      "source": "art/production-atlas-inputs/world-pools.png",
-      "crop": [
-        384,
-        384,
-        384,
-        384
-      ]
+      "source": "art/q-style/ground.jpg"
     },
     "pool1": {
       "bundle": "game-realm-3",
@@ -770,13 +694,7 @@
         "worldPools",
         0
       ],
-      "source": "art/production-atlas-inputs/world-pools.png",
-      "crop": [
-        0,
-        0,
-        384,
-        384
-      ]
+      "source": "art/q-style/ground.jpg"
     },
     "waveRidges": {
       "bundle": "game-tides",
@@ -806,7 +724,8 @@
         512,
         512
       ],
-      "encoding": "jpeg"
+      "encoding": "jpeg",
+      "source": "art/q-style/realms.jpg"
     },
     "upgrade-power": {
       "bundle": "game-content",
@@ -929,7 +848,7 @@
         256,
         512
       ],
-      "encoding": "png-rgba",
+      "encoding": "png-palette",
       "target": [
         "heroOutcomes"
       ],
@@ -941,12 +860,29 @@
         "columns": 2,
         "rows": 4
       },
-      "source": "art/release-polish/pangu-outcomes.png",
-      "footRow": 120,
-      "poseHeights": [
-        82,
-        112
-      ]
+      "source": "art/q-style/hero.png",
+      "footRow": 120
+    },
+    "weaponCards": {
+      "bundle": "game-shell",
+      "path": "images/weapon-cards.png",
+      "size": [
+        576,
+        144
+      ],
+      "encoding": "png-palette",
+      "target": [
+        "weaponCards"
+      ],
+      "grid": {
+        "tile": [
+          144,
+          144
+        ],
+        "columns": 4,
+        "rows": 1
+      },
+      "source": "art/q-style/enemies.png"
     }
   }
 }

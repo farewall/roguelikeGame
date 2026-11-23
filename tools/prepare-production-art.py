@@ -1,5 +1,6 @@
 """Materialize cropped runtime pages from the archived production pixel sources."""
 import json
+import runpy
 from pathlib import Path
 from PIL import Image
 
@@ -32,3 +33,5 @@ for entry in catalog['assets'].values():
                 atlas.alpha_composite(pose, (col * tile_w + (tile_w - pose.width) // 2,
                     row * tile_h + entry['footRow'] - pose.height))
         atlas.save(destination, optimize=True)
+
+runpy.run_path(str(root / 'tools/prepare-q-art.py'))

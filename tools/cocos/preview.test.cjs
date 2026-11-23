@@ -25,6 +25,11 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         await page.waitForFunction(() => kaitian.presentation.ready && !kaitian.controller.visualLoading && kaitian.presentation.regions.length > 0);
       }
     }
+    async function chooseWeapon(weapon) {
+      await page.waitForFunction(()=>kaitian.presentation.ready&&kaitian.presentation.regions.some(r=>r.id==='intro-enter'||r.id==='start'));
+      if (await page.evaluate(()=>kaitian.presentation.regions.some(r=>r.id==='start'))) await click('start');
+      if (weapon) await click('weapon-'+weapon);
+    }
     try {
       await page.goto('http://127.0.0.1:4173/', { waitUntil: 'domcontentloaded' });
       await page.waitForFunction(() => window.kaitian && kaitian.presentation.ready, null, { timeout: 60000 });
@@ -32,11 +37,11 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
       // production input flows and the five-map traversal suite use exploration.
       await page.evaluate(() => { window.arenaFixture = c => { const core=new c.combat.constructor(c.data.selectedWeapon);core.configureArena(c.layout.arena.width,c.layout.arena.height,1);c.combat=core;c.player=core.player;return core; }; });
       assert.deepEqual(await page.evaluate(()=>kaitian.resources.residentGroups()),['game-shell']);
-      assert.deepEqual(await page.evaluate(()=>Object.keys(kaitian.presentation.assets.textures)),['title']);
+      assert.deepEqual(await page.evaluate(()=>Object.keys(kaitian.presentation.assets.textures).sort()),['title','weaponCards']);
       await page.screenshot({ path: output + '/cocos-home.png' });
       await page.setViewportSize({width:568,height:320});
       await page.waitForFunction(()=>kaitian.controller.viewport.windowWidth===568);
-      await click('start');await click('weapon-swords');await click('intro-enter');
+      await chooseWeapon('swords');await click('intro-enter');
       await page.evaluate(async ()=>{
         const g=kaitian,c=g.controller;
         c.resize({...c.viewport,safeArea:{left:22,top:20,right:546,bottom:298}});
@@ -45,6 +50,13 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
       await page.waitForFunction(()=>kaitian.presentation.regions.some(r=>r.id==='world-map'));
       const utility = await page.evaluate(()=>kaitian.presentation.regions.filter(r=>['world-map','build-open','pause'].includes(r.id)).map(r=>r.height*kaitian.controller.rpxScale));
       assert.equal(utility.length,3);assert.ok(utility.every(h=>Math.abs(h-44)<.01));
+      await click('world-map');await click('map-target-relic');
+      assert.equal(await page.evaluate(()=>kaitian.controller.data.mapTarget),'relic-1');
+      assert.ok(await page.evaluate(()=>kaitian.presentation.layers.overlay.used.has('map-focus-label')));
+      await page.screenshot({path:output+'/q-map-safe-568.png'});
+      await click('map-target-health');
+      assert.equal(await page.evaluate(()=>kaitian.controller.data.mapTarget),'site-0');
+      await click('world-map-close');
       await page.evaluate(()=>{const c=kaitian.controller;c.combat.cleared=true;c.combat.enemies=[];c.completeStage();});
       await click('reward-sword-roam');
       await page.waitForFunction(()=>kaitian.presentation.regions.some(r=>r.id==='memory-continue'&&r.enabled));
@@ -54,7 +66,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
       await page.evaluate(async ()=>{const g=kaitian;g.controller.exitToHome();await g.syncAssets();});
       for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) for (const weapon of ['bell', 'banner', 'swords']) {
         await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);
-        await click('start'); await click('weapon-' + weapon);
+        await chooseWeapon(weapon);
         if (weapon === 'swords') await page.screenshot({ path: output + '/swords-' + viewport.width + '-selection.png' });
         await click('intro-enter');
         await page.evaluate(()=>kaitian.syncAssets());
@@ -123,7 +135,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
       }
       for (const viewport of [{ width:844,height:390 },{ width:667,height:320 }]) for (const weapon of ['bell','banner','swords']) {
         await page.setViewportSize(viewport); await page.waitForFunction(w=>kaitian.controller.viewport.windowWidth===w,viewport.width);
-        await click('start'); await click('weapon-'+weapon); await click('intro-enter');
+        await chooseWeapon(weapon); await click('intro-enter');
         await page.evaluate(() => {
           const c=kaitian.controller, {windowWidth:w,windowHeight:h}=c.viewport, inset=w>800?47:20;
           c.resize({...c.viewport,safeArea:{left:0,top:inset,right:h,bottom:w-20},menuButton:{left:h-94,right:h-7,top:10,bottom:42}});
@@ -164,7 +176,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
       }
       for (const viewport of [{ width:844,height:390 },{ width:667,height:320 }]) {
         await page.setViewportSize(viewport);await page.waitForFunction(w=>kaitian.controller.viewport.windowWidth===w,viewport.width);
-        await click('start');await click('weapon-swords');await click('intro-enter');
+        await chooseWeapon('swords');await click('intro-enter');
         for(let stage=1;stage<=5;stage++)for(const mode of ['entry','roam','shrine','map']){
           await page.evaluate(async ({stage,mode})=>{
             const c=kaitian.controller;c.resetGame();c.pauseGame();const core=c.combat;
@@ -286,7 +298,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
       console.log('PASS Creator guardian trial: optional native controls, visible guardian, reward only after its actual death');
       for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
         await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);
-        await click('start'); await click('weapon-swords'); await click('intro-enter');
+        await chooseWeapon('swords'); await click('intro-enter');
         for (const mode of ['idle-a', 'idle-b', 'windup', 'chase', 'cleave', 'return', 'skill-crowd', 'skill-single', 'left', 'right', 'top', 'bottom']) {
           await page.evaluate(async mode => {
             const c = kaitian.controller; c.resetGame(); window.arenaFixture(c); c.pauseGame(); const core = c.combat;
@@ -333,7 +345,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
       }
       for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
         await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);
-        await click('start'); await click('weapon-banner'); await click('intro-enter');
+        await chooseWeapon('banner'); await click('intro-enter');
         for (const mode of ['idle', 'flutter', 'release', 'volley', 'split', 'max', 'edge', 'cards-count', 'cards-split']) {
           await page.evaluate(async mode => {
             const c = kaitian.controller; c.resetGame(); window.arenaFixture(c); c.pauseGame(); const core = c.combat;
@@ -381,7 +393,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
       }
       for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
         await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);
-        await click('start'); await click('weapon-bell'); await click('intro-enter');
+        await chooseWeapon('bell'); await click('intro-enter');
         for (const mode of ['idle-a', 'idle-b', 'plain', 'wide', 'fire', 'water', 'earth', 'echo', 'dominion']) {
           await page.evaluate(async mode => {
             const c = kaitian.controller; c.resetGame(); window.arenaFixture(c); c.pauseGame(); const core = c.combat;
@@ -421,7 +433,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
       // visual fixtures only; combat timing/collision is covered by core tests.
       for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
         await page.setViewportSize(viewport); await page.waitForFunction(w => kaitian.controller.viewport.windowWidth === w, viewport.width);
-        await click('start'); await click('intro-enter');
+        await chooseWeapon(); await click('intro-enter');
         for (let stage = 1; stage <= 5; stage++) for (const state of ['warning', 'active']) {
           await page.evaluate(async ({ stage, state }) => {
             const c = kaitian.controller; c.resetGame(); window.arenaFixture(c); c.pauseGame();

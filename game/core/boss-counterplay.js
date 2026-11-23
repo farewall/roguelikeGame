@@ -13,8 +13,11 @@ function registerPressure(c,e,damage,source) {
   if(e.pressureDamage<threshold)return;
   if(root){
     const roots=c.hazards.filter(h=>h.owner===e.id&&h.rootBranch&&h.pressureCue===e.bossPattern.next&&!h.broken);if(!roots.length)return;
-    roots.sort((a,b)=>c.distance(c.player,a.end)-c.distance(c.player,b.end));roots[0].broken=true;
-    c.effect('boss-break',roots[0].end,44,{life:.45});
+    roots.sort((a,b)=>c.distance(c.player,a.end)-c.distance(c.player,b.end));
+    const branch = roots[0], direction = c.vector(branch, branch.end);
+    branch.broken=true;
+    c.effect('root-sever', { x: branch.x+(branch.end.x-branch.x)*.7, y: branch.y+(branch.end.y-branch.y)*.7 },
+      64, { life:.62, angle:Math.atan2(direction.y,direction.x) });
     c.emit('boss-break',{name:'断根开路',copy:'根脉已断 · 穿过缺口'});
   }else{
     const pending = c.hazards.find(h => h.owner === e.id && h.kind === 'tide' && !h.broken && h.age < h.delay);

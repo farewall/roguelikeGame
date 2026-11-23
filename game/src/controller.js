@@ -23,7 +23,7 @@ function createController(wx, options = {}) {
   const clearTimeout = id => clock.clearTimeout(id);
 const definition = {
   data: {
-    view: 'home', showSettings: false, showIntro: false, showArchive: false, archiveTab: 'memories', paused: false, confirmExit: false, showWorldMap:false,showRelic:false,showBuildDetails:false,hasCheckpoint:false,checkpointLabel:'',worldRelic:null,
+    view: 'home', showSettings: false, showIntro: false, showArchive: false, archiveTab: 'memories', paused: false, confirmExit: false, showWorldMap:false,showRelic:false,showBuildDetails:false,hasCheckpoint:false,checkpointLabel:'',worldRelic:null,mapTarget:'',
     uiScale: 0.5, soundOn: true, effectVolume: 60, vibrationOn: true, hintsOn: true,
     hp: 100, maxHp: 100, hpPct: 100, hurt: false, level: 1, xp: 0, xpNeed: 5, xpPct: 0,
     stage: 1, stageName: '', phaseName: '', objective: '', progress: 0, boss: null, kills: 0, combatStats: '', weaponId: 'bell', actorSheets: [], actorFrame: { left: 0, top: 0, action: 'idle' }, pathName: '', warded: false,
@@ -53,7 +53,7 @@ const definition = {
   resumeRun() {
     const core=restoreCheckpoint(readCheckpoint(wx));if(!core){this.refreshCheckpoint();return false;}
     this.stopLoops();this.combat=core;this.player=core.player;this.actor=new PanguAnimation();this.actorFrameKey='';this.upgradePending=false;this.choiceApplying=false;this.stageClearRemaining=0;
-    this.setData({view:'game',selectedWeapon:core.weapon,paused:false,showSettings:false,showIntro:false,showArchive:false,showChoice:false,showEnding:false,ended:false,showMemory:false,showWorldMap:false,showRelic:false,showBuildDetails:false,bossTransition:null,actorSheets:ACTOR_SHEETS});
+    this.setData({view:'game',selectedWeapon:core.weapon,paused:false,showSettings:false,showIntro:false,showArchive:false,showChoice:false,showEnding:false,ended:false,showMemory:false,showWorldMap:false,showRelic:false,showBuildDetails:false,bossTransition:null,actorSheets:ACTOR_SHEETS,mapTarget:''});
     this.updateLayout();this.syncCombat();this.renderActor(0);this.startLoops();
     if(core.cleared)this.completeStage();else {this.notify('神念续行 · 招式已重整，短暂护身');this.levelUp();}return true;
   },
@@ -69,6 +69,10 @@ const definition = {
     return true;
   },
   openWorldMap() { if (this.isBlocked() || !this.combat.world) return; this.pauseGame(); this.setData({showWorldMap:true}); },
+  selectMapTarget(id) {
+    if (!this.data.showWorldMap || !this.combat.world?.mapTargets(this.combat.phase).some(target => target.available && target.id === id)) return;
+    this.setData({ mapTarget: this.data.mapTarget === id ? '' : id });
+  },
   closeWorldMap() { this.setData({showWorldMap:false}); this.resumeGame(); },
   onResize() { this.stopMovement(); this.updateLayout(); this.actorFrameKey = ''; if (this.actor) this.renderActor(0); this.measureArena(); },
   openIntro() { this.setData({ showIntro: true, showSettings: false }); },
@@ -156,7 +160,7 @@ const definition = {
     this.stopLoops(); if (this.audio) this.audio.stopAll();
     this.combat = new Combat(this.data.selectedWeapon, Math.random, { exploration: options.exploration !== false }); this.player = this.combat.player;
     this.updateLayout(); this.actor = new PanguAnimation(); this.actorFrameKey = '';
-    this.choiceApplying = false; this.upgradePending = false; this.stageClearRemaining = 0; this.upgradeTouch = null; this.setData({showWorldMap:false,showRelic:false,showBuildDetails:false});
+    this.choiceApplying = false; this.upgradePending = false; this.stageClearRemaining = 0; this.upgradeTouch = null; this.setData({showWorldMap:false,showRelic:false,showBuildDetails:false,mapTarget:''});
     this.viewCache = {}; this.renderStats = { ticks: 0, calls: 0, bytes: 0, fullBytes: 0, maxBytes: 0 };
     this.setData({ ...this.combat.snapshot(), paused: false, hurt: false, player: { ...this.player }, message: this.combat.weapon === 'bell' ? '保持外缘距离 · 点击镇界解围' : this.combat.weapon === 'swords' ? '四剑自动追敌 · 点击诛仙清场围杀' : '自动发刃 · 拖动裂天瞄准后松手', showChoice: false, choices: [], showMemory: false, ended: false, showEnding: false, won: false, showRelic:false,showBuildDetails:false,runSummary: null, actorSheets: ACTOR_SHEETS }, () => this.measureArena());
     this.renderActor(0); this.startLoops();
@@ -217,7 +221,8 @@ const definition = {
       if(event.type==='relic-trial')this.notify('守印灵凝形 · 击败后取得遗迹庇护');
       if(event.type==='relic-complete'){this.notify('遗迹已解印 · 专属提升与本境庇护生效');if(this.audio)this.audio.play('upgrade');this.saveRun();}
       if(event.type==='boss-break'){this.notify(event.copy || event.name);if(this.audio)this.audio.play('echo');}
-      if (event.type === 'boss') this.notify(event.name + '现身 · 观察预警后再接近');
+      if (event.type === 'boss') this.notify(this.combat.stage === 1 && this.data.hintsOn ?
+        '青龙盘身时，集中攻击可打断根脉' : event.name + '现身 · 留意它的起手');
       if (event.type === 'boss-phase') { this.stopMovement(); this.cancelSkillAim(); if (this.audio) { this.audio.stopAll(); this.audio.play('dominion'); } this.notify(event.name + ' · 法相暴怒'); }
       if (event.type === 'boss-enraged') this.notify(event.name + ' · 留意新的蓄势动作');
       if (event.type === 'cast' && this.audio && !warned && now >= (this.warningSoundUntil || 0)) { this.audio.play('warning'); this.warningSoundUntil = now + 650; warned = true; }
@@ -293,7 +298,7 @@ const definition = {
   },
   continueStage() {
     if (!this.data.showMemory || this.data.paused || (this.data.rewardChoices.length && !this.data.rewardSelectedId) || !this.combat.advanceStage()) return;
-    this.setData({ showMemory: false }); this.actor = new PanguAnimation(); this.actorFrameKey = '';
+    this.setData({ showMemory: false, mapTarget: '' }); this.actor = new PanguAnimation(); this.actorFrameKey = '';
     this.lastTickTime = Date.now(); this.lastMoveTime = Date.now(); this.syncCombat(); this.renderActor(0);
     this.notify(this.combat.world?.phoenixAltar ? '恢复 15 元气 · 地图可查看熔心岔路' : '整备完成 · 恢复 15 元气');
     this.levelUp();

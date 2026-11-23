@@ -67,6 +67,30 @@ test('flow navigation reaches every authored landmark without crossing collision
       assert.ok(i<1800,JSON.stringify({stage,site:site.name,p}));}
   }
 });
+test('map markings trace walkable ground without moving the player or changing enemy navigation',()=>{
+  const h=setup({exploration:true}),g=h.game,c=g.combat,w=c.world;
+  const start=c.groundPoint(c.player), spring=w.sites.find(site=>site.kind==='health');
+  w.nav.update(start);
+  const enemyTarget=w.nav.target, enemyCosts=w.nav.cost.slice();
+  g.selectMapTarget(spring.id);
+  assert.equal(g.data.mapTarget,'');
+  g.openWorldMap();
+  g.selectMapTarget(spring.id);
+  assert.equal(g.data.mapTarget,spring.id);
+  const route=w.nav.route(start,spring);
+  assert.ok(route.length>2);
+  assert.deepEqual(route[0],start);
+  assert.deepEqual(route.at(-1),spring);
+  for(let i=1;i<route.length;i++)assert.deepEqual(w.clip(route[i-1],route[i],20),route[i]);
+  assert.equal(w.nav.target,enemyTarget);
+  assert.deepEqual(w.nav.cost,enemyCosts);
+  assert.deepEqual(c.groundPoint(c.player),start);
+  g.closeWorldMap();
+  assert.equal(g.data.mapTarget,spring.id);
+  g.restart();
+  assert.equal(g.data.mapTarget,'');
+  h.game.onUnload();
+});
 test('local spawning stays reachable, clear of props, and outside player safety even with a fixed RNG',()=>{
   for(let stage=1;stage<=5;stage++){
     const c=fresh('bell',stage);for(let i=0;i<20;i++)c.spawn('ranged',true);
