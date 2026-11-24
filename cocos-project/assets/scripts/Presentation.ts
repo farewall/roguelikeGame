@@ -417,7 +417,8 @@ export class CocosPresentation {
     return pose;
   }
   sortWorld() {
-    const layer=this.layers.world,nodes=[...layer.used].map(id=>layer.nodes.get(id)).filter(Boolean);
+    const layer=this.layers.world;
+    const nodes=Array.from(layer.used, id=>layer.nodes.get(id)).filter(Boolean);
     const depth=node=>node.worldDepth===undefined?(node.recycleKind==='label'?1e9:-1e6):node.worldDepth;
     nodes.sort((a,b)=>depth(a)-depth(b));
     const start=layer.node.children.length-nodes.length;
