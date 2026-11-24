@@ -621,4 +621,13 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
       assert.deepEqual(errors, []); console.log('PASS Cocos Creator: archive survives a full reload');
     } catch (error) { await page.screenshot({ path: output + '/failure.png' }); console.error('Creator browser errors:', errors); console.error(await page.evaluate(() => window.kaitian ? { ready: kaitian.presentation.ready, error: kaitian.presentation.error, view: kaitian.controller.data.view, data: { paused: kaitian.controller.data.paused, choice: kaitian.controller.data.showChoice, joystick: kaitian.controller.data.joystick }, joyId: kaitian.input.joyId, touchId: kaitian.controller.touchId, origin: kaitian.controller.touchOrigin, move: kaitian.controller.moveVector, player: kaitian.controller.player } : { runtime: false })); throw error; }
   } finally { await browser.close(); }
-})().catch(error => { console.error(error); process.exitCode = 1; });
+})().catch(error => {
+  console.error(error);
+  if (process.env.GITHUB_ACTIONS === 'true') {
+    const location = String(error.stack).split('\n').find(line => line.includes(__filename));
+    const line = location?.match(/preview\.test\.cjs:(\d+):\d+/)?.[1] || '1';
+    const message = String(error.message).slice(0, 1500).replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A');
+    console.log(`::error file=tools/cocos/preview.test.cjs,line=${line},title=Creator browser regression::${message}`);
+  }
+  process.exitCode = 1;
+});
