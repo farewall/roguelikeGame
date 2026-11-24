@@ -15,6 +15,32 @@ export function drawGroundContact(v:any,layer:any,id:string,p:any,entity:any,siz
 export const HERO_FOOT=54;
 export const HERO_ATLAS_BASE=120/128;
 export const BELL_HEIGHT=160;
+export function swordHoverOffset(combat:any,index:number){
+  const f=combat.flyingSwords[index];
+  const smooth=(progress:number)=>{
+    const t=clamp(progress);
+    return t*t*(3-2*t);
+  };
+  let blend=0;
+  switch(f.state){
+    case 'idle':
+    case 'waiting': blend=1;break;
+    case 'windup': blend=1-smooth(f.age/(f.attack?.tuning?.windup||.1));break;
+    case 'settle': blend=smooth(f.age/.16);break;
+    case 'skill-gather': blend=1-smooth(f.age/Math.min(.12,f.duration));break;
+    case 'recall': {
+      const home=combat.swordHome(index);
+      const startsAtHome=Math.hypot(f.from.x-home.x,f.from.y-home.y)<24;
+      const start=startsAtHome ? 1-smooth(f.age/Math.min(.1,f.duration*.5)) : 0;
+      blend=Math.max(start,smooth((f.age/f.duration-.72)/.28));
+      break;
+    }
+  }
+  if(!blend)return {x:0,y:0};
+  const center=combat.swordAnchor||combat.point(combat.player);
+  const home=combat.swordHome(index);
+  return {x:(home.x-center.x)*.46*blend,y:(home.y-center.y+16)*.15*blend};
+}
 export function heroMotion(action:string,elapsed:number,side:number){
   const t=Math.max(0,elapsed);
   if(action==='move'){

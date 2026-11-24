@@ -8,7 +8,7 @@ import { creatureSize, drawCondensation, drawRemnant, condensationOpacity } from
 import { creatureMotion, bossMotionFrame, drawCreatureTell, drawEnrage } from './BossVfx';
 import { drawWorld, drawWorldHud, drawWorldMapPanel } from './WorldVfx';
 import {drawBuildPanel,drawRelicPanel} from './HudPanels';
-import {drawGroundContact,heroMotion,waveContour,HERO_FOOT,HERO_ATLAS_BASE,BELL_HEIGHT} from './ReleaseArt';
+import {drawGroundContact,heroMotion,swordHoverOffset,waveContour,HERO_FOOT,HERO_ATLAS_BASE,BELL_HEIGHT} from './ReleaseArt';
 import {drawSwordRibbon,drawBladeWakes,drawRiftCut,ease} from './AttackVfx';
 const GOLD = 0xffd889, INK = 0x24313d, LIGHT = 0xf9ebcb, MUTE = 0xc1d4ab;
 const PAPER = 0xffefcf, JADE = 0x37555a, RED = 0xa73f28;
@@ -568,14 +568,16 @@ export class CocosPresentation {
     const c = this.c, a = c.layout.arena, hero = layer.nodes.get('hero');
     const swords = c.combat.swordPoses();
     for (const sword of swords) {
-      const x = a.x + sword.x / 100 * c.combat.width, y = a.y + sword.y / 100 * c.combat.height;
+      const offset = swordHoverOffset(c.combat, sword.index);
+      const x = a.x + sword.x / 100 * c.combat.width + offset.x, y = a.y + sword.y / 100 * c.combat.height + offset.y;
       const body = this.image(layer, 'zhuxian-sword-' + sword.index, this.assets.frames.swords[sword.index], x, y, sword.width, sword.height);
       body.node.getComponent(UITransform).setAnchorPoint(0.5, 0.5); body.node.setPosition(x, -y); body.node.angle = sword.angle;
       (body.node as any).worldDepth=(hero as any).worldDepth+(sword.depth<0?sword.depth*65:Math.max(.001,sword.depth*65));
       if (!['idle', 'waiting', 'settle'].includes(sword.state)) {
         const base = sword.blade.base, tip = sword.blade.tip, dx = tip.x - base.x, dy = tip.y - base.y, length = Math.hypot(dx, dy) || 1;
         layer.g.lineStyle(sword.skill ? 2.2 : 1.5, 0xf1edcf, sword.state === 'windup' ? 0.72 : 0.48);
-        layer.g.moveTo(a.x + tip.x - dx / length * 18, a.y + tip.y - dy / length * 18); layer.g.lineTo(a.x + tip.x, a.y + tip.y);
+        layer.g.moveTo(a.x + tip.x + offset.x - dx / length * 18, a.y + tip.y + offset.y - dy / length * 18);
+        layer.g.lineTo(a.x + tip.x + offset.x, a.y + tip.y + offset.y);
       }
       drawSwordRibbon(layer.g,sword.trail,a,SWORD_TRAIL_COLORS[sword.index],sword.skill,sword.state==='return');
     }

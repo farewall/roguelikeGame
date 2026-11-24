@@ -208,11 +208,11 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
           await page.screenshot({path:output+'/world-'+viewport.width+'-'+stage+'-'+mode+'.png'});
           if(mode==='map'){await click('world-map-close');assert.equal(await page.evaluate(()=>kaitian.controller.data.showWorldMap),false);await page.evaluate(()=>kaitian.controller.pauseGame());}
         }
-        await page.evaluate(()=>{
+        await page.evaluate(async()=>{
           const c=kaitian.controller,core=c.combat;
           core.stage=3;core.startStage();core.phase=2;core.remaining=6;core.spawnCd=4;
           Object.assign(core.player,core.percent({x:core.world.phoenixAltar.x,y:core.world.phoenixAltar.y-54}));
-          c.syncCombat();c.resumeGame();
+          c.syncCombat();await kaitian.syncAssets();c.resumeGame();kaitian.presentation.render();
         });
         await click('world-map');
         await page.waitForFunction(()=>kaitian.presentation.layers.overlay.used.has('map-phoenix-altar'));
@@ -332,6 +332,9 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
               const expected = v.assets.frames.swords[pose.index];
               if (s.color.a !== 255 || s.spriteFrame !== expected || expected.originalSize.width !== 256 || expected.originalSize.height !== 256) return false;
               if ((n.getSiblingIndex() > hero.getSiblingIndex()) !== (pose.depth >= 0) || Math.abs(ui.contentSize.width - pose.width) > 0.01 || Math.abs(ui.contentSize.height - pose.height) > 0.01 || Math.abs(n.angle - pose.angle) > 0.01) return false;
+              const dx=n.position.x-a.x-pose.x/100*c.combat.width,dy=-n.position.y-a.y-pose.y/100*c.combat.height;
+              if (['out','slash','return','skill-cut'].includes(pose.state) && Math.hypot(dx,dy) > 0.01) return false;
+              if (pose.state === 'idle' && Math.hypot(dx,dy) < 1) return false;
               const angle=pose.angle*Math.PI/180,hx=Math.abs(Math.cos(angle))*pose.width/2+Math.abs(Math.sin(angle))*pose.height/2,hy=Math.abs(Math.sin(angle))*pose.width/2+Math.abs(Math.cos(angle))*pose.height/2;
               return n.position.x - hx >= a.x - 0.01 && n.position.x + hx <= a.x + a.width + 0.01 && -n.position.y - hy >= a.y - 0.01 && -n.position.y + hy <= a.y + a.height + 0.01;
             });
