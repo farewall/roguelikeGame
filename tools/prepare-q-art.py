@@ -34,7 +34,7 @@ def save(name, image):
     else:
         image.save(target, optimize=True)
 
-def atlas(name, bodies, foot=None, max_width=None, max_height=None):
+def atlas(name, bodies, foot=None, max_width=None, max_height=None, placement=None):
     spec = CATALOG[name]
     tw, th = spec['grid']['tile']
     cols = spec['grid']['columns']
@@ -42,26 +42,44 @@ def atlas(name, bodies, foot=None, max_width=None, max_height=None):
     for i, model in enumerate(bodies):
         body = model.copy()
         body.thumbnail((max_width or tw-14, max_height or th-14), SMOOTH)
-        place_y = foot-body.height if foot is not None else (th-body.height)//2
-        page.alpha_composite(body, ((i%cols)*tw+(tw-body.width)//2, (i//cols)*th+place_y))
+        place_x, place_y = (tw-body.width)//2, foot-body.height if foot is not None else (th-body.height)//2
+        if placement and i in placement:
+            place_x, place_y = placement[i]
+        page.alpha_composite(body, ((i%cols)*tw+place_x, (i//cols)*th+place_y))
     save(name, page)
 
 def stretch(body, x, y):
     return body.resize((round(body.width*x), round(body.height*y)), SMOOTH)
+
+def scale_poses(bodies, width, height):
+    # One scale per authored sheet preserves the proportions of low poses.
+    factor = min(width / max(body.width for body in bodies), height / max(body.height for body in bodies))
+    return [stretch(body,factor,factor) for body in bodies]
+
+def sword_fan(swords):
+    fan = Image.new('RGBA', (450, 412))
+    for sword, angle, x in zip(swords, (29, 10, -10, -29), (92, 180, 270, 358)):
+        blade = sword.copy()
+        blade.thumbnail((120, 322), SMOOTH)
+        blade = blade.rotate(angle, resample=Image.Resampling.BICUBIC, expand=True)
+        fan.alpha_composite(blade, (x-blade.width//2, 205-blade.height//2))
+    return fan.crop(fan.getbbox())
 
 with Image.open(SOURCE / 'title.jpg') as title:
     save('title', ImageOps.fit(title.convert('RGB'), tuple(CATALOG['title']['size']), SMOOTH))
 for key, tile in zip(['arena1','arena2','arena3','arena4','arena5','ending'],sections('realms',3,2)):
     save(key, tile.resize(tuple(CATALOG[key]['size']), SMOOTH))
 
-hero = poses('hero')
+hero = scale_poses(poses('hero'),116,112)
+run_poses = scale_poses(poses('hero-run'),116,112)
 rows = [hero[:4], hero[4:8], [ImageOps.mirror(p) for p in hero[8:12]], hero[8:12]]
+steps = [run_poses[:2], run_poses[2:4], [ImageOps.mirror(p) for p in run_poses[4:6]], run_poses[4:6]]
 hero_frames = []
-for idle, run, gather, release in rows:
-    hero_frames += [idle, stretch(idle,1.04,.98), run, stretch(run,.94,1.04), gather, release]
-atlas('artifact', hero_frames, 120, 112, 112)
+for (idle, run, gather, release), (plant, next_stride) in zip(rows, steps):
+    hero_frames += [idle, plant, run, next_stride, gather, release]
+atlas('artifact', hero_frames, 120, 116, 112)
 victory = hero[12:14]
-atlas('heroOutcomes', victory+hero[14:16]+[ImageOps.mirror(p) for p in victory]+victory, 120, 112, 112)
+atlas('heroOutcomes', victory+hero[14:16]+[ImageOps.mirror(p) for p in victory]+victory, 120, 116, 112)
 
 enemies = poses('enemies')
 enemy_frames = []
@@ -69,7 +87,6 @@ for i in range(4):
     neutral, cast, attack = (enemies[i+4*row] for row in range(3))
     enemy_frames += [neutral,stretch(neutral,1.035,.93),cast,attack,stretch(neutral,.91,1.08),stretch(cast,1.04,.78)]
 atlas('enemies', enemy_frames, 172, 172, 160)
-atlas('weaponCards', enemies[12:16])
 
 bosses = poses('bosses')
 for stage in [1,3,4,5]:
@@ -83,7 +100,7 @@ step, low, swipe, raise_paw, chop, crouch, flight, landing, glance, crash, back,
 atlas('tiger', [normal,step,swipe,raise_paw,chop,crouch,flight,landing,crash,glance,low,crash,back,back_flight,
                stretch(back,1.08,.82),ImageOps.mirror(swipe)], 181, 174, 166)
 
-props = poses('props')
+props = poses('first-realm-props') + poses('props')[3:]
 atlas('worldProps', props, 167, 174, 160)
 # Derive the low stump from the upright prop. Its footprint does not change after white tiger impact.
 pillar = props[3]
@@ -96,6 +113,8 @@ for i, prop in enumerate([props[0],props[3],props[6],props[9],props[12]], start=
     save('landmark'+str(i),page)
 
 tiles = list(sections('ground',3,2))
+with Image.open(SOURCE / 'first-realm-ground.jpg') as first_realm:
+    tiles[0] = first_realm.convert('RGB')
 ground = Image.new('RGB',(768,512))
 for i, tile in enumerate(tiles):
     ground.paste(tile.resize((256,256),SMOOTH),((i%3)*256,(i//3)*256))
@@ -118,5 +137,12 @@ flags = weapons[4:8]
 flag_frames = [flags[0],stretch(flags[0],.98,1),flags[1],stretch(flags[1],1.02,1)]
 flag_frames += [flags[2],stretch(flags[2],1.03,.99),flags[1],stretch(flags[1],.95,.99)]
 flag_frames += [flags[0],flags[2],flags[3],stretch(flags[2],.92,1)]
-atlas('banner',flag_frames+weapons[12:16])
-atlas('swords',weapons[8:12],max_width=160,max_height=242)
+flag_frames = [ImageOps.contain(flag, (170, 179), SMOOTH) for flag in flag_frames]
+atlas('banner',flag_frames+weapons[12:16],max_width=178,max_height=179,
+      placement={i:(13,183-flag.height) for i, flag in enumerate(flag_frames)})
+swords = weapons[8:12]
+# The sword nodes use a narrow aspect ratio within their square atlas cells.
+# Compensate horizontally so each illustrated blade keeps its silhouette.
+sword_frames = [sword.resize((min(224,round(sword.width*240/sword.height/.52)),240),SMOOTH) for sword in swords]
+atlas('swords',sword_frames,max_width=224,max_height=240)
+atlas('weaponCards',[weapons[0],flags[2],sword_fan(swords)])

@@ -1,6 +1,6 @@
 'use strict';
 const { BannerCombat } = require('./banner');
-const SWORDS = { count: 4, radius: 98, depth: .62, size: 126, idleSpeed: .24, range: 420, skillRange: 500, interval: 1.2, damage: 3.2,
+const SWORDS = { count: 4, radiusX: 143, radiusY: 70, size: 126, idleSpeed: .24, range: 420, skillRange: 500, interval: 1.2, damage: 3.2,
   stagger: .18, speed: 1080, returnSpeed: 1550, sideDamage: .7, returnDamage: .5, repeatDamage: .35,
   marginX: 208, marginTop: 168, marginBottom: 148, names: ['诛仙', '戮仙', '陷仙', '绝仙'] };
 const clamp = (n, a = 0, b = 1) => Math.max(a, Math.min(b, n));
@@ -27,7 +27,7 @@ class SwordCombat extends BannerCombat {
   }
   swordHome(index) {
     const p=this.swordAnchor||this.point(this.player),t=this.swordClock,phase=Math.PI/4+index*Math.PI/2+t*SWORDS.idleSpeed+.1*Math.sin(t*.8+index),depth=Math.sin(phase);
-    return {x:p.x+Math.cos(phase)*SWORDS.radius,y:p.y-16+depth*SWORDS.radius*SWORDS.depth+5*Math.sin(t*2+index*1.7),depth,size:SWORDS.size*(.9+depth*.08),angle:.1*Math.sin(t*1.9+index*1.6)};
+    return {x:p.x+Math.cos(phase)*SWORDS.radiusX,y:p.y-16+depth*SWORDS.radiusY+5*Math.sin(t*2+index*1.7),depth,size:SWORDS.size*(.9+depth*.08),angle:.1*Math.sin(t*1.9+index*1.6)};
   }
   safeSwordPoint(p) { const r=74;return {x:clamp(p.x,r,this.width-r),y:clamp(p.y,r,this.height-r)}; }
   swordPose(f,includeTrail=true) {
@@ -162,7 +162,11 @@ class SwordCombat extends BannerCombat {
           const relative={base:{x:before.blade.base.x+dx,y:before.blade.base.y+dy},tip:{x:before.blade.tip.x+dx,y:before.blade.tip.y+dy}};
           if(sweptBladeContact(p1,relative,after.blade,e.boss?30:18))this.hitWithSword(f,a,e,state==='return');
         }
-        f.trail=f.trail.filter(p=>this.swordClock-p.time<.13);if(active(f.state)&&f.position&&(!f.trail.length||length(f.trail[f.trail.length-1],f.position)>3))f.trail.push({...f.position,time:this.swordClock});if(f.trail.length>12)f.trail.shift();
+        while(f.trail.length&&this.swordClock-f.trail[0].time>=.13)f.trail.shift();
+        if(active(f.state)&&f.position&&(!f.trail.length||length(f.trail[f.trail.length-1],f.position)>3)){
+          f.trail.push({...f.position,time:this.swordClock});
+          if(f.trail.length>12)f.trail.shift();
+        }
       }
       const skill=this.swordSkill;if(skill){if(skill.phase==='recall'&&skill.age>=.12&&this.flyingSwords.every(f=>f.state==='idle'))this.prepareSwordSkill();
         else if(skill.phase==='gather'&&this.flyingSwords.every(f=>f.state==='skill-ready'))this.startSwordSkillCuts();

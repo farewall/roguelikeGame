@@ -31,6 +31,14 @@ export class DrawList {
     if (!points.length) return; this.moveTo(points[0], points[1]);
     for (let i = 2; i < points.length; i += 2) this.lineTo(points[i], points[i + 1]); this.closePath(); if (!this.filling) this.flush();
   }
+  strokeSegments(segments: number[]) {
+    if (!segments.length) return;
+    this.flush();
+    for (let i = 0; i < segments.length; i += 4) {
+      this.commands.push(['moveTo', [segments[i], -segments[i + 1]]], ['lineTo', [segments[i + 2], -segments[i + 3]]]);
+    }
+    this.flush();
+  }
   flush() {
     if (!this.commands.length) return;
     const batch = {commands:this.commands,fill:this.fill,stroke:this.stroke,width:this.width,filling:this.filling};

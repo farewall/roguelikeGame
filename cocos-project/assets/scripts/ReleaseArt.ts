@@ -12,8 +12,26 @@ export function drawGroundContact(v:any,layer:any,id:string,p:any,entity:any,siz
   const shadow=v.image(layer,'contact-'+id,texture,p.x-shape.width/2,p.y+offset-shape.height/2,shape.width,shape.height,shape.alpha);
   shadow.tint=0x12171a;
 }
-export const HERO_TOP=126;
+export const HERO_FOOT=54;
+export const HERO_ATLAS_BASE=120/128;
 export const BELL_HEIGHT=160;
+export function heroMotion(action:string,elapsed:number,side:number){
+  const t=Math.max(0,elapsed);
+  if(action==='move'){
+    const swing=Math.sin(t*2*Math.PI/.3),step=Math.cos(t*2*Math.PI/.6);
+    const entry=1-Math.exp(-t/.045),load=(1-.5*(swing+1))*entry;
+    return {sx:1+load*.027,sy:1-load*.039,dy:-Math.max(0,swing)*3.8*entry,angle:(side*2.2+step*.9)*entry};
+  }
+  if(action==='attack'){
+    const release=2/12;
+    const gather=t<release?Math.sin(Math.PI*.5*t/release):Math.exp(-(t-release)*15);
+    const recoil=t<release?0:Math.sin(Math.PI*Math.min(1,(t-release)/.24))*Math.exp(-(t-release)*2);
+    return {sx:1+gather*.034+recoil*.032,sy:1-gather*.06+recoil*.035,dy:-recoil*3,angle:side*(5*gather-7*recoil)};
+  }
+  if(action!=='idle')return {sx:1,sy:1,dy:0,angle:0};
+  const breath=(1-Math.cos(t*3.8))*.5;
+  return {sx:1+breath*.009,sy:1-breath*.022,dy:0,angle:0};
+}
 export function bodyGroundShift(entity:any,size:number){return entity.boss?72-size*(181/192-.5):0;}
 export function waveContour(h:any,radius:number,inner:number){
   const half=h.gapHalf||.001,start=(h.gapAngle||0)+half,span=Math.PI*2-half*2,n=Math.min(96,Math.max(32,Math.ceil(radius*span/18))),points=[];

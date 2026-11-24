@@ -67,3 +67,19 @@ test('the painted moving wave mask preserves the real crest, safe interior and o
     assert.equal(polygonContains(p,points),c.contains(h,c.percent({x:origin.x+p.x,y:origin.y+p.y})),JSON.stringify({a,radius}));
   }
 });
+test('long sword trails and mixed blade volleys each use two tapered fill passes',()=>{
+  const bundled=require('esbuild').buildSync({entryPoints:[path.join(__dirname,'../cocos-project/assets/scripts/AttackVfx.ts')],bundle:true,format:'cjs',write:false,logLevel:'silent'});
+  const module={exports:{}};require('node:vm').runInNewContext(bundled.outputFiles[0].text,{module,exports:module.exports});
+  const {drawSwordRibbon,drawBladeWakes}=module.exports,passes=[];
+  const g={lineStyle(){},beginFill(){passes.push([]);},endFill(){},drawPolygon(points){passes.at(-1).push([...points]);}};
+  const trail=Array.from({length:12},(_,i)=>({x:i*10,y:0,alpha:i/11}));
+  drawSwordRibbon(g,trail,{x:0,y:0},0xffffff,true,false);
+  assert.equal(passes.length,2);
+  assert.ok(passes.every(pass=>pass.length===1&&pass[0].length===48&&pass[0].every(Number.isFinite)));
+  const outer=passes[0][0];
+  assert.equal(outer[1],outer.at(-1));
+  assert.ok(Math.abs(outer[23]-outer[25])>10);
+  passes.length=0;
+  drawBladeWakes(g,Array.from({length:47},(_,i)=>({x:i,y:0,dx:1,dy:0,length:24,width:4})));
+  assert.deepEqual(passes.map(pass=>pass.length),[47,47]);
+});

@@ -1,6 +1,6 @@
 const THEMES = [0xc9dc99, 0xe1c79b, 0xd99f70, 0xc1dfdf, 0xded6ad];
-const MAP_LAND = [0xbccd8f, 0xd4bb8a, 0xc38e6b, 0xa7c8ce, 0xcac797];
-const MAP_ROAD = [0xebd6a0, 0xf0d397, 0xf0bd87, 0xe1e3c5, 0xf1dfaa];
+const MAP_LAND = [0xe1d0ac, 0xd4bb8a, 0xc38e6b, 0xa7c8ce, 0xcac797];
+const MAP_ROAD = [0xb9a982, 0xf0d397, 0xf0bd87, 0xe1e3c5, 0xf1dfaa];
 const MARKERS = { health: 1, xp: 15, relic: 15, energy: 14, altar: 14 };
 const INK = 0x274139, PAPER = 0xffefca, GOLD = 0xffda79;
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
@@ -18,7 +18,7 @@ export function drawWorld(v, ground, terrain, actors, point) {
   // and their real collision footprints remain in the actor layer above them.
   for(const [i,region] of world.regions.entries()){
     const size=[780,860,760,750,710][world.stage-1];if(!visible(region.x,region.y,size*.6))continue;
-    const mark=v.image(ground,'landmark-'+i,v.assets.frames.worldStyle[world.stage-1],a.x+region.x-size/2,a.y+region.y-size*.36,size,size*.72,[.36,.35,.32,.34,.36][world.stage-1]);mark.tint=0xc6d4a8;
+    const mark=v.image(ground,'landmark-'+i,v.assets.frames.worldStyle[world.stage-1],a.x+region.x-size/2,a.y+region.y-size*.36,size,size*.72,[.17,.35,.32,.34,.36][world.stage-1]);mark.tint=0xc6d4a8;
     if(i%2){mark.node.setScale(-1,1,1);mark.node.setPosition(a.x+region.x+size/2,-(a.y+region.y-size*.36));}else mark.node.setScale(1,1,1);
   }
   const roads = v.layers.roads, offset = a.x + ':' + a.y;
@@ -49,7 +49,6 @@ export function drawWorld(v, ground, terrain, actors, point) {
     sprite.tint=prop.tigerPillar?0xffffff:0xf5f1da;(sprite.node as any).worldDepth=a.y+prop.y;
     if(prop.flip) { sprite.node.setScale(-1,1,1);sprite.node.setPosition(a.x+prop.x+prop.size/2,-(a.y+prop.y-prop.size*0.87)); }
     else sprite.node.setScale(1,1,1);
-    sprite.node.setSiblingIndex(0);
   }
   for(const site of world.sites) {
     if(!visible(site.x,site.y,160)) continue;

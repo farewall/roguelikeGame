@@ -867,7 +867,7 @@
       "bundle": "game-shell",
       "path": "images/weapon-cards.png",
       "size": [
-        576,
+        432,
         144
       ],
       "encoding": "png-palette",
@@ -879,10 +879,10 @@
           144,
           144
         ],
-        "columns": 4,
+        "columns": 3,
         "rows": 1
       },
-      "source": "art/q-style/enemies.png"
+      "source": "art/q-style/weapons.png"
     }
   }
 }

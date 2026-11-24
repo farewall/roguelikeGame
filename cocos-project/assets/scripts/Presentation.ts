@@ -8,17 +8,20 @@ import { creatureSize, drawCondensation, drawRemnant, condensationOpacity } from
 import { creatureMotion, bossMotionFrame, drawCreatureTell, drawEnrage } from './BossVfx';
 import { drawWorld, drawWorldHud, drawWorldMapPanel } from './WorldVfx';
 import {drawBuildPanel,drawRelicPanel} from './HudPanels';
-import {drawGroundContact,bodyGroundShift,waveContour,HERO_TOP,BELL_HEIGHT} from './ReleaseArt';
-const GOLD = 0xffd889, INK = 0x234035, LIGHT = 0xf9ebcb, MUTE = 0xc1d4ab;
-const PAPER = 0xffefc9, JADE = 0x355744, RED = 0xa73f28;
+import {drawGroundContact,heroMotion,waveContour,HERO_FOOT,HERO_ATLAS_BASE,BELL_HEIGHT} from './ReleaseArt';
+import {drawSwordRibbon,drawBladeWakes,drawRiftCut,ease} from './AttackVfx';
+const GOLD = 0xffd889, INK = 0x24313d, LIGHT = 0xf9ebcb, MUTE = 0xc1d4ab;
+const PAPER = 0xffefcf, JADE = 0x37555a, RED = 0xa73f28;
 const START_LABELS = { bell: '敲钟出战', banner: '执幡出战', swords: '持剑出战' };
 const WEAPON_TRAITS = { bell: '近身震退', banner: '远射贯穿', swords: '飞剑追敌' };
+const SWORD_TRAIL_COLORS = [0xaee2b3,0xe57258,0xc4dfff,0xc0b3e8];
 const ROWS = { down: 0, up: 1, left: 2, right: 3 };
 const clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
 export class CocosPresentation {
   c: any; ready = false; progress = 0; error = ''; assets: any;
   layers: Record<string, any> = {}; regions: any[] = []; root: Node; worldClip: Node; private lastVersion = -1; private lastReady = false;
   private overlayTransform: {scale:number; x:number; y:number} | null = null;
+  private enemyMotion = new WeakMap<object, {time:number; pose:ReturnType<typeof creatureMotion>}>();
   constructor(owner: Node, controller: any) {
     this.c = controller; this.root = this.makeNode('GameLayers'); owner.addChild(this.root);
     for (const name of ['background', 'ground', 'roads', 'terrain', 'world', 'hud', 'overlay']) {
@@ -221,7 +224,7 @@ export class CocosPresentation {
       const cardWidth = (panelWidth - 36) / 3;
       d.weapons.forEach((weapon, i) => {
         const cardX = x + i * (cardWidth + 18), selected = d.selectedWeapon === weapon.id;
-        this.rect(layer, cardX, y + 6, cardWidth, cardHeight, 0x213726, .9, null, 18);
+        this.rect(layer, cardX, y + 6, cardWidth, cardHeight, INK, .9, null, 18);
         this.rect(layer, cardX, y, cardWidth, cardHeight, selected ? 0xffe7ae : PAPER, 1, selected ? 0xffcf59 : 0xb39d69, 18);
         this.rect(layer, cardX + 7, y + 7, cardWidth - 14, cardHeight - 14, selected ? 0xffe7ae : PAPER, 1, selected ? 0xc58532 : 0xd9c28d, 13);
         const icon = Math.min(cardWidth - 22, cardHeight * .65);
@@ -268,18 +271,22 @@ export class CocosPresentation {
       if(inView(lo,range,hi)) drawHazard(this, world, hazard, point);
     }
     const player = point(d.player);
-    drawGroundContact(this,this.layers.terrain,'hero',player,{},164,54);
+    drawGroundContact(this,this.layers.terrain,'hero',player,{},164,HERO_FOOT);
     for (const wave of core.bellWaves) if(inView(point(wave.origin),wave.range+90)) this.bellWave(world, wave, point);
-    for (const effect of core.effects) if(inView(point(effect),Math.max(160,effect.radius||0))) this.drawEffect(world, effect, point);
+    for (const effect of core.effects) if(inView(point(effect),Math.max(160,effect.radius||0),point(effect.end||effect))) this.drawEffect(world, effect, point);
+    const wakes = [];
     for (const volley of c.combat.projectiles) for (const [index, bolt] of volley.bolts.entries()) {
-      const p = point(bolt), dx = bolt.direction.x, dy = bolt.direction.y, trail = Math.min(volley.split ? 26 : 42, volley.traveled);
+      const p = point(bolt), dx = bolt.direction.x, dy = bolt.direction.y;
       if (!inView(p)) continue;
-      g.lineStyle(volley.split ? 1 : 2, 0xe2c68d, 0.4); g.moveTo(p.x - dx * trail, p.y - dy * trail); g.lineTo(p.x, p.y);
+      const life = ease((volley.range - volley.traveled) / 40), arrival = .46 + .54 * ease(volley.traveled / 26);
+      const trail = Math.min(volley.split ? 38 : 60, volley.traveled);
+      if (trail > 1) wakes.push({ ...p, dx, dy, length:trail, width:(volley.split?3:5)*life*arrival });
       const size = volley.split ? 46 : 68;
-      const blade = this.image(world, 'blade-' + volley.id + '-' + index, this.assets.frames.banner[volley.split ? 13 : 12], p.x, p.y, size, size);
+      const blade = this.image(world, 'blade-' + volley.id + '-' + index, this.assets.frames.banner[volley.split ? 13 : 12], p.x, p.y, size, size, arrival*(.35+.65*life));
       blade.node.getComponent(UITransform).setAnchorPoint(0.5, 0.5); blade.node.setPosition(p.x, -p.y);
       blade.node.angle = -Math.atan2(dy, dx) * 180 / Math.PI;
     }
+    drawBladeWakes(g,wakes);
     if (d.skillAim && !c.isBlocked()) {
       const q = { x: player.x + d.skillAim.x * 650, y: player.y + d.skillAim.y * 650 };
       g.lineStyle(2, 0xc5f6df, 0.55); g.moveTo(player.x, player.y); g.lineTo(q.x, q.y);
@@ -295,7 +302,7 @@ export class CocosPresentation {
       drawGroundContact(this,this.layers.terrain,String(enemy.id),p,enemy,size,c.combat.world?c.combat.world.footOffset(enemy):size*.3);
       if (forming) drawCondensation(this, world, enemy, p, size);
       const hit = clamp(enemy.hitTime / 0.16, 0, 1), punch = Math.sin(hit * Math.PI)*(enemy.boss&&enemy.castTime>0?.22:1), direction = enemy.hitDirection || { x: 0, y: 0 };
-      const motion = creatureMotion(enemy, c.combat.time);
+      const motion = this.blendCreatureMotion(enemy, core.time);
       const sw = size * (0.85 + solidity * 0.15) * (1 + punch * 0.13) * motion.sx, sh = size * (0.8 + solidity * 0.2) * (1 - punch * 0.1) * motion.sy, recoil = punch * (enemy.boss ? 2 : 8);
       const texture = enemy.boss ? bossMotionFrame(this,enemy)||this.assets.frames.bosses[enemy.bossType - 1][bossFrame(enemy)] : this.assets.frames.enemies[enemyFrame(enemy)];
       // Keep a charging creature facing its locked lane, even if the player
@@ -305,7 +312,10 @@ export class CocosPresentation {
       const facing = (enemy.castTime > 0||enemy.tigerHunt) && enemy.attackAngle !== undefined ? Math.cos(enemy.attackAngle) : c.player.x - enemy.x;
       const frontFlight=enemy.bossType===2&&enemy.tigerPose===6&&Math.sin(enemy.attackAngle||0)>=-.28;
       const flipped = enemy.bossType !== 5 && (frontFlight?(lane ? lane.end.x-lane.x:facing)<0:(lane ? lane.end.x - lane.x : facing)>0);
-      const sprite = this.image(world, 'enemy-' + enemy.id, texture, p.x + (flipped ? sw / 2 : -sw / 2) + direction.x * recoil, p.y - sh / 2 + direction.y * recoil + motion.dy+bodyGroundShift(enemy,size), sw, sh, solidity);
+      const foot = core.world ? core.world.footOffset(enemy) : enemy.boss ? 72 : size*.3;
+      const sprite = this.image(world, 'enemy-' + enemy.id, texture, p.x+direction.x*recoil,
+        p.y+foot+direction.y*recoil+motion.dy, sw, sh, solidity);
+      sprite.node.getComponent(UITransform).setAnchorPoint(.5, 1 - (enemy.boss ? 181 : 172) / 192);
       sprite.node.setScale(flipped ? -1 : 1, 1, 1); sprite.node.angle = motion.angle * (flipped ? -1 : 1);
       (sprite.node as any).worldDepth=p.y+(c.combat.world?c.combat.world.footOffset(enemy):size*.3);
       sprite.tint = hit > 0.5 ? 0xffffff : hit > 0 ? 0xffd39a : enemy.freezeTime > 0 ? 0xb5e4f1 : 0xffffff;
@@ -325,8 +335,13 @@ export class CocosPresentation {
     const direction = ROWS[frame.direction || 'down'] || 0, index=frame.index||0;
     const showOutcome=d.ended&&(index>=2||d.showEnding);
     const texture=showOutcome?this.assets.frames.heroOutcomes[direction*2+(d.won?1:0)]:atlas[direction*6+index];
-    const hero = this.image(world, 'hero', texture, player.x - 96, player.y - HERO_TOP, 192, 192, d.ended && !d.won ? Math.max(.72, 1-index*.055) : d.hurt ? .65 : 1);
-    (hero.node as any).worldDepth=player.y+54;
+    const side=frame.direction==='left'?-1:frame.direction==='right'?1:0;
+    const body=heroMotion(frame.action,c.actor?.elapsed||0,side);
+    const hero = this.image(world, 'hero', texture, player.x, player.y+HERO_FOOT+body.dy, 192, 192,
+      d.ended && !d.won ? Math.max(.72, 1-index*.055) : d.hurt ? .65 : 1);
+    hero.node.getComponent(UITransform).setAnchorPoint(.5,1-HERO_ATLAS_BASE);
+    hero.node.setScale(body.sx,body.sy,1);hero.node.angle=body.angle;
+    (hero.node as any).worldDepth=player.y+HERO_FOOT;
     if (!d.ended) this.artifact(world, player, d.weaponId, c.combat.time, frame);
     if (!d.ended) drawPlayerBind(this, world, player, c.combat.rootTime, c.combat.time);
     hero.tint = d.hurt ? 0xffd4a8 : 0xffffff;
@@ -383,16 +398,32 @@ export class CocosPresentation {
     this.rect(hud, a.x + 230, uiBottom - 28, a.width - 535, 5, 0x2b3e42); this.rect(hud, a.x + 160, uiBottom - 28, (a.width - 465) * d.xpPct / 100, 5, 0xafbf8b);
     this.text(hud, 'kills', '击破 ' + d.kills + '       ' + (d.stage === 5 ? '天道终战' : '四象 ' + d.stage + ' / 4'), a.x + a.width - 280, uiBottom - 39, 20, MUTE,{minPx:10});
   }
-  beam(g, p, q, width, color, alpha) {
-    g.lineStyle(width * 0.28, color, alpha); g.moveTo(p.x, p.y); g.lineTo(q.x, q.y);
-    g.lineStyle(width * 0.09, 0xeaffec, Math.min(0.8, alpha * 3)); g.moveTo(p.x, p.y); g.lineTo(q.x, q.y);
+  private blendCreatureMotion(enemy, time:number) {
+    const previous = this.enemyMotion.get(enemy);
+    if (previous && time >= previous.time && enemy.freezeTime > 0) {
+      previous.time = time;
+      return previous.pose;
+    }
+    const target = creatureMotion(enemy,time);
+    if (!previous || time < previous.time) {
+      this.enemyMotion.set(enemy,{time,pose:target});
+      return target;
+    }
+    const amount=1-Math.exp(-(time-previous.time)/.035);
+    const pose=previous.pose;
+    pose.sx+=(target.sx-pose.sx)*amount;pose.sy+=(target.sy-pose.sy)*amount;
+    pose.dy+=(target.dy-pose.dy)*amount;pose.angle+=(target.angle-pose.angle)*amount;
+    previous.time=time;
+    return pose;
   }
   sortWorld() {
     const layer=this.layers.world,nodes=[...layer.used].map(id=>layer.nodes.get(id)).filter(Boolean);
     const depth=node=>node.worldDepth===undefined?(node.recycleKind==='label'?1e9:-1e6):node.worldDepth;
     nodes.sort((a,b)=>depth(a)-depth(b));
     const start=layer.node.children.length-nodes.length;
-    nodes.forEach((node,i)=>{if(node.getSiblingIndex()!==start+i)node.setSiblingIndex(start+i);});
+    // Place the visible suffix from the end. Moving a node past retired
+    // children cannot shift an already positioned sprite.
+    for(let i=nodes.length-1;i>=0;i--)if(nodes[i].getSiblingIndex()!==start+i)nodes[i].setSiblingIndex(start+i);
   }
   drawEffect(layer, effect, point) {
     const g = layer.g, p = point(effect), t = clamp(effect.age / effect.life, 0, 1), life = 1 - t;
@@ -452,11 +483,9 @@ export class CocosPresentation {
       return;
     }
     const color = ({ steam: 0xd6edf0, earth: 0xc8aa7b, 'water-pulse': 0xace1e8, ember: 0xf3a367, ward: 0xb8dcb4, rift: 0xb9efdc })[effect.type] || GOLD;
-    if (effect.type === 'rift' || effect.type === 'rift-windup') {
-      const q = point(effect.end), windup = effect.type === 'rift-windup';
-      if (windup) return;
-      this.beam(g, p, q, effect.width, color, windup ? 0.08 : life * 0.24);
-      g.lineStyle(windup ? 2 : 8 * life + 1, windup ? 0xaadcd2 : 0xebfff0, life * 0.9); g.moveTo(p.x, p.y); g.lineTo(q.x, q.y);
+    if (effect.type === 'rift-windup') return;
+    if (effect.type === 'rift') {
+      drawRiftCut(g,p,point(effect.end),effect.width,effect.age,effect.life);
       return;
     }
     if (effect.type === 'dominion') {
@@ -490,7 +519,7 @@ export class CocosPresentation {
   }
   bellWave(layer, wave, point) {
     const g = layer.g, p = point(wave.origin), echo = wave.kind === 'echo', skill = wave.kind === 'skill';
-    const end = wave.range / wave.speed, fade = wave.age <= end ? 1 : Math.max(0, 1 - (wave.age - end) / 0.14);
+    const end = wave.range / wave.speed, fade = ease(wave.age/.044)*ease(1-(wave.age-end)/.14);
     const color = skill ? 0xffe9a6 : echo ? 0xbce6e0 : wave.elements.fire ? 0xf4b16a : wave.elements.water ? 0xa3e3ed : GOLD;
     const radius = Math.max(1, wave.radius), gap = skill ? 30 : 22;
     // The leading crest matches the damage front; quieter trailing ripples
@@ -498,7 +527,7 @@ export class CocosPresentation {
     g.lineStyle(0); g.beginFill(color, fade * (skill ? 0.055 : 0.025)); g.drawCircle(p.x, p.y, radius); g.endFill();
     for (let i = 2; i >= 0; i--) {
       const r = radius - i * gap; if (r <= 0) continue;
-      const alpha = fade * (i === 0 ? 0.85 : i === 1 ? 0.32 : 0.12);
+      const alpha = fade * ease(r / 24) * (i === 0 ? 0.85 : i === 1 ? 0.32 : 0.12);
       g.lineStyle(i === 0 ? (skill ? 8 : echo ? 3 : 4) : 1.5, color, alpha); g.drawCircle(p.x, p.y, r);
       if (i === 0) { g.lineStyle(1.3, 0xfff4d2, alpha * 0.8); g.drawCircle(p.x, p.y, Math.max(1, r - 5)); }
     }
@@ -506,10 +535,16 @@ export class CocosPresentation {
       g.lineStyle(2, 0xfff0c6, (1 - wave.age / 0.12) * 0.8); g.drawCircle(p.x, p.y, 7 + wave.age * 90);
     }
     if (radius >= wave.range * 0.75 && !echo && !skill) {
-      g.lineStyle(2.5, 0xffefbe, fade * 0.8);
+      g.lineStyle(2.5, 0xffefbe, fade * 0.8 * ease((radius-wave.range*.75)/(wave.range*.12)));
       for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + wave.age * 1.6; g.arc(p.x, p.y, radius + 3, a, a + Math.PI / 3); }
     }
-    if (wave.elements.earth) { g.lineStyle(2, 0xc6a779, fade * 0.6); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; g.drawCircle(p.x + Math.cos(a) * radius, p.y + Math.sin(a) * radius, 3); } }
+    if (wave.elements.earth) {
+      g.lineStyle(0);g.beginFill(0xc6a779,fade*.6);
+      for (let i = 0; i < 8; i++) {
+        const a = i * Math.PI / 4;g.drawCircle(p.x+Math.cos(a)*radius,p.y+Math.sin(a)*radius,3);
+      }
+      g.endFill();
+    }
   }
   artifact(layer, player, weapon, time, actorFrame) {
     if (weapon === 'swords') { this.swordBodies(layer); return; }
@@ -527,31 +562,23 @@ export class CocosPresentation {
       const banner = this.image(layer, 'pangu-banner', this.assets.frames.banner[castFrame >= 0 ? castFrame : idleFrame], x, y, 176, 192);
       banner.node.getComponent(UITransform).setAnchorPoint(0.5, 0.5); banner.node.setPosition(x, -y);
       (banner.node as any).worldDepth=player.y+55;
-      banner.node.setSiblingIndex(layer.node.children.length - 1);
     }
   }
   swordBodies(layer) {
     const c = this.c, a = c.layout.arena, hero = layer.nodes.get('hero');
-    const swords = c.combat.swordPoses().sort((a, b) => a.depth - b.depth), bodies = [];
+    const swords = c.combat.swordPoses();
     for (const sword of swords) {
       const x = a.x + sword.x / 100 * c.combat.width, y = a.y + sword.y / 100 * c.combat.height;
       const body = this.image(layer, 'zhuxian-sword-' + sword.index, this.assets.frames.swords[sword.index], x, y, sword.width, sword.height);
       body.node.getComponent(UITransform).setAnchorPoint(0.5, 0.5); body.node.setPosition(x, -y); body.node.angle = sword.angle;
-      (body.node as any).worldDepth=(hero as any).worldDepth+sword.depth*65;
-      bodies.push({ node: body.node, depth: sword.depth });
+      (body.node as any).worldDepth=(hero as any).worldDepth+(sword.depth<0?sword.depth*65:Math.max(.001,sword.depth*65));
       if (!['idle', 'waiting', 'settle'].includes(sword.state)) {
         const base = sword.blade.base, tip = sword.blade.tip, dx = tip.x - base.x, dy = tip.y - base.y, length = Math.hypot(dx, dy) || 1;
         layer.g.lineStyle(sword.skill ? 2.2 : 1.5, 0xf1edcf, sword.state === 'windup' ? 0.72 : 0.48);
         layer.g.moveTo(a.x + tip.x - dx / length * 18, a.y + tip.y - dy / length * 18); layer.g.lineTo(a.x + tip.x, a.y + tip.y);
       }
-      for (let i = 1; i < sword.trail.length; i++) {
-        const previous = sword.trail[i - 1], next = sword.trail[i];
-        layer.g.lineStyle(sword.skill ? 2.8 : 1.8, [0xd6a17f, 0xc9a36f, 0x9cc8d6, 0xa9cbb2][sword.index], next.alpha * (sword.state === 'return' ? 0.35 : 0.58));
-        layer.g.moveTo(a.x + previous.x, a.y + previous.y); layer.g.lineTo(a.x + next.x, a.y + next.y);
-      }
+      drawSwordRibbon(layer.g,sword.trail,a,SWORD_TRAIL_COLORS[sword.index],sword.skill,sword.state==='return');
     }
-    // Reorder the whole group so a sword changing sides never covers the wrong half of the hero.
-    for (const node of [...bodies.filter(b => b.depth < 0).map(b => b.node), hero, ...bodies.filter(b => b.depth >= 0).map(b => b.node)]) node.setSiblingIndex(layer.node.children.length - 1);
   }
   skillControl(layer) {
     const c = this.c, d = c.data, r = c.layout.skill, g = layer.g, x = r.x + 96, y = r.y + 92, ready = d.skillReady && !c.isBlocked(), color = d.weaponId === 'bell' ? GOLD : d.weaponId === 'swords' ? 0xddbc96 : 0xb1e4d7;
