@@ -558,7 +558,7 @@ export class CocosPresentation {
       const view = this.c.layout.arena, camera=this.c.combat.camera(), a={...view,x:view.x+camera.x,y:view.y+camera.y}, release = this.c.combat.effects.find(effect => effect.type === 'banner-cast' || effect.type === 'rift-windup' || effect.type === 'rift');
       const castFrame = release ? 8 + Math.min(3, Math.floor(release.age / 0.3 * 4)) : actorFrame.action === 'attack' ? [8, 8, 9, 10, 11, 11][actorFrame.index || 0] : -1;
       const idleFrame = [0, 1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1][Math.floor(time * 8) % 14];
-      const x = clamp(player.x + 98, a.x + 88, a.x + a.width - 88), y = clamp(player.y - 52 + Math.sin(time * 2.5) * 3, a.y + 96, a.y + a.height - 96);
+      const x = clamp(player.x + 136, a.x + 88, a.x + a.width - 88), y = clamp(player.y - 52 + Math.sin(time * 2.5) * 3, a.y + 96, a.y + a.height - 96);
       const banner = this.image(layer, 'pangu-banner', this.assets.frames.banner[castFrame >= 0 ? castFrame : idleFrame], x, y, 176, 192);
       banner.node.getComponent(UITransform).setAnchorPoint(0.5, 0.5); banner.node.setPosition(x, -y);
       (banner.node as any).worldDepth=player.y+55;

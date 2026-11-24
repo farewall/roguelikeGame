@@ -78,8 +78,10 @@ hero_frames = []
 for (idle, run, gather, release), (plant, next_stride) in zip(rows, steps):
     hero_frames += [idle, plant, run, next_stride, gather, release]
 atlas('artifact', hero_frames, 120, 116, 112)
-victory = hero[12:14]
-atlas('heroOutcomes', victory+hero[14:16]+[ImageOps.mirror(p) for p in victory]+victory, 120, 116, 112)
+front_outcome = [hero[14], hero[12]]
+back_outcome = [hero[15], hero[13]]
+atlas('heroOutcomes', front_outcome + back_outcome + [ImageOps.mirror(p) for p in front_outcome] + front_outcome,
+      120, 116, 112)
 
 enemies = poses('enemies')
 enemy_frames = []
