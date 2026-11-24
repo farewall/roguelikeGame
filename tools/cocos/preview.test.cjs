@@ -323,22 +323,19 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
           }, mode);
           await page.waitForTimeout(80);
           const diagnostic = await page.evaluate(() => {
-            const c = kaitian.controller, v = kaitian.presentation, a = c.layout.arena, hero = v.layers.world.nodes.get('hero');
-            return {ids:[...v.layers.world.used].filter(id => id.startsWith('zhuxian-sword-')),width:c.combat.width,height:c.combat.height,
-              arena:[a.x,a.y,a.width,a.height],hero:hero?.getSiblingIndex(),details:c.combat.swordPoses().map(pose => {
-                const n = v.layers.world.nodes.get('zhuxian-sword-' + pose.index), s = n?.getComponent('cc.Sprite'), ui = n?.getComponent('cc.UITransform');
-                const expected=v.assets.frames.swords?.[pose.index];
-                return {
-                  index:pose.index,state:pose.state,depth:pose.depth,order:n?.getSiblingIndex(),
-                  color:s?.color.a,texture:s?.spriteFrame===expected,
-                  original:[expected?.originalSize.width,expected?.originalSize.height],
-                  width:[ui?.contentSize.width,pose.width],height:[ui?.contentSize.height,pose.height],
-                  angle:[n?.angle,pose.angle],position:[n?.position.x,n?.position.y],
-                  core:[a.x+pose.x/100*c.combat.width,-(a.y+pose.y/100*c.combat.height)]
-                };
-              })};
+            const c=kaitian.controller,v=kaitian.presentation,layer=v.layers.world;
+            const names=['hero',...c.combat.swordPoses().map(p=>'zhuxian-sword-'+p.index)];
+            const state=()=>names.map(name=>{const n=layer.nodes.get(name);return [name,String(n.worldDepth),n.getSiblingIndex(),layer.node.children.indexOf(n)];});
+            const before=state();
+            v.sortWorld();
+            const after=state();
+            const nodes=[...layer.used].map(id=>layer.nodes.get(id)).filter(Boolean);
+            const depth=n=>n.worldDepth===undefined?(n.recycleKind==='label'?1e9:-1e6):n.worldDepth;
+            nodes.sort((a,b)=>depth(a)-depth(b));
+            for(const node of nodes)node.setSiblingIndex(layer.node.children.length-1);
+            return {before,after,appended:state(),used:layer.used.size,childCount:layer.node.children.length,sort:v.sortWorld.toString().slice(0,470)};
           });
-          throw Error('Sword frame '+mode+': '+JSON.stringify(diagnostic));
+          throw Error('Sword world depth: '+JSON.stringify(diagnostic));
           const before = await page.evaluate(() => JSON.stringify(kaitian.controller.combat.swordPoses())); await page.waitForTimeout(80);
           assert.equal(await page.evaluate(() => JSON.stringify(kaitian.controller.combat.swordPoses())), before);
           await page.screenshot({ path: output + '/swords-orbit-' + viewport.width + '-' + mode + '.png' });
