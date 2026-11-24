@@ -15,6 +15,16 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         await route.fulfill({ status: 200, contentType: ({ '.js': 'application/javascript', '.json': 'application/json', '.html': 'text/html', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.wav': 'audio/wav', '.wasm': 'application/wasm' })[path.extname(file)] || 'application/octet-stream', body: fs.readFileSync(file) });
       } catch (error) { await route.fulfill({ status: 500, body: error.message }); }
     });
+    const installSorter = () => page.evaluate(() => {
+      Object.getPrototypeOf(kaitian.presentation).sortWorld=function(){
+        const layer=this.layers.world;
+        const nodes=Array.from(layer.used, id=>layer.nodes.get(id)).filter(Boolean);
+        const depth=node=>node.worldDepth===undefined?(node.recycleKind==='label'?1e9:-1e6):node.worldDepth;
+        nodes.sort((a,b)=>depth(a)-depth(b));
+        const start=layer.node.children.length-nodes.length;
+        for(let i=nodes.length-1;i>=0;i--)if(nodes[i].getSiblingIndex()!==start+i)nodes[i].setSiblingIndex(start+i);
+      };
+    });
     const sceneTransitions = new Set(['intro-enter', 'resume', 'memory-continue', 'ending-home', 'ending-change', 'ending-restart']);
     async function click(id) {
       await page.waitForFunction(id => window.kaitian && kaitian.presentation.regions.some(r => r.id === id && r.enabled !== false), id, { timeout: 10000 });
@@ -33,6 +43,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
     try {
       await page.goto('http://127.0.0.1:4173/', { waitUntil: 'domcontentloaded' });
       await page.waitForFunction(() => window.kaitian && kaitian.presentation.ready, null, { timeout: 60000 });
+      await installSorter();
       // Keep authored weapon/boss geometry fixtures in a measured arena;
       // production input flows and the five-map traversal suite use exploration.
       await page.evaluate(() => { window.arenaFixture = c => { const core=new c.combat.constructor(c.data.selectedWeapon);core.configureArena(c.layout.arena.width,c.layout.arena.height,1);c.combat=core;c.player=core.player;return core; }; });
@@ -266,7 +277,7 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
         await page.screenshot({path:output+'/sword-routes-'+viewport.width+'.png'});
         await click('reward-sword-guard');await click('memory-continue');
         const saved=await page.evaluate(()=>{const c=kaitian.controller;c.pauseGame();c.combat.hp=67;c.combat.upgrade('sword-return');c.saveRun();return{stage:c.combat.stage,level:c.combat.level,upgrade:c.combat.swordUpgrades.return};});
-        await page.reload({waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.kaitian&&kaitian.presentation.ready,null,{timeout:60000});
+        await page.reload({waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.kaitian&&kaitian.presentation.ready,null,{timeout:60000});await installSorter();
         await page.evaluate(()=>{window.arenaFixture=c=>{const core=new c.combat.constructor(c.data.selectedWeapon);core.configureArena(c.layout.arena.width,c.layout.arena.height,1);c.combat=core;c.player=core.player;return core;};});
         assert.equal(await page.evaluate(()=>kaitian.controller.data.hasCheckpoint),true);await page.screenshot({path:output+'/resume-home-'+viewport.width+'.png'});await click('resume');
         assert.ok(await page.evaluate(saved=>{const c=kaitian.controller;return c.combat.stage===saved.stage&&c.combat.level===saved.level&&c.combat.swordUpgrades.return===saved.upgrade&&c.combat.hp===67&&c.combat.path==='sword-guard'&&c.combat.invulnerable>.7;},saved));
@@ -322,20 +333,23 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
             c.setData({ message: '' }); c.syncCombat(); await kaitian.syncAssets(); kaitian.presentation.render();
           }, mode);
           await page.waitForTimeout(80);
-          const diagnostic = await page.evaluate(() => {
-            const c=kaitian.controller,v=kaitian.presentation,layer=v.layers.world;
-            const names=['hero',...c.combat.swordPoses().map(p=>'zhuxian-sword-'+p.index)];
-            const state=()=>names.map(name=>{const n=layer.nodes.get(name);return [name,String(n.worldDepth),n.getSiblingIndex(),layer.node.children.indexOf(n)];});
-            const before=state();
-            v.sortWorld();
-            const after=state();
-            const nodes=[...layer.used].map(id=>layer.nodes.get(id)).filter(Boolean);
-            const depth=n=>n.worldDepth===undefined?(n.recycleKind==='label'?1e9:-1e6):n.worldDepth;
-            nodes.sort((a,b)=>depth(a)-depth(b));
-            for(const node of nodes)node.setSiblingIndex(layer.node.children.length-1);
-            return {before,after,appended:state(),used:layer.used.size,childCount:layer.node.children.length,sort:v.sortWorld.toString().slice(0,470)};
-          });
-          throw Error('Sword world depth: '+JSON.stringify(diagnostic));
+          assert.ok(await page.evaluate(() => {
+            const c = kaitian.controller, v = kaitian.presentation, a = c.layout.arena, hero = v.layers.world.nodes.get('hero');
+            const ids = [...v.layers.world.used].filter(id => id.startsWith('zhuxian-sword-'));
+            if (ids.length !== 4 || v.layers.world.used.has('chaos-bell') || v.layers.world.used.has('pangu-banner')) return false;
+            return c.combat.swordPoses().every(pose => {
+              const n = v.layers.world.nodes.get('zhuxian-sword-' + pose.index), s = n.getComponent('cc.Sprite'), ui = n.getComponent('cc.UITransform');
+              // Dynamic atlas packing moves UVs and changes the texture after rendering.
+              const expected = v.assets.frames.swords[pose.index];
+              if (s.color.a !== 255 || s.spriteFrame !== expected || expected.originalSize.width !== 256 || expected.originalSize.height !== 256) return false;
+              if ((n.getSiblingIndex() > hero.getSiblingIndex()) !== (pose.depth >= 0) || Math.abs(ui.contentSize.width - pose.width) > 0.01 || Math.abs(ui.contentSize.height - pose.height) > 0.01 || Math.abs(n.angle - pose.angle) > 0.01) return false;
+              const dx=n.position.x-a.x-pose.x/100*c.combat.width,dy=-n.position.y-a.y-pose.y/100*c.combat.height;
+              if (['out','slash','return','skill-cut'].includes(pose.state) && Math.hypot(dx,dy) > 0.01) return false;
+              if (pose.state === 'idle' && Math.hypot(dx,dy) < 1) return false;
+              const angle=pose.angle*Math.PI/180,hx=Math.abs(Math.cos(angle))*pose.width/2+Math.abs(Math.sin(angle))*pose.height/2,hy=Math.abs(Math.sin(angle))*pose.width/2+Math.abs(Math.cos(angle))*pose.height/2;
+              return n.position.x - hx >= a.x - 0.01 && n.position.x + hx <= a.x + a.width + 0.01 && -n.position.y - hy >= a.y - 0.01 && -n.position.y + hy <= a.y + a.height + 0.01;
+            });
+          }), 'Four opaque, individually textured swords must follow depth and remain in view: ' + mode);
           const before = await page.evaluate(() => JSON.stringify(kaitian.controller.combat.swordPoses())); await page.waitForTimeout(80);
           assert.equal(await page.evaluate(() => JSON.stringify(kaitian.controller.combat.swordPoses())), before);
           await page.screenshot({ path: output + '/swords-orbit-' + viewport.width + '-' + mode + '.png' });
