@@ -28,7 +28,8 @@ def save(name, image):
     target.parent.mkdir(parents=True, exist_ok=True)
     if spec['encoding'] == 'png-palette':
         method = Image.Quantize.FASTOCTREE if image.mode == 'RGBA' else Image.Quantize.MEDIANCUT
-        image = image.quantize(256, method)
+        colors = 128 if name == 'title' else 256
+        image = image.quantize(colors, method)
     if spec['encoding'] == 'jpeg':
         image.convert('RGB').save(target, quality=84, optimize=True)
     else:
