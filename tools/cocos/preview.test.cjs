@@ -322,23 +322,23 @@ const build = path.resolve(__dirname, '../../cocos-project/build/web-mobile'), o
             c.setData({ message: '' }); c.syncCombat(); await kaitian.syncAssets(); kaitian.presentation.render();
           }, mode);
           await page.waitForTimeout(80);
-          assert.ok(await page.evaluate(() => {
+          const diagnostic = await page.evaluate(() => {
             const c = kaitian.controller, v = kaitian.presentation, a = c.layout.arena, hero = v.layers.world.nodes.get('hero');
-            const ids = [...v.layers.world.used].filter(id => id.startsWith('zhuxian-sword-'));
-            if (ids.length !== 4 || v.layers.world.used.has('chaos-bell') || v.layers.world.used.has('pangu-banner')) return false;
-            return c.combat.swordPoses().every(pose => {
-              const n = v.layers.world.nodes.get('zhuxian-sword-' + pose.index), s = n.getComponent('cc.Sprite'), ui = n.getComponent('cc.UITransform');
-              // Dynamic atlas packing moves UVs and changes the texture after rendering.
-              const expected = v.assets.frames.swords[pose.index];
-              if (s.color.a !== 255 || s.spriteFrame !== expected || expected.originalSize.width !== 256 || expected.originalSize.height !== 256) return false;
-              if ((n.getSiblingIndex() > hero.getSiblingIndex()) !== (pose.depth >= 0) || Math.abs(ui.contentSize.width - pose.width) > 0.01 || Math.abs(ui.contentSize.height - pose.height) > 0.01 || Math.abs(n.angle - pose.angle) > 0.01) return false;
-              const dx=n.position.x-a.x-pose.x/100*c.combat.width,dy=-n.position.y-a.y-pose.y/100*c.combat.height;
-              if (['out','slash','return','skill-cut'].includes(pose.state) && Math.hypot(dx,dy) > 0.01) return false;
-              if (pose.state === 'idle' && Math.hypot(dx,dy) < 1) return false;
-              const angle=pose.angle*Math.PI/180,hx=Math.abs(Math.cos(angle))*pose.width/2+Math.abs(Math.sin(angle))*pose.height/2,hy=Math.abs(Math.sin(angle))*pose.width/2+Math.abs(Math.cos(angle))*pose.height/2;
-              return n.position.x - hx >= a.x - 0.01 && n.position.x + hx <= a.x + a.width + 0.01 && -n.position.y - hy >= a.y - 0.01 && -n.position.y + hy <= a.y + a.height + 0.01;
-            });
-          }), 'Four opaque, individually textured swords must follow depth and remain in view: ' + mode);
+            return {ids:[...v.layers.world.used].filter(id => id.startsWith('zhuxian-sword-')),width:c.combat.width,height:c.combat.height,
+              arena:[a.x,a.y,a.width,a.height],hero:hero?.getSiblingIndex(),details:c.combat.swordPoses().map(pose => {
+                const n = v.layers.world.nodes.get('zhuxian-sword-' + pose.index), s = n?.getComponent('cc.Sprite'), ui = n?.getComponent('cc.UITransform');
+                const expected=v.assets.frames.swords?.[pose.index];
+                return {
+                  index:pose.index,state:pose.state,depth:pose.depth,order:n?.getSiblingIndex(),
+                  color:s?.color.a,texture:s?.spriteFrame===expected,
+                  original:[expected?.originalSize.width,expected?.originalSize.height],
+                  width:[ui?.contentSize.width,pose.width],height:[ui?.contentSize.height,pose.height],
+                  angle:[n?.angle,pose.angle],position:[n?.position.x,n?.position.y],
+                  core:[a.x+pose.x/100*c.combat.width,-(a.y+pose.y/100*c.combat.height)]
+                };
+              })};
+          });
+          throw Error('Sword frame '+mode+': '+JSON.stringify(diagnostic));
           const before = await page.evaluate(() => JSON.stringify(kaitian.controller.combat.swordPoses())); await page.waitForTimeout(80);
           assert.equal(await page.evaluate(() => JSON.stringify(kaitian.controller.combat.swordPoses())), before);
           await page.screenshot({ path: output + '/swords-orbit-' + viewport.width + '-' + mode + '.png' });
